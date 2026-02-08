@@ -6,7 +6,8 @@
     "build": "npm install",
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:db": "node test-db-connection.js"
   },
   "author": "",
   "license": "ISC",

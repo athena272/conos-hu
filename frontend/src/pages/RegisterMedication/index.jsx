@@ -37,7 +37,7 @@ function RegisterMedication() {
   });
 
   const handleRegisterMedication = (values, { resetForm }) => {
-    Axios.post("http://localhost:3001/medications", {
+    Axios.post(`${API_BASE_URL}/medications`, {
       nome: values.name,
       lote: values.batch,
       quantidade: values.quantity,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/api";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import CardKanban from "../../components/CardKanban";
@@ -10,7 +11,7 @@ function DashboardStock() {
 
   useEffect(() => {
     axios
-      .get("http://localhost:3001/medications")
+      .get(`${API_BASE_URL}/medications`)
       .then((response) => {
         setMedications(response.data);
       })

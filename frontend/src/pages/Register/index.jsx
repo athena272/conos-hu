@@ -14,7 +14,7 @@ function Register() {
   const navigate = useNavigate();
 
   const handleClickRegister = (values) => {
-    Axios.post("http://localhost:3001/register", {
+    Axios.post(`${API_BASE_URL}/register`, {
       email: values.email,
       password: values.password,
     })
