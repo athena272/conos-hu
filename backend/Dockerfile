@@ -12,6 +12,6 @@ RUN npm install
 # Copiar o restante do código APÓS instalar dependências
 COPY . .
 
-EXPOSE 3001
+EXPOSE 8080
 
-CMD ["npm", "run", "dev"]
+CMD ["npm", "start"]
