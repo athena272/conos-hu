@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/api";
 import { Toast } from "primereact/toast";
 
 const AuthContext = createContext();
@@ -12,7 +13,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post("http://localhost:3001/login", {
+      const response = await axios.post(`${API_BASE_URL}/login`, {
         email,
         password,
       });

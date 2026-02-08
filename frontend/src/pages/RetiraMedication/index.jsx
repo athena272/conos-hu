@@ -6,6 +6,7 @@ import Menu from "../../components/Menu";
 import { Formik, Form } from "formik";
 import * as yup from "yup";
 import Axios from "axios";
+import { API_BASE_URL } from "../../config/api";
 import { Toast } from "primereact/toast";
 import "./styles.css";
 
@@ -44,7 +45,7 @@ function RetiraMedication() {
       }
 
       const medResponse = await Axios.post(
-        "http://localhost:3001/medications/search",
+        `${API_BASE_URL}/medications/search`,
         {
           nome: values.name.trim(),
           concentracao: values.concentration.trim(),
@@ -75,7 +76,7 @@ function RetiraMedication() {
 
       // Fazer a retirada
       const retiradaResponse = await Axios.post(
-        "http://localhost:3001/retira",
+        `${API_BASE_URL}/retira`,
         retiradaData,
         {
           timeout: 10000,

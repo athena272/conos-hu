@@ -6,6 +6,7 @@ import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Tag } from "primereact/tag";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/api";
 
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
@@ -29,7 +30,7 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    axios.get("http://localhost:3001/medications").then((response) => {
+    axios.get(`${API_BASE_URL}/medications`).then((response) => {
       setMedications(response.data);
     });
   }, []);
