@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   conos-api:
-    build: ./server
+    build: ./backend
     container_name: conos-api
     restart: always
     ports:
@@ -17,9 +17,9 @@ services:
     networks:
       - conos-net
 
-  conos-client:
-    build: ./client
-    container_name: conos-client
+  conos-frontend:
+    build: ./frontend
+    container_name: conos-frontend
     restart: always
     ports:
       - "5173:5173" # Porta do Vite local
