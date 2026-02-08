@@ -6,8 +6,26 @@ const retiraMedicationRoutes = require("./routes/retiraMedicationRoutes");
 
 const app = express();
 
-// Middlewares - SIMPLIFICAR para teste
-app.use(cors()); // Permite todas as origens
+// CORS: em produção use ALLOWED_ORIGINS (ex: URL do frontend na Vercel).
+// Ex: ALLOWED_ORIGINS=https://seu-app.vercel.app,https://outro-dominio.com
+// Se não definido, permite todas as origens (desenvolvimento local).
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : null;
+
+app.use(
+  cors(
+    allowedOrigins
+      ? {
+          origin: (origin, cb) => {
+            if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+            return cb(null, false);
+          },
+          credentials: true,
+        }
+      : {}
+  )
+);
 app.use(express.json());
 
 // Rotas
