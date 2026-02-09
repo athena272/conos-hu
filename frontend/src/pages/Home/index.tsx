@@ -284,7 +284,9 @@ export default function Home() {
         header="Editar medicação"
         visible={!!editingMedication}
         onHide={closeEdit}
-        style={{ width: "90vw", maxWidth: "500px" }}
+        className="home-edit-dialog"
+        style={{ width: "92vw", maxWidth: "580px" }}
+        contentClassName="home-edit-dialog-content"
         footer={
           <div>
             <Button label="Cancelar" className="p-button-text" onClick={closeEdit} />
@@ -317,7 +319,7 @@ export default function Home() {
               <InputText
                 id="edit-quantidade"
                 type="number"
-                value={editForm.quantidade}
+                value={String(editForm.quantidade)}
                 onChange={(e) => setEditForm((f) => ({ ...f, quantidade: parseInt(e.target.value, 10) || 0 }))}
                 className="w-full"
               />

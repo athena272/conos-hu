@@ -5,9 +5,13 @@
   height: 100vh;
 }
 
+.register-form .form-group {
+  margin-bottom: 25px;
+}
+
 /* Selects com mesma largura dos inputs (form-field usa 75vh) */
 .register-form .form-group .p-dropdown {
-  width: 75vh;
+  width: 100%;
   max-width: 100%;
 }
 

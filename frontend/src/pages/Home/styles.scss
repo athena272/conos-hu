@@ -42,3 +42,60 @@
     }
   }
 }
+
+// Modal "Editar medicação": renderizado em portal; centralizar e dar mais espaço
+.home-edit-dialog.p-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-edit-dialog .p-dialog-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.home-edit-dialog-content {
+  padding: 1.25rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.edit-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  .p-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+
+    label {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #374151;
+    }
+
+    .p-inputtext,
+    .p-dropdown {
+      width: 100% !important;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .p-dropdown {
+      min-width: 0;
+    }
+  }
+}
