@@ -270,6 +270,7 @@ export default function Home() {
         header="Editar medicação"
         visible={!!editingMedication}
         onHide={closeEdit}
+        draggable={false}
         className="home-edit-dialog"
         style={{ width: "92vw", maxWidth: "580px" }}
         contentClassName="home-edit-dialog-content"
