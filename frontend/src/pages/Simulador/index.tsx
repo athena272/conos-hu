@@ -24,7 +24,8 @@ export default function Simulador() {
   const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
   const [loadingMedications, setLoadingMedications] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [consumoPorDia, setConsumoPorDia] = useState<string>("");
+  const [numeroPacientes, setNumeroPacientes] = useState<string>("");
+  const [consumoDiarioPorPaciente, setConsumoDiarioPorPaciente] = useState<string>("");
   const [calculating, setCalculating] = useState(false);
   const [result, setResult] = useState<{
     dias: number;
@@ -60,20 +61,30 @@ export default function Simulador() {
       });
       return;
     }
-    const consumo = parseFloat(consumoPorDia.replace(",", "."));
-    if (isNaN(consumo) || consumo <= 0) {
+    const numPac = parseInt(numeroPacientes, 10);
+    if (isNaN(numPac) || numPac < 1) {
       toast.current?.show({
         severity: "warn",
         summary: "Atenção",
-        detail: "Informe um consumo médio por dia maior que zero.",
+        detail: "Informe o número de pacientes (mínimo 1).",
+        life: 4000,
+      });
+      return;
+    }
+    const consumoPorPac = parseFloat(consumoDiarioPorPaciente.replace(",", "."));
+    if (isNaN(consumoPorPac) || consumoPorPac <= 0) {
+      toast.current?.show({
+        severity: "warn",
+        summary: "Atenção",
+        detail: "Informe o consumo diário por paciente maior que zero.",
         life: 4000,
       });
       return;
     }
 
+    const consumoTotalDia = numPac * consumoPorPac;
     setCalculating(true);
     setResult(null);
-    // Simula pequeno delay para UX do loading (cálculo é imediato)
     setTimeout(() => {
       try {
         const quantidade = selectedMedication.quantidade ?? 0;
@@ -82,7 +93,7 @@ export default function Simulador() {
           setCalculating(false);
           return;
         }
-        const dias = Math.floor(quantidade / consumo);
+        const dias = Math.floor(quantidade / consumoTotalDia);
         const dataEstimada = new Date();
         dataEstimada.setDate(dataEstimada.getDate() + dias);
         setResult({ dias, dataEstimada });
@@ -98,7 +109,7 @@ export default function Simulador() {
       <Menu />
       <div className="container-simulador">
         <h2>Simulador de duração de estoque</h2>
-        <p>Simule em quantos dias o estoque acaba com base no consumo médio por dia.</p>
+        <p>Simule em quantos dias o estoque acaba com base no número de pacientes e no consumo diário por paciente.</p>
         <Toast ref={toast} position="top-right" />
 
         <FullScreenLoader active={loadingMedications} message="Carregando medicamentos..." />
@@ -124,16 +135,34 @@ export default function Simulador() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="simulador-consumo">Consumo médio por dia</label>
+              <label htmlFor="simulador-numero-pacientes">Número de pacientes</label>
               <input
-                id="simulador-consumo"
+                id="simulador-numero-pacientes"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Ex: 5"
+                value={numeroPacientes}
+                onChange={(e) => {
+                  setNumeroPacientes(e.target.value);
+                  setResult(null);
+                }}
+                disabled={calculating}
+                className="form-field"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="simulador-consumo-por-paciente">Consumo diário por paciente</label>
+              <input
+                id="simulador-consumo-por-paciente"
                 type="number"
                 min="0.01"
                 step="0.01"
-                placeholder="Ex: 10"
-                value={consumoPorDia}
+                placeholder="Ex: 2"
+                value={consumoDiarioPorPaciente}
                 onChange={(e) => {
-                  setConsumoPorDia(e.target.value);
+                  setConsumoDiarioPorPaciente(e.target.value);
                   setResult(null);
                 }}
                 disabled={calculating}
