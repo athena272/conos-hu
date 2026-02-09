@@ -1,3 +1,4 @@
+import "primeicons/primeicons.css";
 import AppRoutes from "../AppRouters";
 import { PrimeReactProvider } from "primereact/api";
 
