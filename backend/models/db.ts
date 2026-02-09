@@ -23,13 +23,33 @@ const dbConfig = instanceConnectionName
 
 const db = mysql.createPool(dbConfig);
 
+const MOVIMENTACOES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS movimentacoes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipo ENUM('entrada', 'saida') NOT NULL,
+    medication_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    usuario_id INT NULL,
+    data_movimentacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (medication_id) REFERENCES medications(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(idusuarios)
+  )
+`;
+
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ Erro ao conectar ao MySQL:", err);
-  } else {
-    console.log("✅ Conectado ao banco MySQL com sucesso!");
-    connection.release();
+    return;
   }
+  console.log("✅ Conectado ao banco MySQL com sucesso!");
+  connection.query(MOVIMENTACOES_TABLE_SQL, (movErr) => {
+    if (movErr) {
+      console.error("⚠️ Erro ao criar tabela movimentacoes (pode já existir):", movErr.message);
+    } else {
+      console.log("✅ Tabela movimentacoes verificada/criada.");
+    }
+    connection.release();
+  });
 });
 
 export default db;
