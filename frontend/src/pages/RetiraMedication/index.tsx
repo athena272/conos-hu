@@ -3,21 +3,35 @@ import LabelInput from "../../components/LabelInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
-import { Formik, Form } from "formik";
+import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import Axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { Toast } from "primereact/toast";
 import "./styles.css";
+import type { Medication } from "../../types";
+
+interface RetiraMedicationValues {
+  name: string;
+  concentration: string;
+  quantity: number;
+}
+
+interface AxiosError {
+  code?: string;
+  response?: {
+    status?: number;
+    data?: { error?: string };
+  };
+}
 
 function RetiraMedication() {
-  const toast = useRef(null);
+  const toast = useRef<Toast>(null);
 
-  // Verificar se usuário está logado
   useEffect(() => {
     const userId = localStorage.getItem("userId");
     console.log("🔐 ID do usuário no localStorage:", userId);
-    
+
     if (!userId) {
       console.warn("⚠️ Usuário não está logado!");
       toast.current?.show({
@@ -29,13 +43,14 @@ function RetiraMedication() {
     }
   }, []);
 
-  const handleRetireMedication = async (values, { resetForm }) => {
+  const handleRetireMedication = async (
+    values: RetiraMedicationValues,
+    { resetForm }: FormikHelpers<RetiraMedicationValues>
+  ) => {
     try {
-
-      // Verificar se usuário está logado
       const usuarioId = localStorage.getItem("userId");
       if (!usuarioId) {
-        toast.current.show({
+        toast.current?.show({
           severity: "error",
           summary: "Erro!",
           detail: "Usuário não está logado. Faça login novamente.",
@@ -44,7 +59,7 @@ function RetiraMedication() {
         return;
       }
 
-      const medResponse = await Axios.post(
+      const medResponse = await Axios.post<Medication>(
         `${API_BASE_URL}/medications/search`,
         {
           nome: values.name.trim(),
@@ -56,7 +71,7 @@ function RetiraMedication() {
 
       if (!medication || !medication.id) {
         console.error("❌ Medicação não encontrada no banco");
-        toast.current.show({
+        toast.current?.show({
           severity: "error",
           summary: "Erro!",
           detail: "Medicação não encontrada! Verifique o nome e concentração.",
@@ -65,30 +80,22 @@ function RetiraMedication() {
         return;
       }
 
-      // Preparar dados para retirada
       const retiradaData = {
         medication_id: medication.id,
         usuario_id: parseInt(usuarioId),
-        quantidade: parseInt(values.quantity),
+        quantidade: parseInt(String(values.quantity)),
       };
 
       console.log("🔄 Enviando requisição de retirada:", retiradaData);
 
-      // Fazer a retirada
-      const retiradaResponse = await Axios.post(
-        `${API_BASE_URL}/retira`,
-        retiradaData,
-        {
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      await Axios.post(`${API_BASE_URL}/retira`, retiradaData, {
+        timeout: 10000,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-      console.log("✅ Resposta da retirada:", retiradaResponse.data);
-
-      toast.current.show({
+      toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
         detail: "Retirada realizada com sucesso!",
@@ -96,43 +103,47 @@ function RetiraMedication() {
       });
 
       resetForm();
-      
     } catch (error) {
-      console.error("❌ Erro completo:", error);
-      console.error("📊 Dados da resposta de erro:", error.response?.data);
-      console.error("🔢 Status do erro:", error.response?.status);
+      const err = error as AxiosError;
+      console.error("❌ Erro completo:", err);
+      console.error("📊 Dados da resposta de erro:", err.response?.data);
+      console.error("🔢 Status do erro:", err.response?.status);
 
       let errorMessage = "Falha ao retirar medicação. Tente novamente.";
-      let severity = "error";
+      let severity: "error" | "warn" = "error";
 
-      // Tratamento específico de erros
-      if (error.code === 'ERR_NETWORK') {
+      if (err.code === "ERR_NETWORK") {
         errorMessage = "Erro de conexão. Verifique se o servidor está rodando.";
-      } else if (error.response?.status === 400) {
-        if (error.response.data?.error === "Quantidade insuficiente em estoque") {
+      } else if (err.response?.status === 400) {
+        if (
+          err.response.data?.error === "Quantidade insuficiente em estoque"
+        ) {
           errorMessage = "Quantidade insuficiente em estoque!";
           severity = "warn";
-        } else if (error.response.data?.error === "Todos os campos são obrigatórios e quantidade deve ser numérica") {
+        } else if (
+          err.response.data?.error ===
+          "Todos os campos são obrigatórios e quantidade deve ser numérica"
+        ) {
           errorMessage = "Dados inválidos. Verifique os campos preenchidos.";
         } else {
-          errorMessage = error.response.data?.error || "Dados inválidos enviados ao servidor.";
+          errorMessage =
+            err.response.data?.error ||
+            "Dados inválidos enviados ao servidor.";
         }
-      } else if (error.response?.status === 404) {
-        if (error.response.data?.error === "Medicação não encontrada") {
+      } else if (err.response?.status === 404) {
+        if (err.response.data?.error === "Medicação não encontrada") {
           errorMessage = "Medicação não encontrada no estoque.";
         } else {
           errorMessage = "Recurso não encontrado.";
         }
-      } else if (error.response?.status === 500) {
+      } else if (err.response?.status === 500) {
         errorMessage = "Erro interno do servidor. Tente novamente mais tarde.";
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
       }
 
-      console.log(`🎯 Exibindo toast: ${severity} - ${errorMessage}`);
-
-      toast.current.show({
-        severity: severity,
+      toast.current?.show({
+        severity,
         summary: severity === "warn" ? "Aviso!" : "Erro!",
         detail: errorMessage,
         life: 5000,
@@ -166,27 +177,24 @@ function RetiraMedication() {
       <div className="container-retire-medication">
         <h2>Retirar Medicação</h2>
         <p>Preencha os dados abaixo para retirar uma medicação.</p>
-        <Toast 
-          ref={toast} 
-          position="top-right"
-        />
+        <Toast ref={toast} position="top-right" />
 
         <Formik
           initialValues={{
             name: "",
             concentration: "",
-            quantity: "",
+            quantity: 0,
           }}
           validationSchema={retireSchema}
           onSubmit={handleRetireMedication}
           validateOnChange={true}
           validateOnBlur={true}
         >
-          {({ errors, touched, isSubmitting, values }) => (
+          {({ errors, touched, isSubmitting }) => (
             <Form className="retire-form">
               <div className="form-group">
-                <LabelInput 
-                  name="name" 
+                <LabelInput
+                  name="name"
                   placeholder="Nome do Medicamento"
                   disabled={isSubmitting}
                 />
@@ -196,8 +204,8 @@ function RetiraMedication() {
               </div>
 
               <div className="form-group">
-                <LabelInput 
-                  name="concentration" 
+                <LabelInput
+                  name="concentration"
                   placeholder="Concentração (ex: 500mg, 250mg)"
                   disabled={isSubmitting}
                 />
@@ -211,8 +219,6 @@ function RetiraMedication() {
                   name="quantity"
                   placeholder="Quantidade"
                   type="number"
-                  min="1"
-                  step="1"
                   disabled={isSubmitting}
                 />
                 {touched.quantity && errors.quantity && (
@@ -220,10 +226,7 @@ function RetiraMedication() {
                 )}
               </div>
 
-              <Button 
-                disabled={isSubmitting}
-                type="submit"
-              >
+              <Button disabled={isSubmitting} type="submit">
                 {isSubmitting ? "Processando..." : "Retirar"}
               </Button>
             </Form>

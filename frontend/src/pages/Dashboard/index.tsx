@@ -18,6 +18,7 @@ import {
 } from "chart.js";
 
 import "./styles.css";
+import type { MedicationWithStatus } from "../../types";
 
 ChartJS.register(
   CategoryScale,
@@ -36,38 +37,47 @@ const categoryColorsTitle = {
   foraValidade: "#FF8C8C",
 };
 
+interface MedicationStats {
+  emEstoque: number;
+  emFalta: number;
+  proximoVencer: number;
+  foraValidade: number;
+}
+
 const Dashboard = () => {
-  const [medicationStats, setMedicationStats] = useState({
+  const [medicationStats, setMedicationStats] = useState<MedicationStats>({
     emEstoque: 0,
     emFalta: 0,
     proximoVencer: 0,
     foraValidade: 0,
   });
 
-  const [medicationLoteStats, setMedicationLoteStats] = useState({});
+  const [medicationLoteStats, setMedicationLoteStats] = useState<
+    Record<string, number>
+  >({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     try {
-      const { data: medications } = await axios.get(
+      const { data: medications } = await axios.get<MedicationWithStatus[]>(
         `${API_BASE_URL}/medications`
       );
 
-      const statusCounts = {
+      const statusCounts: MedicationStats = {
         emEstoque: 0,
         emFalta: 0,
         proximoVencer: 0,
         foraValidade: 0,
       };
 
-      const loteCounts = {};
+      const loteCounts: Record<string, number> = {};
 
       medications.forEach((med) => {
-        // Contar o número de medicamentos em falta (não soma quantidade, apenas conta itens)
         if (med.status === "emFalta") {
           statusCounts.emFalta += 1;
         } else {
-          statusCounts[med.status] += med.quantidade || 0;
+          statusCounts[med.status as keyof MedicationStats] +=
+            med.quantidade || 0;
         }
 
         loteCounts[med.lote] = (loteCounts[med.lote] || 0) + med.quantidade;

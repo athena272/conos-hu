@@ -5,14 +5,20 @@ import * as yup from "yup";
 import Axios from "axios";
 import { Toast } from "primereact/toast";
 
+import { API_BASE_URL } from "../../config/api";
 import FloatLabelInput from "../../components/FloatLabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import loginImage from "../../assets/images/login.svg";
 
 import "./styles.css";
 
+interface LoginValues {
+  email: string;
+  password: string;
+}
+
 function Login() {
-  const toast = useRef(null);
+  const toast = useRef<Toast>(null);
   const navigate = useNavigate();
   const validationLogin = yup.object().shape({
     email: yup
@@ -25,30 +31,34 @@ function Login() {
       .required("A senha é obrigatória"),
   });
 
-  const handleClickLogin = async (values) => {
+  const handleClickLogin = async (values: LoginValues) => {
     try {
-      const response = await Axios.post(`${API_BASE_URL}/login`, {
-        email: values.email,
-        password: values.password,
-      });
+      const response = await Axios.post<{ userId: number; message: string }>(
+        `${API_BASE_URL}/login`,
+        {
+          email: values.email,
+          password: values.password,
+        }
+      );
 
-      localStorage.setItem("userId", response.data.userId);
+      localStorage.setItem("userId", String(response.data.userId));
 
       navigate("/home");
 
-      toast.current.show({
+      toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
         detail: response.data.message,
         life: 3000,
       });
-    } catch (error) {
-      console.error("Erro ao fazer login:", error.response || error);
+    } catch (error: unknown) {
+      console.error("Erro ao fazer login:", error);
 
+      const err = error as { response?: { data?: { message?: string } } };
       const errorMessage =
-        error.response?.data?.message || "Erro desconhecido. Tente novamente.";
+        err.response?.data?.message || "Erro desconhecido. Tente novamente.";
 
-      toast.current.show({
+      toast.current?.show({
         severity: "error",
         summary: "Erro!",
         detail: errorMessage,
@@ -78,6 +88,7 @@ function Login() {
               name="password"
               placeholder="Senha"
               type="password"
+              autoComplete="current-password"
             />
             <ButtonSubmit>Entrar</ButtonSubmit>
           </Form>

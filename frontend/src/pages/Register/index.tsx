@@ -6,40 +6,49 @@ import { Formik, Form } from "formik";
 import * as yup from "yup";
 import Axios from "axios";
 import { Toast } from "primereact/toast";
+
+import { API_BASE_URL } from "../../config/api";
 import registerImage from "../../assets/images/register.svg";
 import "./styles.css";
 
+interface RegisterValues {
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 function Register() {
-  const toast = useRef(null);
+  const toast = useRef<Toast>(null);
   const navigate = useNavigate();
 
-  const handleClickRegister = (values) => {
+  const handleClickRegister = (values: RegisterValues) => {
     Axios.post(`${API_BASE_URL}/register`, {
       email: values.email,
       password: values.password,
     })
-      .then((response) => {
-        localStorage.setItem("userId", response.data.userId);
+      .then((response: { data?: { userId?: number } }) => {
+        if (response.data?.userId) {
+          localStorage.setItem("userId", String(response.data.userId));
+        }
 
-        toast.current.show({
+        toast.current?.show({
           severity: "success",
           summary: "Sucesso!",
           detail: "Registro realizado!",
-          life: 2000, 
+          life: 2000,
         });
 
         setTimeout(() => {
           navigate("/home");
         }, 2000);
       })
-      .catch((error) => {
-        toast.current.show({
+      .catch(() => {
+        toast.current?.show({
           severity: "error",
           summary: "Erro!",
           detail: "Houve um problema ao registrar. Tente novamente.",
           life: 3000,
         });
-        console.error(error);
       });
   };
 
@@ -82,6 +91,7 @@ function Register() {
                 name="password"
                 placeholder="Senha"
                 type="password"
+                autoComplete="new-password"
               />
             </div>
 
@@ -90,6 +100,7 @@ function Register() {
                 name="confirmPassword"
                 placeholder="Confirme sua senha"
                 type="password"
+                autoComplete="new-password"
               />
             </div>
 

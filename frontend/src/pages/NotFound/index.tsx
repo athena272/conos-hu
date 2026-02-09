@@ -1,5 +1,6 @@
 import notFoundImage from "../../assets/images/404.png";
 import "./styles.css";
+
 function NotFound() {
   return (
     <div className="container-primary-not-found">

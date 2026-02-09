@@ -1,19 +1,30 @@
 import { useRef } from "react";
 import LabelInput from "../../components/LabelInput";
-import DropdownInput from "../../components/DropdownInput";
+import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
-import { Formik, Form } from "formik";
+import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import Axios from "axios";
 import { Toast } from "primereact/toast";
+import { API_BASE_URL } from "../../config/api";
 import "./styles.css";
 
-function RegisterMedication() {
-  const toast = useRef(null);
+interface RegisterMedicationValues {
+  name: string;
+  batch: string;
+  quantity: string;
+  classification: string;
+  concentration: string;
+  pharmaceuticalForm: DropdownOption | null;
+  expiryDate: string;
+}
 
-  const pharmaceuticalForms = [
+function RegisterMedication() {
+  const toast = useRef<Toast>(null);
+
+  const pharmaceuticalForms: DropdownOption[] = [
     { name: "Comprimido", code: 1 },
     { name: "Injetável", code: 2 },
     { name: "Gotas", code: 3 },
@@ -36,7 +47,10 @@ function RegisterMedication() {
       .required("A validade é obrigatória"),
   });
 
-  const handleRegisterMedication = (values, { resetForm }) => {
+  const handleRegisterMedication = (
+    values: RegisterMedicationValues,
+    { resetForm }: FormikHelpers<RegisterMedicationValues>
+  ) => {
     Axios.post(`${API_BASE_URL}/medications`, {
       nome: values.name,
       lote: values.batch,
@@ -47,7 +61,7 @@ function RegisterMedication() {
       data_validade: values.expiryDate,
     })
       .then(() => {
-        toast.current.show({
+        toast.current?.show({
           severity: "success",
           summary: "Sucesso!",
           detail: "Medicação registrada com sucesso!",
@@ -55,9 +69,8 @@ function RegisterMedication() {
         });
         resetForm();
       })
-      .catch((error) => {
-        console.error("Erro ao registrar:", error.response);
-        toast.current.show({
+      .catch(() => {
+        toast.current?.show({
           severity: "error",
           summary: "Erro!",
           detail: "Falha ao registrar medicação. Tente novamente.",
@@ -82,7 +95,7 @@ function RegisterMedication() {
             quantity: "",
             classification: "",
             concentration: "",
-            pharmaceuticalForm: null,
+            pharmaceuticalForm: null as DropdownOption | null,
             expiryDate: "",
           }}
           validationSchema={medicationSchema}
@@ -101,7 +114,6 @@ function RegisterMedication() {
               <LabelInput
                 name="quantity"
                 type="number"
-                min="1"
                 placeholder="Quantidade"
               />
             </div>
@@ -123,11 +135,7 @@ function RegisterMedication() {
             </div>
 
             <div className="form-group">
-              <LabelInput
-                name="expiryDate"
-                placeholder="Validade"
-                type="date"
-              />
+              <LabelInput name="expiryDate" placeholder="Validade" type="date" />
             </div>
 
             <Button>Registrar</Button>

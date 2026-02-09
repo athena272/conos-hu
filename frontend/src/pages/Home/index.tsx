@@ -12,13 +12,14 @@ import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 
 import "./styles.css";
+import type { MedicationWithStatus } from "../../types";
 
 export default function Home() {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    nome: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    status: { value: null, matchMode: FilterMatchMode.EQUALS },
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    nome: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    status: { value: null as string | null, matchMode: FilterMatchMode.EQUALS },
   });
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -26,24 +27,28 @@ export default function Home() {
     { label: "Em Estoque", value: "emEstoque" },
     { label: "Em Falta", value: "emFalta" },
     { label: "Fora da Validade", value: "foraValidade" },
-    { label: "Próximo a Vencer", value: "proximoVencer" }
+    { label: "Próximo a Vencer", value: "proximoVencer" },
   ]);
 
   useEffect(() => {
-    axios.get(`${API_BASE_URL}/medications`).then((response) => {
+    axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`).then((response) => {
       setMedications(response.data);
     });
   }, []);
 
-  const getStatusTag = (status) => {
-    const statusColors = {
+  const getStatusTag = (status: string) => {
+    const statusColors: Record<
+      string,
+      { label: string; color: string }
+    > = {
       emEstoque: { label: "Em Estoque", color: "#1AD698" },
       proximoVencer: { label: "Próximo a Vencer", color: "#FFBB00" },
       foraValidade: { label: "Fora da Validade", color: "#A83232" },
       emFalta: { label: "Em Falta", color: "#FF3838" },
     };
 
-    const statusInfo = statusColors[status] || { label: "Desconhecido", color: "#CCC" };
+    const statusInfo =
+      statusColors[status] || { label: "Desconhecido", color: "#CCC" };
 
     return (
       <Tag
@@ -59,8 +64,8 @@ export default function Home() {
     );
   };
 
-  const getForma = (formaCode) => {
-    switch (formaCode) {
+  const getForma = (formaCode: string | number | undefined): string => {
+    switch (String(formaCode)) {
       case "1":
         return "Comprimido";
       case "2":
@@ -74,7 +79,7 @@ export default function Home() {
     }
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -82,9 +87,9 @@ export default function Home() {
     return `${day}/${month}/${year}`;
   };
 
-  const onGlobalFilterChange = (e) => {
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    let _filters = { ...filters };
+    const _filters = { ...filters };
     _filters["global"].value = value;
     setFilters(_filters);
     setGlobalFilterValue(value);
@@ -148,19 +153,23 @@ export default function Home() {
         <Column
           field="forma"
           header="Forma Farmacêutica"
-          body={(rowData) => getForma(rowData.forma)}
+          body={(rowData: MedicationWithStatus) => getForma(rowData.forma)}
           style={{ minWidth: "10rem" }}
         />
         <Column
           field="data_validade"
           header="Data de Validade"
-          body={(rowData) => formatDate(rowData.data_validade)}
+          body={(rowData: MedicationWithStatus) =>
+            formatDate(rowData.data_validade)
+          }
           style={{ minWidth: "12rem" }}
         />
         <Column
           field="status"
           header="Status"
-          body={(rowData) => getStatusTag(rowData.status)}
+          body={(rowData: MedicationWithStatus) =>
+            getStatusTag(rowData.status)
+          }
           style={{ minWidth: "10rem" }}
         />
       </DataTable>

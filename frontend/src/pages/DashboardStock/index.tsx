@@ -5,13 +5,14 @@ import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import CardKanban from "../../components/CardKanban";
 import "./styles.css";
+import type { MedicationWithStatus } from "../../types";
 
 function DashboardStock() {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
 
   useEffect(() => {
     axios
-      .get(`${API_BASE_URL}/medications`)
+      .get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
       .then((response) => {
         setMedications(response.data);
       })
