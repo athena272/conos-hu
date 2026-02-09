@@ -11,6 +11,7 @@ import Home from "./src/pages/Home";
 import NotFound from "./src/pages/NotFound";
 import RegisterMedication from "./src/pages/RegisterMedication";
 import RetiraMedication from "./src/pages/RetiraMedication";
+import Simulador from "./src/pages/Simulador";
 import Dashboard from "./src/pages/Dashboard";
 import DashboardStock from "./src/pages/DashboardStock";
 import PrivateRoute from "./src/routes/PrivateRoute";
@@ -45,6 +46,14 @@ const AppRoutes = () => {
           element={
             <PrivateRoute>
               <RetiraMedication />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/simulador"
+          element={
+            <PrivateRoute>
+              <Simulador />
             </PrivateRoute>
           }
         />
