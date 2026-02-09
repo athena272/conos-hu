@@ -11,6 +11,7 @@ import Axios from "axios";
 import { Toast } from "primereact/toast";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
@@ -27,10 +28,6 @@ interface RegisterMedicationValues {
   pharmaceuticalForm: DropdownOption | null;
   expiryDate: string;
   existingMedicationId: number | null;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("pt-BR");
 }
 
 function RegisterMedication() {
@@ -217,7 +214,7 @@ function RegisterMedication() {
                     <Dropdown
                       value={values.existingMedicationId}
                       options={medications.map((m) => ({
-                        label: `${m.nome} - Lote ${m.lote} - Validade ${formatDate(m.data_validade)}`,
+                        label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)}`,
                         value: m.id,
                       }))}
                       onChange={(e) => setFieldValue("existingMedicationId", e.value)}

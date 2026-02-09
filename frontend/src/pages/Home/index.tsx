@@ -12,6 +12,7 @@ import { Toast } from "primereact/toast";
 import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
 
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
@@ -114,14 +115,6 @@ export default function Home() {
     }
   };
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const _filters = { ...filters };
@@ -132,13 +125,6 @@ export default function Home() {
 
   const openEdit = (row: MedicationWithStatus) => {
     setEditingMedication(row);
-    const d = new Date(row.data_validade);
-    const dateStr =
-      d.getFullYear() +
-      "-" +
-      String(d.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(d.getDate()).padStart(2, "0");
     setEditForm({
       nome: row.nome ?? "",
       lote: row.lote ?? "",
@@ -146,7 +132,7 @@ export default function Home() {
       classificacao: row.classificacao ?? "",
       concentracao: row.concentracao ?? "",
       forma: toFormaValue(row.forma),
-      data_validade: dateStr,
+      data_validade: toInputDateValue(row.data_validade),
     });
   };
 
@@ -254,7 +240,7 @@ export default function Home() {
           field="data_validade"
           header="Data de Validade"
           body={(rowData: MedicationWithStatus) =>
-            formatDate(rowData.data_validade)
+            formatDateBR(rowData.data_validade)
           }
           style={{ minWidth: "12rem" }}
         />

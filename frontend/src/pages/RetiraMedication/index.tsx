@@ -11,6 +11,7 @@ import Axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { Toast } from "primereact/toast";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
@@ -20,11 +21,6 @@ interface RetiraMedicationValues {
   concentration: string;
   selectedMedicationId: number | null;
   quantity: number;
-}
-
-function formatDate(dateString: string): string {
-  const d = new Date(dateString);
-  return d.toLocaleDateString("pt-BR");
 }
 
 interface AxiosErrorLike {
@@ -281,7 +277,7 @@ function RetiraMedication() {
                     id="lot"
                     value={values.selectedMedicationId}
                     options={lots.map((m) => ({
-                      label: `${m.nome} - Lote ${m.lote} - Validade ${formatDate(m.data_validade)} - Qtd ${m.quantidade}`,
+                      label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`,
                       value: m.id,
                     }))}
                     onChange={(e) => setFieldValue("selectedMedicationId", e.value)}

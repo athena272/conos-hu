@@ -8,12 +8,9 @@ import { Toast } from "primereact/toast";
 import Axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { formatDateBR } from "../../utils/dateUtils";
 import type { MedicationWithStatus } from "../../types";
 import "./styles.css";
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("pt-BR");
-}
 
 function formatOutputDate(date: Date): string {
   return date.toLocaleDateString("pt-BR");
@@ -121,7 +118,7 @@ export default function Simulador() {
                 id="simulador-medicamento"
                 value={selectedId}
                 options={medications.map((m) => ({
-                  label: `${m.nome} - Lote ${m.lote} - Validade ${formatDate(m.data_validade)}`,
+                  label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)}`,
                   value: m.id,
                 }))}
                 onChange={(e) => {

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import { format } from "date-fns";
 import { Dropdown } from "primereact/dropdown";
+import { formatDateBR } from "../../utils/dateUtils";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
 
@@ -61,10 +61,6 @@ function CardKanban({ medications }: CardKanbanProps) {
     emFalta: "#F5D2D2",
   };
 
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "dd/MM/yyyy");
-  };
-
   const orderedStatuses = [
     "emEstoque",
     "proximoVencer",
@@ -123,7 +119,7 @@ function CardKanban({ medications }: CardKanbanProps) {
                       <strong>Quantidade:</strong> {med.quantidade}
                     </p>
                     <p>
-                      <strong>Validade:</strong> {formatDate(med.data_validade)}
+                      <strong>Validade:</strong> {formatDateBR(med.data_validade)}
                     </p>
                   </div>
                 ))
