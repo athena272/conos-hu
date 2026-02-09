@@ -1,0 +1,15 @@
+.button-submit-wrapper {
+  .p-button {
+    width: 100%;
+    margin-bottom: 40px;
+    background-color: #76ced4;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+      background-color: #6cb6bb;
+    }
+  }
+}

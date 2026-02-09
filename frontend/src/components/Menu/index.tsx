@@ -29,6 +29,11 @@ export default function Menu() {
           icon: "pi pi-cart-arrow-down",
           url: "/retira-medication",
         },
+        {
+          label: "Simulador",
+          icon: "pi pi-calculator",
+          url: "/simulador",
+        },
       ],
     },
     {

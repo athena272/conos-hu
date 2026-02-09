@@ -1,0 +1,44 @@
+.title-home {
+  margin-left: 28px;
+}
+
+.p-datatable-header {
+  background-color: #fff;
+}
+
+.p-datatable .p-datatable-header {
+  border: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.filters-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .p-inputtext,
+  .p-dropdown {
+    width: 250px;
+  }
+}
+
+// Paginator: botões circulares com ícones centralizados (evita deformação)
+.p-paginator {
+  .p-paginator-first,
+  .p-paginator-prev,
+  .p-paginator-next,
+  .p-paginator-last {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    aspect-ratio: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    .p-icon {
+      width: 1rem;
+      height: 1rem;
+    }
+  }
+}

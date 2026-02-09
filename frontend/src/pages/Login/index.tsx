@@ -6,8 +6,10 @@ import Axios from "axios";
 import { Toast } from "primereact/toast";
 
 import { API_BASE_URL } from "../../config/api";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FloatLabelInput from "../../components/FloatLabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
+import FullScreenLoader from "../../components/FullScreenLoader";
 import loginImage from "../../assets/images/login.svg";
 
 import "./styles.css";
@@ -43,25 +45,20 @@ function Login() {
 
       localStorage.setItem("userId", String(response.data.userId));
 
-      navigate("/home");
-
       toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
         detail: response.data.message,
         life: 3000,
       });
+
+      navigate("/home");
     } catch (error: unknown) {
       console.error("Erro ao fazer login:", error);
-
-      const err = error as { response?: { data?: { message?: string } } };
-      const errorMessage =
-        err.response?.data?.message || "Erro desconhecido. Tente novamente.";
-
       toast.current?.show({
         severity: "error",
         summary: "Erro!",
-        detail: errorMessage,
+        detail: normalizeErrorMessage(error),
         life: 3000,
       });
     }
@@ -69,35 +66,42 @@ function Login() {
 
   return (
     <div className="container-primary">
-      <Toast ref={toast} />
-      <div className="container-secundary-one">
-        <img src={loginImage} alt="Login" id="login-image" />
-      </div>
-      <div className="container-secundary-two">
-        <h1>Login</h1>
-        <p>Faça login para acessar sua conta.</p>
+      <Toast ref={toast} position="top-right" />
+      <Formik
+        initialValues={{ email: "", password: "" }}
+        onSubmit={handleClickLogin}
+        validationSchema={validationLogin}
+      >
+        {({ isSubmitting }) => (
+          <>
+            <FullScreenLoader active={isSubmitting} message="Entrando..." />
+            <div className="container-secundary-one">
+              <img src={loginImage} alt="Login" id="login-image" />
+            </div>
+            <div className="container-secundary-two">
+              <h1>Login</h1>
+              <p>Faça login para acessar sua conta.</p>
 
-        <Formik
-          initialValues={{ email: "", password: "" }}
-          onSubmit={handleClickLogin}
-          validationSchema={validationLogin}
-        >
-          <Form className="login-form">
-            <FloatLabelInput name="email" placeholder="Email" type="email" />
-            <FloatLabelInput
-              name="password"
-              placeholder="Senha"
-              type="password"
-              autoComplete="current-password"
-            />
-            <ButtonSubmit>Entrar</ButtonSubmit>
-          </Form>
-        </Formik>
+              <Form className="login-form">
+                <FloatLabelInput name="email" placeholder="Email" type="email" autoComplete="username" />
+                <FloatLabelInput
+                  name="password"
+                  placeholder="Senha"
+                  type="password"
+                  autoComplete="current-password"
+                />
+                <ButtonSubmit disabled={isSubmitting}>
+                  Entrar
+                </ButtonSubmit>
+              </Form>
 
-        <p style={{ color: "#393f81" }}>
-          Não tem uma conta? <a href="/register">Cadastre-se.</a>
-        </p>
-      </div>
+              <p style={{ color: "#393f81" }}>
+                Não tem uma conta? <a href="/register">Cadastre-se.</a>
+              </p>
+            </div>
+          </>
+        )}
+      </Formik>
     </div>
   );
 }

@@ -1,20 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { FilterMatchMode } from "primereact/api";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Tag } from "primereact/tag";
+import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
+import { Toast } from "primereact/toast";
 import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
 
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 
-import "./styles.css";
+import "./styles.scss";
 import type { MedicationWithStatus } from "../../types";
 
+const FORMA_OPTIONS = [
+  { label: "Comprimido", value: 1 },
+  { label: "Injetável", value: 2 },
+  { label: "Gotas", value: 3 },
+  { label: "Outros", value: 4 },
+];
+
+function toFormaValue(forma: string | number | undefined): number {
+  const v = String(forma ?? "");
+  if (v === "1" || v === "2" || v === "3" || v === "4") return parseInt(v, 10);
+  return 1;
+}
+
 export default function Home() {
+  const location = useLocation();
+  const toast = useRef<Toast>(null);
   const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -22,6 +42,17 @@ export default function Home() {
     status: { value: null as string | null, matchMode: FilterMatchMode.EQUALS },
   });
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [editingMedication, setEditingMedication] = useState<MedicationWithStatus | null>(null);
+  const [editForm, setEditForm] = useState({
+    nome: "",
+    lote: "",
+    quantidade: 0,
+    classificacao: "",
+    concentracao: "",
+    forma: 1,
+    data_validade: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const [statusOptions] = useState([
     { label: "Em Estoque", value: "emEstoque" },
@@ -30,11 +61,15 @@ export default function Home() {
     { label: "Próximo a Vencer", value: "proximoVencer" },
   ]);
 
-  useEffect(() => {
+  const fetchMedications = () => {
     axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`).then((response) => {
-      setMedications(response.data);
+      setMedications(response.data ?? []);
     });
-  }, []);
+  };
+
+  useEffect(() => {
+    if (location.pathname === "/home") fetchMedications();
+  }, [location.pathname]);
 
   const getStatusTag = (status: string) => {
     const statusColors: Record<
@@ -95,6 +130,64 @@ export default function Home() {
     setGlobalFilterValue(value);
   };
 
+  const openEdit = (row: MedicationWithStatus) => {
+    setEditingMedication(row);
+    const d = new Date(row.data_validade);
+    const dateStr =
+      d.getFullYear() +
+      "-" +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(d.getDate()).padStart(2, "0");
+    setEditForm({
+      nome: row.nome ?? "",
+      lote: row.lote ?? "",
+      quantidade: row.quantidade ?? 0,
+      classificacao: row.classificacao ?? "",
+      concentracao: row.concentracao ?? "",
+      forma: toFormaValue(row.forma),
+      data_validade: dateStr,
+    });
+  };
+
+  const closeEdit = () => {
+    setEditingMedication(null);
+    setSavingEdit(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMedication) return;
+    setSavingEdit(true);
+    try {
+      await axios.put(`${API_BASE_URL}/medications/${editingMedication.id}`, {
+        nome: editForm.nome,
+        lote: editForm.lote,
+        quantidade: editForm.quantidade,
+        classificacao: editForm.classificacao,
+        concentracao: editForm.concentracao,
+        forma: String(editForm.forma),
+        data_validade: editForm.data_validade,
+      });
+      toast.current?.show({
+        severity: "success",
+        summary: "Sucesso!",
+        detail: "Medicação atualizada com sucesso.",
+        life: 3000,
+      });
+      closeEdit();
+      fetchMedications();
+    } catch (error: unknown) {
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro!",
+        detail: normalizeErrorMessage(error),
+        life: 4000,
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const header = (
     <div className="filters-container">
       <InputText
@@ -118,6 +211,7 @@ export default function Home() {
 
   return (
     <div className="home-container">
+      <Toast ref={toast} position="top-right" />
       <Header />
       <Menu />
       <div className="title-home">
@@ -172,7 +266,103 @@ export default function Home() {
           }
           style={{ minWidth: "10rem" }}
         />
+        <Column
+          header="Ações"
+          body={(rowData: MedicationWithStatus) => (
+            <Button
+              label="Editar"
+              icon="pi pi-pencil"
+              className="p-button-sm"
+              onClick={() => openEdit(rowData)}
+            />
+          )}
+          style={{ minWidth: "8rem" }}
+        />
       </DataTable>
+
+      <Dialog
+        header="Editar medicação"
+        visible={!!editingMedication}
+        onHide={closeEdit}
+        style={{ width: "90vw", maxWidth: "500px" }}
+        footer={
+          <div>
+            <Button label="Cancelar" className="p-button-text" onClick={closeEdit} />
+            <Button label="Salvar" onClick={handleSaveEdit} loading={savingEdit} disabled={savingEdit} />
+          </div>
+        }
+      >
+        {editingMedication && (
+          <div className="edit-form-fields">
+            <div className="p-field">
+              <label htmlFor="edit-nome">Nome</label>
+              <InputText
+                id="edit-nome"
+                value={editForm.nome}
+                onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-lote">Lote</label>
+              <InputText
+                id="edit-lote"
+                value={editForm.lote}
+                onChange={(e) => setEditForm((f) => ({ ...f, lote: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-quantidade">Quantidade</label>
+              <InputText
+                id="edit-quantidade"
+                type="number"
+                value={editForm.quantidade}
+                onChange={(e) => setEditForm((f) => ({ ...f, quantidade: parseInt(e.target.value, 10) || 0 }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-classificacao">Classificação</label>
+              <InputText
+                id="edit-classificacao"
+                value={editForm.classificacao}
+                onChange={(e) => setEditForm((f) => ({ ...f, classificacao: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-concentracao">Concentração</label>
+              <InputText
+                id="edit-concentracao"
+                value={editForm.concentracao}
+                onChange={(e) => setEditForm((f) => ({ ...f, concentracao: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-forma">Forma Farmacêutica</label>
+              <Dropdown
+                id="edit-forma"
+                value={editForm.forma}
+                options={FORMA_OPTIONS}
+                onChange={(e) => setEditForm((f) => ({ ...f, forma: e.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-validade">Data de Validade</label>
+              <InputText
+                id="edit-validade"
+                type="date"
+                value={editForm.data_validade}
+                onChange={(e) => setEditForm((f) => ({ ...f, data_validade: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

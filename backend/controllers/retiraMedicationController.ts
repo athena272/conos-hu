@@ -88,8 +88,19 @@ export const retiraMedication = (req: Request, res: Response): void => {
                 return;
               }
 
-              console.log("🔄 Atualizando estoque...");
               connection.query(
+                "INSERT INTO movimentacoes (tipo, medication_id, quantidade, usuario_id) VALUES ('saida', ?, ?, ?)",
+                [medication_id, quantidadeNum, usuario_id],
+                (movErr) => {
+                  if (movErr) {
+                    connection.rollback(() => connection.release());
+                    console.error("❌ Erro ao registrar movimentação:", movErr);
+                    res.status(500).json({ error: "Erro ao registrar movimentação" });
+                    return;
+                  }
+
+                  console.log("🔄 Atualizando estoque...");
+                  connection.query(
                 "UPDATE medications SET quantidade = quantidade - ? WHERE id = ?",
                 [quantidadeNum, medication_id],
                 (err) => {
@@ -113,6 +124,8 @@ export const retiraMedication = (req: Request, res: Response): void => {
                     console.log("✅ Retirada realizada com sucesso");
                     res.status(200).json({ message: "Retirada realizada com sucesso" });
                   });
+                }
+              );
                 }
               );
             }

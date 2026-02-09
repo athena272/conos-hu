@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useRef, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
+import { normalizeErrorMessage } from "../utils/errorMessages";
 import { Toast } from "primereact/toast";
 
 interface AuthContextType {
@@ -64,7 +65,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
-      <Toast ref={toast} />
+      <Toast ref={toast} position="top-right" />
       {children}
     </AuthContext.Provider>
   );

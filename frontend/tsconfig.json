@@ -21,5 +21,5 @@
     }
   },
   "include": ["src", "AppRouters.tsx"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "references": [{ "path": "./tsconfig.node.json", "composite": true }]
 }
