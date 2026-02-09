@@ -40,6 +40,7 @@ function RetiraMedication() {
   const navigate = useNavigate();
   const [lots, setLots] = useState<MedicationWithStatus[]>([]);
   const [loadingLots, setLoadingLots] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -78,7 +79,7 @@ function RetiraMedication() {
           toast.current?.show({
             severity: "warn",
             summary: "Atenção!",
-            detail: "Clique em 'Buscar lotes' e selecione um lote.",
+            detail: "Clique em 'Buscar lotes' ou 'Ver todos os lotes' e selecione um lote.",
             life: 5000,
           });
         } else {
@@ -135,16 +136,8 @@ function RetiraMedication() {
   };
 
   const retireSchema = yup.object().shape({
-    name: yup
-      .string()
-      .required("O nome do medicamento é obrigatório")
-      .min(2, "O nome deve ter pelo menos 2 caracteres")
-      .trim(),
-    concentration: yup
-      .string()
-      .required("A concentração é obrigatória")
-      .min(1, "A concentração é obrigatória")
-      .trim(),
+    name: yup.string().trim(),
+    concentration: yup.string().trim(),
     selectedMedicationId: yup.number().nullable(),
     quantity: yup
       .number()
@@ -201,12 +194,13 @@ function RetiraMedication() {
                 )}
               </div>
 
-              <div className="form-group">
+              <div className="form-group retire-form-actions">
                 <Button
                   type="button"
-                  disabled={isSubmitting || !values.name.trim() || !values.concentration.trim()}
+                  disabled={isSubmitting || loadingLots || !values.name.trim() || !values.concentration.trim()}
                   onClick={async () => {
                     setLoadingLots(true);
+                    setLoadingMode("filter");
                     setFieldValue("selectedMedicationId", null);
                     try {
                       const res = await Axios.get<MedicationWithStatus[]>(
@@ -237,10 +231,46 @@ function RetiraMedication() {
                       });
                     } finally {
                       setLoadingLots(false);
+                      setLoadingMode(null);
                     }
                   }}
                 >
-                  {loadingLots ? "Buscando..." : "Buscar lotes"}
+                  {loadingLots && loadingMode === "filter" ? "Buscando..." : "Buscar lotes"}
+                </Button>
+                <Button
+                  type="button"
+                  className="p-button-outlined"
+                  disabled={isSubmitting || loadingLots}
+                  onClick={async () => {
+                    setLoadingLots(true);
+                    setLoadingMode("all");
+                    setFieldValue("selectedMedicationId", null);
+                    try {
+                      const res = await Axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`);
+                      setLots(res.data ?? []);
+                      if (!res.data?.length) {
+                        toast.current?.show({
+                          severity: "info",
+                          summary: "Busca",
+                          detail: "Nenhum lote cadastrado.",
+                          life: 4000,
+                        });
+                      }
+                    } catch (e) {
+                      setLots([]);
+                      toast.current?.show({
+                        severity: "error",
+                        summary: "Erro!",
+                        detail: normalizeErrorMessage(e),
+                        life: 5000,
+                      });
+                    } finally {
+                      setLoadingLots(false);
+                      setLoadingMode(null);
+                    }
+                  }}
+                >
+                  {loadingLots && loadingMode === "all" ? "Carregando..." : "Ver todos os lotes"}
                 </Button>
               </div>
 
@@ -251,7 +281,7 @@ function RetiraMedication() {
                     id="lot"
                     value={values.selectedMedicationId}
                     options={lots.map((m) => ({
-                      label: `Lote ${m.lote} - Validade ${formatDate(m.data_validade)} - Qtd ${m.quantidade}`,
+                      label: `${m.nome} - Lote ${m.lote} - Validade ${formatDate(m.data_validade)} - Qtd ${m.quantidade}`,
                       value: m.id,
                     }))}
                     onChange={(e) => setFieldValue("selectedMedicationId", e.value)}
