@@ -1,6 +1,19 @@
-.container-retire-medication{
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    height: 100vh;
+.container-retire-medication {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100vh;
+}
+
+/* Select de lotes com mesma largura dos inputs (form-field usa 75vh) */
+.retire-form .form-group .p-dropdown {
+  width: 75vh;
+  max-width: 100%;
+}
+
+.retire-form .form-group label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: #333;
 }

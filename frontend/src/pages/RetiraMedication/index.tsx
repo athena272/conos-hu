@@ -1,23 +1,33 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import LabelInput from "../../components/LabelInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
+import { Dropdown } from "primereact/dropdown";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import Axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { Toast } from "primereact/toast";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
+import FullScreenLoader from "../../components/FullScreenLoader";
 import "./styles.css";
-import type { Medication } from "../../types";
+import type { MedicationWithStatus } from "../../types";
 
 interface RetiraMedicationValues {
   name: string;
   concentration: string;
+  selectedMedicationId: number | null;
   quantity: number;
 }
 
-interface AxiosError {
+function formatDate(dateString: string): string {
+  const d = new Date(dateString);
+  return d.toLocaleDateString("pt-BR");
+}
+
+interface AxiosErrorLike {
   code?: string;
   response?: {
     status?: number;
@@ -27,6 +37,9 @@ interface AxiosError {
 
 function RetiraMedication() {
   const toast = useRef<Toast>(null);
+  const navigate = useNavigate();
+  const [lots, setLots] = useState<MedicationWithStatus[]>([]);
+  const [loadingLots, setLoadingLots] = useState(false);
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -59,34 +72,31 @@ function RetiraMedication() {
         return;
       }
 
-      const medResponse = await Axios.post<Medication>(
-        `${API_BASE_URL}/medications/search`,
-        {
-          nome: values.name.trim(),
-          concentracao: values.concentration.trim(),
+      const medicationId = values.selectedMedicationId ?? null;
+      if (!medicationId) {
+        if (lots.length === 0) {
+          toast.current?.show({
+            severity: "warn",
+            summary: "Atenção!",
+            detail: "Clique em 'Buscar lotes' e selecione um lote.",
+            life: 5000,
+          });
+        } else {
+          toast.current?.show({
+            severity: "warn",
+            summary: "Atenção!",
+            detail: "Selecione um lote na lista.",
+            life: 5000,
+          });
         }
-      );
-
-      const medication = medResponse.data;
-
-      if (!medication || !medication.id) {
-        console.error("❌ Medicação não encontrada no banco");
-        toast.current?.show({
-          severity: "error",
-          summary: "Erro!",
-          detail: "Medicação não encontrada! Verifique o nome e concentração.",
-          life: 5000,
-        });
         return;
       }
 
       const retiradaData = {
-        medication_id: medication.id,
+        medication_id: medicationId,
         usuario_id: parseInt(usuarioId),
         quantidade: parseInt(String(values.quantity)),
       };
-
-      console.log("🔄 Enviando requisição de retirada:", retiradaData);
 
       await Axios.post(`${API_BASE_URL}/retira`, retiradaData, {
         timeout: 10000,
@@ -103,49 +113,22 @@ function RetiraMedication() {
       });
 
       resetForm();
+      setLots([]);
+      navigate("/home");
     } catch (error) {
-      const err = error as AxiosError;
+      const err = error as AxiosErrorLike;
       console.error("❌ Erro completo:", err);
-      console.error("📊 Dados da resposta de erro:", err.response?.data);
-      console.error("🔢 Status do erro:", err.response?.status);
 
-      let errorMessage = "Falha ao retirar medicação. Tente novamente.";
-      let severity: "error" | "warn" = "error";
-
-      if (err.code === "ERR_NETWORK") {
-        errorMessage = "Erro de conexão. Verifique se o servidor está rodando.";
-      } else if (err.response?.status === 400) {
-        if (
-          err.response.data?.error === "Quantidade insuficiente em estoque"
-        ) {
-          errorMessage = "Quantidade insuficiente em estoque!";
-          severity = "warn";
-        } else if (
-          err.response.data?.error ===
-          "Todos os campos são obrigatórios e quantidade deve ser numérica"
-        ) {
-          errorMessage = "Dados inválidos. Verifique os campos preenchidos.";
-        } else {
-          errorMessage =
-            err.response.data?.error ||
-            "Dados inválidos enviados ao servidor.";
-        }
-      } else if (err.response?.status === 404) {
-        if (err.response.data?.error === "Medicação não encontrada") {
-          errorMessage = "Medicação não encontrada no estoque.";
-        } else {
-          errorMessage = "Recurso não encontrado.";
-        }
-      } else if (err.response?.status === 500) {
-        errorMessage = "Erro interno do servidor. Tente novamente mais tarde.";
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      }
+      const severity =
+        err.response?.status === 400 &&
+        err.response?.data?.error === "Quantidade insuficiente em estoque"
+          ? "warn"
+          : "error";
 
       toast.current?.show({
         severity,
         summary: severity === "warn" ? "Aviso!" : "Erro!",
-        detail: errorMessage,
+        detail: normalizeErrorMessage(error),
         life: 5000,
       });
     }
@@ -162,6 +145,7 @@ function RetiraMedication() {
       .required("A concentração é obrigatória")
       .min(1, "A concentração é obrigatória")
       .trim(),
+    selectedMedicationId: yup.number().nullable(),
     quantity: yup
       .number()
       .typeError("A quantidade deve ser um número")
@@ -183,6 +167,7 @@ function RetiraMedication() {
           initialValues={{
             name: "",
             concentration: "",
+            selectedMedicationId: null as number | null,
             quantity: 0,
           }}
           validationSchema={retireSchema}
@@ -190,8 +175,10 @@ function RetiraMedication() {
           validateOnChange={true}
           validateOnBlur={true}
         >
-          {({ errors, touched, isSubmitting }) => (
-            <Form className="retire-form">
+          {({ errors, touched, isSubmitting, values, setFieldValue }) => (
+            <>
+              <FullScreenLoader active={isSubmitting} message="Processando retirada..." />
+              <Form className="retire-form">
               <div className="form-group">
                 <LabelInput
                   name="name"
@@ -215,6 +202,67 @@ function RetiraMedication() {
               </div>
 
               <div className="form-group">
+                <Button
+                  type="button"
+                  disabled={isSubmitting || !values.name.trim() || !values.concentration.trim()}
+                  onClick={async () => {
+                    setLoadingLots(true);
+                    setFieldValue("selectedMedicationId", null);
+                    try {
+                      const res = await Axios.get<MedicationWithStatus[]>(
+                        `${API_BASE_URL}/medications/by-name-concentration`,
+                        {
+                          params: {
+                            nome: values.name.trim(),
+                            concentracao: values.concentration.trim(),
+                          },
+                        }
+                      );
+                      setLots(res.data ?? []);
+                      if (!res.data?.length) {
+                        toast.current?.show({
+                          severity: "info",
+                          summary: "Busca",
+                          detail: "Nenhum lote encontrado com esse nome e concentração.",
+                          life: 4000,
+                        });
+                      }
+                    } catch (e) {
+                      setLots([]);
+                      toast.current?.show({
+                        severity: "error",
+                        summary: "Erro!",
+                        detail: normalizeErrorMessage(e),
+                        life: 5000,
+                      });
+                    } finally {
+                      setLoadingLots(false);
+                    }
+                  }}
+                >
+                  {loadingLots ? "Buscando..." : "Buscar lotes"}
+                </Button>
+              </div>
+
+              {lots.length > 0 && (
+                <div className="form-group">
+                  <label htmlFor="lot">Lote</label>
+                  <Dropdown
+                    id="lot"
+                    value={values.selectedMedicationId}
+                    options={lots.map((m) => ({
+                      label: `Lote ${m.lote} - Validade ${formatDate(m.data_validade)} - Qtd ${m.quantidade}`,
+                      value: m.id,
+                    }))}
+                    onChange={(e) => setFieldValue("selectedMedicationId", e.value)}
+                    placeholder="Selecione o lote"
+                    className="w-full"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              )}
+
+              <div className="form-group">
                 <LabelInput
                   name="quantity"
                   placeholder="Quantidade"
@@ -230,6 +278,7 @@ function RetiraMedication() {
                 {isSubmitting ? "Processando..." : "Retirar"}
               </Button>
             </Form>
+            </>
           )}
         </Formik>
       </div>
