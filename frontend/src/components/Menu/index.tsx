@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Menubar} from "primereact/menubar";
+import { Menubar } from "primereact/menubar";
 import "./styles.css";
 
 export default function Menu() {
-
   const navigate = useNavigate();
   const handleLogout = () => {
     localStorage.removeItem("userId");
@@ -52,7 +51,7 @@ export default function Menu() {
       label: "Sair",
       icon: "pi pi-sign-out",
       command: handleLogout,
-    }
+    },
   ];
 
   return (

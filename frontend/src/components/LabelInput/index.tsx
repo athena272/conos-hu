@@ -1,19 +1,31 @@
-import PropTypes from "prop-types";
 import { Field, ErrorMessage } from "formik";
 import { InputText } from "primereact/inputtext";
 import "./styles.css";
 
-function LabelInput({ name, placeholder, type = "text" }) {
+interface LabelInputProps {
+  name: string;
+  placeholder: string;
+  type?: string;
+  disabled?: boolean;
+}
+
+function LabelInput({
+  name,
+  placeholder,
+  type = "text",
+  disabled = false,
+}: LabelInputProps) {
   return (
     <div className="campo-texto">
       <Field name={name}>
-        {({ field, form }) => (
+        {({ field, form }: { field: Record<string, unknown>; form: { errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
           <div className="input-container">
             <label htmlFor={name} className="input-label">{placeholder}</label>
             <InputText
               id={name}
               {...field}
               type={type}
+              disabled={disabled}
               aria-describedby={`${name}-help`}
               className={`form-field ${form.errors[name] && form.touched[name] ? "p-invalid" : ""}`}
             />
@@ -24,15 +36,5 @@ function LabelInput({ name, placeholder, type = "text" }) {
     </div>
   );
 }
-
-LabelInput.propTypes = {
-  name: PropTypes.string.isRequired,
-  placeholder: PropTypes.string.isRequired,
-  type: PropTypes.string,
-};
-
-LabelInput.defaultProps = {
-  type: "text",
-};
 
 export default LabelInput;

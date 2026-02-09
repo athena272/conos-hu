@@ -1,13 +1,22 @@
 import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Dropdown } from "primereact/dropdown";
-import PropTypes from "prop-types";
 import "./styles.css";
+import type { MedicationWithStatus } from "../../types";
 
-function CardKanban({ medications }) {
-  const [filterStatus, setFilterStatus] = useState(null);
+interface CardKanbanProps {
+  medications: MedicationWithStatus[];
+}
 
-  const statusOptions = [
+interface StatusOption {
+  name: string;
+  code: string | null;
+}
+
+function CardKanban({ medications }: CardKanbanProps) {
+  const [filterStatus, setFilterStatus] = useState<StatusOption | null>(null);
+
+  const statusOptions: StatusOption[] = [
     { name: "Todos", code: null },
     { name: "Em Estoque", code: "emEstoque" },
     { name: "Próximo a Vencimento", code: "proximoVencer" },
@@ -24,8 +33,12 @@ function CardKanban({ medications }) {
   const categories = useMemo(() => {
     return {
       emEstoque: filteredMedications.filter((med) => med.status === "emEstoque"),
-      proximoVencer: filteredMedications.filter((med) => med.status === "proximoVencer"),
-      foraValidade: filteredMedications.filter((med) => med.status === "foraValidade"),
+      proximoVencer: filteredMedications.filter(
+        (med) => med.status === "proximoVencer"
+      ),
+      foraValidade: filteredMedications.filter(
+        (med) => med.status === "foraValidade"
+      ),
       emFalta: filteredMedications.filter((med) => med.status === "emFalta"),
     };
   }, [filteredMedications]);
@@ -34,25 +47,30 @@ function CardKanban({ medications }) {
     console.log("Categorias após filtragem:", categories);
   }, [categories]);
 
-  const categoryColorsTitle = {
+  const categoryColorsTitle: Record<string, string> = {
     emEstoque: "#1AD698",
     proximoVencer: "#FFBB00",
     foraValidade: "#A83232",
     emFalta: "#FF3838",
   };
 
-  const categoryColors = {
+  const categoryColors: Record<string, string> = {
     emEstoque: "#D7F3EA",
     proximoVencer: "#FAF0D5",
     foraValidade: "#F8D7DA",
     emFalta: "#F5D2D2",
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     return format(new Date(dateString), "dd/MM/yyyy");
   };
 
-  const orderedStatuses = ["emEstoque", "proximoVencer", "foraValidade", "emFalta"];
+  const orderedStatuses = [
+    "emEstoque",
+    "proximoVencer",
+    "foraValidade",
+    "emFalta",
+  ];
 
   return (
     <div>
@@ -78,7 +96,10 @@ function CardKanban({ medications }) {
             <div key={status} className="kanban-column">
               <div
                 className="title-card-categories"
-                style={{ backgroundColor: categoryColorsTitle[status], borderRadius: "5px" }}
+                style={{
+                  backgroundColor: categoryColorsTitle[status],
+                  borderRadius: "5px",
+                }}
               >
                 <h3>
                   {status === "emEstoque" && "Em estoque"}
@@ -88,12 +109,14 @@ function CardKanban({ medications }) {
                 </h3>
               </div>
 
-              {categories[status].length > 0 ? (
-                categories[status].map((med) => (
+              {categories[status as keyof typeof categories].length > 0 ? (
+                categories[status as keyof typeof categories].map((med) => (
                   <div
                     key={med.id}
                     className="kanban-card"
-                    style={{ backgroundColor: categoryColors[status] }}
+                    style={{
+                      backgroundColor: categoryColors[status],
+                    }}
                   >
                     <h4>{med.nome}</h4>
                     <p>
@@ -114,17 +137,5 @@ function CardKanban({ medications }) {
     </div>
   );
 }
-
-CardKanban.propTypes = {
-  medications: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.number.isRequired,
-      nome: PropTypes.string.isRequired,
-      quantidade: PropTypes.number.isRequired,
-      data_validade: PropTypes.string.isRequired,
-      status: PropTypes.string.isRequired,
-    })
-  ).isRequired,
-};
 
 export default CardKanban;
