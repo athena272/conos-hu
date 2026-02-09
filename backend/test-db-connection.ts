@@ -1,10 +1,9 @@
 /**
  * Script para testar conexão com o banco MySQL
- * Execute: node test-db-connection.js
- * Ou: npm run test:db
+ * Execute: pnpm run test:db
  */
 
-const mysql = require("mysql2/promise");
+import mysql from "mysql2/promise";
 
 const config = {
   host: process.env.DB_HOST || "10.20.8.49",
@@ -15,7 +14,7 @@ const config = {
   connectTimeout: 10000,
 };
 
-async function testConnection() {
+async function testConnection(): Promise<void> {
   console.log("🔍 Testando conexão com o banco MySQL...");
   console.log(`   Host: ${config.host}:${config.port}`);
   console.log(`   Database: ${config.database}`);
@@ -30,18 +29,19 @@ async function testConnection() {
     console.log("   O banco está acessível e pronto para uso.");
     process.exit(0);
   } catch (err) {
+    const error = err as NodeJS.ErrnoException;
     console.error("❌ Falha na conexão com o banco.");
     console.error("");
-    console.error("   Detalhes do erro:", err.message);
-    if (err.code) console.error("   Código:", err.code);
+    console.error("   Detalhes do erro:", error.message);
+    if (error.code) console.error("   Código:", error.code);
 
-    if (err.code === "ECONNREFUSED") {
+    if (error.code === "ECONNREFUSED") {
       console.error("");
       console.error("   Possíveis causas:");
       console.error("   - O servidor MySQL não está rodando");
       console.error("   - O host/porta estão incorretos");
       console.error("   - Firewall bloqueando a porta 3306");
-    } else if (err.code === "ENOTFOUND" || err.code === "ETIMEDOUT") {
+    } else if (error.code === "ENOTFOUND" || error.code === "ETIMEDOUT") {
       console.error("");
       console.error("   Possíveis causas:");
       console.error("   - Host inacessível (rede, VPN desligada)");

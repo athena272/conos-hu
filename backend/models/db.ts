@@ -1,4 +1,4 @@
-const mysql = require("mysql2");
+import mysql from "mysql2";
 
 // Cloud Run: usa Unix socket quando INSTANCE_CONNECTION_NAME está definido
 // Local: usa host/porta (IP direto ou Auth Proxy em localhost)
@@ -32,4 +32,4 @@ db.getConnection((err, connection) => {
   }
 });
 
-module.exports = db;
+export default db;
