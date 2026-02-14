@@ -310,3 +310,96 @@ export const updateMedication = (req: Request, res: Response): void => {
     }
   );
 };
+
+export const deleteMedication = (req: Request, res: Response): void => {
+  const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(idParam ?? "", 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  db.getConnection((connErr, connection) => {
+    if (connErr) {
+      console.error("Erro ao obter conexão para exclusão:", connErr);
+      res.status(500).json({ error: "Erro ao excluir medicação" });
+      return;
+    }
+
+    const rollbackAndRelease = (err?: Error) => {
+      if (err) console.error("Erro ao excluir medicação:", err);
+      connection.rollback(() => {
+        connection.release();
+        res.status(500).json({ error: "Erro ao excluir medicação" });
+      });
+    };
+
+    connection.beginTransaction((txErr) => {
+      if (txErr) {
+        connection.release();
+        console.error("Erro ao iniciar transação:", txErr);
+        res.status(500).json({ error: "Erro ao excluir medicação" });
+        return;
+      }
+
+      connection.query(
+        "SELECT id FROM medications WHERE id = ?",
+        [id],
+        (err: Error | null, rows: unknown) => {
+          if (err) {
+            rollbackAndRelease(err);
+            return;
+          }
+          const list = (rows as { id: number }[]) || [];
+          if (list.length === 0) {
+            connection.rollback(() => {
+              connection.release();
+              res.status(404).json({ error: "Medicação não encontrada" });
+            });
+            return;
+          }
+
+          connection.query(
+            "DELETE FROM movimentacoes WHERE medication_id = ?",
+            [id],
+            (movErr: Error | null) => {
+              if (movErr) {
+                rollbackAndRelease(movErr);
+                return;
+              }
+              connection.query(
+                "DELETE FROM retira_medications WHERE medication_id = ?",
+                [id],
+                (retErr: Error | null) => {
+                  if (retErr) {
+                    rollbackAndRelease(retErr);
+                    return;
+                  }
+                  connection.query(
+                    "DELETE FROM medications WHERE id = ?",
+                    [id],
+                    (medErr: Error | null) => {
+                      if (medErr) {
+                        rollbackAndRelease(medErr);
+                        return;
+                      }
+                      connection.commit((commitErr: Error | null) => {
+                        connection.release();
+                        if (commitErr) {
+                          console.error("Erro ao confirmar exclusão:", commitErr);
+                          res.status(500).json({ error: "Erro ao excluir medicação" });
+                          return;
+                        }
+                        res.status(204).send();
+                      });
+                    }
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    });
+  });
+};

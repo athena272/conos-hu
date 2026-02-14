@@ -32,7 +32,7 @@ Este documento descreve como testar a aplicação, com dados sugeridos, fluxos p
 3. **Registrar medicação – novo lote** – Tipo "Novo lote", preencher todos os campos obrigatórios, enviar → FullScreenLoader "Salvando..." → Toast de sucesso → formulário limpo.
 4. **Registrar medicação – adicionar quantidade** – Tipo "Adicionar a lote existente", selecionar medicamento/lote, informar quantidade → FullScreenLoader "Adicionando quantidade..." → Toast de sucesso → formulário limpo.
 5. **Retirar medicação** – Nome + concentração → "Buscar lotes" → selecionar lote → quantidade → FullScreenLoader "Processando retirada..." → Toast de sucesso → redirecionamento para Home.
-6. **Home** – Listar medicações; editar uma (se existir fluxo de edição) → salvar → Toast e lista atualizada.
+6. **Home** – Listar medicações; editar uma (se existir fluxo de edição) → salvar → Toast e lista atualizada; excluir uma medicação → clicar em "Excluir" → confirmar no diálogo → Toast de sucesso e lista atualizada.
 7. **Simulador** – Carregar lista → selecionar medicamento, informar número de pacientes e consumo diário por paciente → Calcular → exibir "X dias" e data estimada.
 
 ---
@@ -57,6 +57,7 @@ Este documento descreve como testar a aplicação, com dados sugeridos, fluxos p
 | **Simulador** | Consumo diário por paciente ≤ 0 | Toast "Informe o consumo diário por paciente maior que zero." |
 | **Simulador** | Medicamento com quantidade 0 | Mensagem "Medicação em falta." (sem dividir por zero). |
 | **Simulador** | Falha ao carregar lista (GET /medications) | FullScreenLoader some; Toast de erro. |
+| **Home** | Excluir medicação: backend retorna 404 ou 500 | Toast de erro (normalizeErrorMessage). |
 
 ---
 

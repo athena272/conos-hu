@@ -7,6 +7,7 @@ import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Tag } from "primereact/tag";
 import { Button } from "primereact/button";
+import { ConfirmDialog } from "primereact/confirmdialog";
 import { Dialog } from "primereact/dialog";
 import { Toast } from "primereact/toast";
 import axios from "axios";
@@ -54,6 +55,8 @@ export default function Home() {
     data_validade: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingMedication, setDeletingMedication] = useState<MedicationWithStatus | null>(null);
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
 
   const [statusOptions] = useState([
     { label: "Em Estoque", value: "emEstoque" },
@@ -174,6 +177,31 @@ export default function Home() {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deletingMedication) return;
+    setDeletingInProgress(true);
+    try {
+      await axios.delete(`${API_BASE_URL}/medications/${deletingMedication.id}`);
+      toast.current?.show({
+        severity: "success",
+        summary: "Sucesso!",
+        detail: "Medicação excluída com sucesso.",
+        life: 3000,
+      });
+      setDeletingMedication(null);
+      fetchMedications();
+    } catch (error: unknown) {
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro!",
+        detail: normalizeErrorMessage(error),
+        life: 4000,
+      });
+    } finally {
+      setDeletingInProgress(false);
+    }
+  };
+
   const header = (
     <div className="filters-container">
       <InputText
@@ -198,6 +226,17 @@ export default function Home() {
   return (
     <div className="home-container">
       <Toast ref={toast} position="top-right" />
+      <ConfirmDialog
+        visible={!!deletingMedication}
+        onHide={() => !deletingInProgress && setDeletingMedication(null)}
+        header="Excluir medicação"
+        message="Deseja realmente excluir esta medicação? Esta ação não pode ser desfeita."
+        acceptLabel="Excluir"
+        rejectLabel="Cancelar"
+        acceptClassName="p-button-danger"
+        accept={handleConfirmDelete}
+        reject={() => setDeletingMedication(null)}
+      />
       <Header />
       <Menu />
       <div className="title-home">
@@ -255,14 +294,24 @@ export default function Home() {
         <Column
           header="Ações"
           body={(rowData: MedicationWithStatus) => (
-            <Button
-              label="Editar"
-              icon="pi pi-pencil"
-              className="p-button-sm"
-              onClick={() => openEdit(rowData)}
-            />
+            <div className="home-actions-buttons">
+              <Button
+                label="Editar"
+                icon="pi pi-pencil"
+                className="p-button-sm"
+                onClick={() => openEdit(rowData)}
+              />
+              <Button
+                label="Excluir"
+                icon="pi pi-trash"
+                className="p-button-sm p-button-danger"
+                onClick={() => setDeletingMedication(rowData)}
+                aria-label="Excluir medicação"
+                disabled={deletingInProgress}
+              />
+            </div>
           )}
-          style={{ minWidth: "8rem" }}
+          style={{ minWidth: "10rem" }}
         />
       </DataTable>
 
