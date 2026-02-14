@@ -114,7 +114,7 @@ function CardKanban({ medications }: CardKanbanProps) {
                       backgroundColor: categoryColors[status],
                     }}
                   >
-                    <h4>{med.nome}</h4>
+                    <h4>{med.nome} (lote: {med.lote})</h4>
                     <p>
                       <strong>Quantidade:</strong> {med.quantidade}
                     </p>
