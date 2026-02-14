@@ -1,14 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { TabView, TabPanel } from "primereact/tabview";
 import { API_BASE_URL } from "../../config/api";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import CardKanban from "../../components/CardKanban";
+import CardKanbanMedication from "../../components/CardKanbanMedication";
+import { aggregateByMedication } from "../../utils/stockAggregation";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
 
 function DashboardStock() {
   const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
+
+  const medicationsAggregated = useMemo(
+    () => aggregateByMedication(medications),
+    [medications]
+  );
 
   useEffect(() => {
     axios
@@ -30,7 +38,14 @@ function DashboardStock() {
           <h2>Painel de Estoque</h2>
         </div>
 
-        <CardKanban medications={medications} />
+        <TabView>
+          <TabPanel header="Por Lote">
+            <CardKanban medications={medications} />
+          </TabPanel>
+          <TabPanel header="Por Medicamento">
+            <CardKanbanMedication medications={medicationsAggregated} />
+          </TabPanel>
+        </TabView>
       </div>
     </div>
   );

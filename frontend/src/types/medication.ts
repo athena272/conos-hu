@@ -21,6 +21,15 @@ export interface MedicationWithStatus extends Medication {
   status: MedicationStatus;
 }
 
+export interface MedicationAggregated {
+  nomeExibicao: string;
+  nomeNormalizado: string;
+  quantidadeTotal: number;
+  dataValidadeExibicao: string;
+  status: MedicationStatus;
+  lotesIds?: number[];
+}
+
 export interface QuantityResponse {
   total: number;
 }
