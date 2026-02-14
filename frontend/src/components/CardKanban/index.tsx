@@ -32,20 +32,18 @@ function CardKanban({ medications }: CardKanbanProps) {
 
   const categories = useMemo(() => {
     return {
-      emEstoque: filteredMedications.filter((med) => med.status === "emEstoque"),
+      emEstoque: filteredMedications.filter(
+        (med) => med.status === "emEstoque",
+      ),
       proximoVencer: filteredMedications.filter(
-        (med) => med.status === "proximoVencer"
+        (med) => med.status === "proximoVencer",
       ),
       foraValidade: filteredMedications.filter(
-        (med) => med.status === "foraValidade"
+        (med) => med.status === "foraValidade",
       ),
       emFalta: filteredMedications.filter((med) => med.status === "emFalta"),
     };
   }, [filteredMedications]);
-
-  useEffect(() => {
-    console.log("Categorias após filtragem:", categories);
-  }, [categories]);
 
   const categoryColorsTitle: Record<string, string> = {
     emEstoque: "#1AD698",
@@ -114,12 +112,18 @@ function CardKanban({ medications }: CardKanbanProps) {
                       backgroundColor: categoryColors[status],
                     }}
                   >
-                    <h4>{med.nome} (lote: {med.lote})</h4>
+                    <p>
+                      <strong>Medicamento:</strong> {med.nome}
+                    </p>
+                    <p>
+                      <strong>Lote:</strong> {med.lote}
+                    </p>
                     <p>
                       <strong>Quantidade:</strong> {med.quantidade}
                     </p>
                     <p>
-                      <strong>Validade:</strong> {formatDateBR(med.data_validade)}
+                      <strong>Validade:</strong>{" "}
+                      {formatDateBR(med.data_validade)}
                     </p>
                   </div>
                 ))
