@@ -9,6 +9,7 @@ router.get("/by-name-concentration", medicationController.getLotsByNameConcentra
 router.post("/add-quantity", medicationController.addQuantity);
 router.get("/:id", medicationController.getMedicationById);
 router.put("/:id", medicationController.updateMedication);
+router.delete("/:id", medicationController.deleteMedication);
 router.post("/search", medicationController.searchMedication);
 
 export default router;

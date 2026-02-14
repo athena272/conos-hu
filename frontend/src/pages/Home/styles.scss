@@ -2,6 +2,12 @@
   margin-left: 28px;
 }
 
+.home-actions-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .p-datatable-header {
   background-color: #fff;
 }
