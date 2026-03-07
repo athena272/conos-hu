@@ -71,10 +71,14 @@ const schema = yup.object().shape({
   prontuario: yup
     .string()
     .required("Prontuário é obrigatório")
-    .test("valid", "Prontuário deve ser um número inteiro não negativo", (v) => {
-      const n = parseInt(String(v ?? ""), 10);
-      return !isNaN(n) && n >= 0 && String(n) === String(v?.trim());
-    }),
+    .test(
+      "valid",
+      "Prontuário deve ser um número inteiro não negativo",
+      (v) => {
+        const n = parseInt(String(v ?? ""), 10);
+        return !isNaN(n) && n >= 0 && String(n) === String(v?.trim());
+      },
+    ),
   apac: yup.string().required("APAC é obrigatória").trim(),
   diagnostico: yup.string().required("Diagnóstico é obrigatório").trim(),
   medicamento: yup
@@ -91,11 +95,17 @@ const schema = yup.object().shape({
     }),
   observacoes: yup.string().nullable(),
   telefone: yup.string().required("Telefone é obrigatório").trim(),
-  data_liberacao: yup.string().required("Data de liberação é obrigatória").trim(),
+  data_liberacao: yup
+    .string()
+    .required("Data de liberação é obrigatória")
+    .trim(),
   retorna_servico: yup.boolean().required(),
   tipo_retorno: yup.string().when("retorna_servico", {
     is: true,
-    then: (s) => s.required("Selecione o tipo de retorno").oneOf(["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"]),
+    then: (s) =>
+      s
+        .required("Selecione o tipo de retorno")
+        .oneOf(["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"]),
     otherwise: (s) => s.nullable(),
   }),
 });
@@ -109,26 +119,40 @@ function formatTipoRetorno(tipo: string | null): string {
 export default function Pacientes() {
   const toast = useRef<Toast>(null);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [medicamentosDistintos, setMedicamentosDistintos] = useState<MedicamentoDistinto[]>([]);
-  const [resumoPorMedicamento, setResumoPorMedicamento] = useState<ResumoPorMedicamento[]>([]);
+  const [medicamentosDistintos, setMedicamentosDistintos] = useState<
+    MedicamentoDistinto[]
+  >([]);
+  const [resumoPorMedicamento, setResumoPorMedicamento] = useState<
+    ResumoPorMedicamento[]
+  >([]);
   const [formVisible, setFormVisible] = useState(false);
   const [editingPaciente, setEditingPaciente] = useState<Paciente | null>(null);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [impactData, setImpactData] = useState<ImpactoEstoque | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
   const [submittingConfirm, setSubmittingConfirm] = useState(false);
-  const [deletingPaciente, setDeletingPaciente] = useState<Paciente | null>(null);
+  const [deletingPaciente, setDeletingPaciente] = useState<Paciente | null>(
+    null,
+  );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [loadingResumo, setLoadingResumo] = useState(false);
 
   const fetchPacientes = () => {
-    axios.get<Paciente[]>(`${API_BASE_URL}/pacientes`).then((res) => setPacientes(res.data ?? [])).catch(() => setPacientes([]));
+    axios
+      .get<Paciente[]>(`${API_BASE_URL}/pacientes`)
+      .then((res) => setPacientes(res.data ?? []))
+      .catch(() => setPacientes([]));
   };
 
   const fetchMedicamentosDistintos = () => {
     axios
-      .get<MedicamentoDistinto[]>(`${API_BASE_URL}/medications/distinct-nome-concentration`)
+      .get<MedicamentoDistinto[]>(
+        `${API_BASE_URL}/medications/distinct-nome-concentration`,
+      )
       .then((res) => setMedicamentosDistintos(res.data ?? []))
       .catch(() => setMedicamentosDistintos([]));
   };
@@ -136,7 +160,9 @@ export default function Pacientes() {
   const fetchResumoPorMedicamento = () => {
     setLoadingResumo(true);
     axios
-      .get<ResumoPorMedicamento[]>(`${API_BASE_URL}/pacientes/resumo-por-medicamento`)
+      .get<ResumoPorMedicamento[]>(
+        `${API_BASE_URL}/pacientes/resumo-por-medicamento`,
+      )
       .then((res) => setResumoPorMedicamento(res.data ?? []))
       .catch(() => setResumoPorMedicamento([]))
       .finally(() => setLoadingResumo(false));
@@ -186,9 +212,17 @@ export default function Pacientes() {
     tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
   });
 
-  const handleSubmit = (values: FormValues, helpers: FormikHelpers<FormValues>) => {
+  const handleSubmit = (
+    values: FormValues,
+    helpers: FormikHelpers<FormValues>,
+  ) => {
     if (!values.medicamento) {
-      toast.current?.show({ severity: "warn", summary: "Atenção", detail: "Selecione o medicamento.", life: 4000 });
+      toast.current?.show({
+        severity: "warn",
+        summary: "Atenção",
+        detail: "Selecione o medicamento.",
+        life: 4000,
+      });
       helpers.setSubmitting(false);
       return;
     }
@@ -198,12 +232,22 @@ export default function Pacientes() {
       axios
         .put(`${API_BASE_URL}/pacientes/${editingPaciente.id}`, payload)
         .then(() => {
-          toast.current?.show({ severity: "success", summary: "Sucesso", detail: "Paciente atualizado com sucesso.", life: 3000 });
+          toast.current?.show({
+            severity: "success",
+            summary: "Sucesso",
+            detail: "Paciente atualizado com sucesso.",
+            life: 3000,
+          });
           fetchPacientes();
           fetchResumoPorMedicamento();
         })
         .catch((err: unknown) => {
-          toast.current?.show({ severity: "error", summary: "Erro", detail: normalizeErrorMessage(err), life: 4000 });
+          toast.current?.show({
+            severity: "error",
+            summary: "Erro",
+            detail: normalizeErrorMessage(err),
+            life: 4000,
+          });
         })
         .finally(() => helpers.setSubmitting(false));
       return;
@@ -217,7 +261,7 @@ export default function Pacientes() {
     const consumo = parseFloat(String(values.consumo_diario).replace(",", "."));
     axios
       .get<ImpactoEstoque>(
-        `${API_BASE_URL}/pacientes/impacto-estoque?medicamento_nome=${nome}&medicamento_concentracao=${conc}&consumo_diario=${consumo}`
+        `${API_BASE_URL}/pacientes/impacto-estoque?medicamento_nome=${nome}&medicamento_concentracao=${conc}&consumo_diario=${consumo}`,
       )
       .then((res) => setImpactData(res.data))
       .catch(() => setImpactData(null))
@@ -231,13 +275,23 @@ export default function Pacientes() {
     axios
       .post(`${API_BASE_URL}/pacientes`, pendingPayload)
       .then(() => {
-        toast.current?.show({ severity: "success", summary: "Sucesso", detail: "Paciente cadastrado com sucesso.", life: 3000 });
+        toast.current?.show({
+          severity: "success",
+          summary: "Sucesso",
+          detail: "Paciente cadastrado com sucesso.",
+          life: 3000,
+        });
         closeForm();
         fetchPacientes();
         fetchResumoPorMedicamento();
       })
       .catch((err: unknown) => {
-        toast.current?.show({ severity: "error", summary: "Erro", detail: normalizeErrorMessage(err), life: 4000 });
+        toast.current?.show({
+          severity: "error",
+          summary: "Erro",
+          detail: normalizeErrorMessage(err),
+          life: 4000,
+        });
       })
       .finally(() => setSubmittingConfirm(false));
   };
@@ -253,12 +307,22 @@ export default function Pacientes() {
     setDeletingInProgress(true);
     try {
       await axios.delete(`${API_BASE_URL}/pacientes/${deletingPaciente.id}`);
-      toast.current?.show({ severity: "success", summary: "Sucesso", detail: "Paciente excluído com sucesso.", life: 3000 });
+      toast.current?.show({
+        severity: "success",
+        summary: "Sucesso",
+        detail: "Paciente excluído com sucesso.",
+        life: 3000,
+      });
       setDeletingPaciente(null);
       fetchPacientes();
       fetchResumoPorMedicamento();
     } catch (err: unknown) {
-      toast.current?.show({ severity: "error", summary: "Erro", detail: normalizeErrorMessage(err), life: 4000 });
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro",
+        detail: normalizeErrorMessage(err),
+        life: 4000,
+      });
     } finally {
       setDeletingInProgress(false);
     }
@@ -271,11 +335,22 @@ export default function Pacientes() {
         apac: editingPaciente.apac ?? "",
         diagnostico: editingPaciente.diagnostico ?? "",
         medicamento: (() => {
-          if (!editingPaciente.medicamento_nome || !editingPaciente.medicamento_concentracao) return null;
+          if (
+            !editingPaciente.medicamento_nome ||
+            !editingPaciente.medicamento_concentracao
+          )
+            return null;
           const found = medicamentosDistintos.find(
-            (m) => m.nome === editingPaciente.medicamento_nome && m.concentracao === editingPaciente.medicamento_concentracao
+            (m) =>
+              m.nome === editingPaciente.medicamento_nome &&
+              m.concentracao === editingPaciente.medicamento_concentracao,
           );
-          return found ?? { nome: editingPaciente.medicamento_nome, concentracao: editingPaciente.medicamento_concentracao };
+          return (
+            found ?? {
+              nome: editingPaciente.medicamento_nome,
+              concentracao: editingPaciente.medicamento_concentracao,
+            }
+          );
         })(),
         consumo_diario: String(editingPaciente.consumo_diario ?? ""),
         observacoes: editingPaciente.observacoes ?? "",
@@ -304,7 +379,13 @@ export default function Pacientes() {
       <Menu />
       <div className="pacientes-title">
         <h2>Pacientes</h2>
-        <Button label="Novo paciente" icon="pi pi-plus" onClick={openCreate} className="p-button-primary" />
+        <Button
+          label="Novo paciente"
+          icon="pi pi-plus"
+          onClick={openCreate}
+          className="p-button-primary"
+          style={{ marginTop: "20px" }}
+        />
       </div>
 
       {resumoPorMedicamento.length > 0 && (
@@ -319,13 +400,24 @@ export default function Pacientes() {
               emptyMessage="Nenhum medicamento com pacientes vinculados."
               className="pacientes-resumo-table"
             >
-              <Column field="medicamento_nome" header="Medicamento" body={(r: ResumoPorMedicamento) => `${r.medicamento_nome} - ${r.medicamento_concentracao}`} />
+              <Column
+                field="medicamento_nome"
+                header="Medicamento"
+                body={(r: ResumoPorMedicamento) =>
+                  `${r.medicamento_nome} - ${r.medicamento_concentracao}`
+                }
+              />
               <Column field="estoqueTotal" header="Estoque total" />
               <Column field="qtdPacientes" header="Pacientes" />
-              <Column field="consumoDiarioTotal" header="Consumo diário total" />
+              <Column
+                field="consumoDiarioTotal"
+                header="Consumo diário total"
+              />
               <Column
                 header="Estoque dá para (meses)"
-                body={(r: ResumoPorMedicamento) => (r.mesesEstoque != null ? `${r.mesesEstoque}` : "—")}
+                body={(r: ResumoPorMedicamento) =>
+                  r.mesesEstoque != null ? `${r.mesesEstoque}` : "—"
+                }
               />
             </DataTable>
           )}
@@ -340,16 +432,34 @@ export default function Pacientes() {
         className="pacientes-table"
       >
         <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
-        <Column field="prontuario" header="Prontuário" style={{ minWidth: "8rem" }} />
+        <Column
+          field="prontuario"
+          header="Prontuário"
+          style={{ minWidth: "8rem" }}
+        />
         <Column field="apac" header="APAC" style={{ minWidth: "10rem" }} />
-        <Column field="diagnostico" header="Diagnóstico" style={{ minWidth: "12rem" }} />
+        <Column
+          field="diagnostico"
+          header="Diagnóstico"
+          style={{ minWidth: "12rem" }}
+        />
         <Column
           header="Medicamento"
-          body={(r: Paciente) => `${r.medicamento_nome} - ${r.medicamento_concentracao}`}
+          body={(r: Paciente) =>
+            `${r.medicamento_nome} - ${r.medicamento_concentracao}`
+          }
           style={{ minWidth: "14rem" }}
         />
-        <Column field="consumo_diario" header="Consumo diário" style={{ minWidth: "8rem" }} />
-        <Column field="telefone" header="Telefone" style={{ minWidth: "10rem" }} />
+        <Column
+          field="consumo_diario"
+          header="Consumo diário"
+          style={{ minWidth: "8rem" }}
+        />
+        <Column
+          field="telefone"
+          header="Telefone"
+          style={{ minWidth: "10rem" }}
+        />
         <Column
           field="data_liberacao"
           header="Data liberação"
@@ -372,7 +482,12 @@ export default function Pacientes() {
           header="Ações"
           body={(r: Paciente) => (
             <div className="pacientes-actions">
-              <Button label="Editar" icon="pi pi-pencil" className="p-button-sm" onClick={() => openEdit(r)} />
+              <Button
+                label="Editar"
+                icon="pi pi-pencil"
+                className="p-button-sm"
+                onClick={() => openEdit(r)}
+              />
               <Button
                 label="Excluir"
                 icon="pi pi-trash"
@@ -400,55 +515,131 @@ export default function Pacientes() {
           enableReinitialize
           onSubmit={handleSubmit}
         >
-          {({ values, setFieldValue, setFieldTouched, isSubmitting, errors, touched }) => (
+          {({
+            values,
+            setFieldValue,
+            setFieldTouched,
+            isSubmitting,
+            errors,
+            touched,
+          }) => (
             <Form>
               <div className="pacientes-form-fields">
-                <LabelInput name="nome" label="Nome" placeholder="Nome do paciente" />
-                <LabelInput name="prontuario" label="Prontuário" placeholder="Número do prontuário" type="number" />
-                <LabelInput name="apac" label="APAC" placeholder="APAC (texto)" />
-                <LabelInput name="diagnostico" label="Diagnóstico" placeholder="Diagnóstico" />
+                <LabelInput
+                  name="nome"
+                  label="Nome"
+                  placeholder="Nome do paciente"
+                />
+                <LabelInput
+                  name="prontuario"
+                  label="Prontuário"
+                  placeholder="Número do prontuário"
+                  type="number"
+                />
+                <LabelInput
+                  name="apac"
+                  label="APAC"
+                  placeholder="APAC (texto)"
+                />
+                <LabelInput
+                  name="diagnostico"
+                  label="Diagnóstico"
+                  placeholder="Diagnóstico"
+                />
                 <div className="campo-dropdown">
-                  <label htmlFor="medicamento" className="input-label">Medicamento</label>
+                  <label htmlFor="medicamento" className="input-label">
+                    Medicamento (nome e concentração)
+                  </label>
+                  <p className="pacientes-field-hint">
+                    Selecione pelo nome e concentração. O paciente fica vinculado ao medicamento, não a um lote específico; o estoque considera todos os lotes desse medicamento.
+                  </p>
                   <Field name="medicamento">
-                    {({ form }: { form: { setFieldValue: (n: string, v: unknown) => void; setFieldTouched: (n: string, t: boolean) => void; errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
+                    {({
+                      form,
+                    }: {
+                      form: {
+                        setFieldValue: (n: string, v: unknown) => void;
+                        setFieldTouched: (n: string, t: boolean) => void;
+                        errors: Record<string, unknown>;
+                        touched: Record<string, unknown>;
+                      };
+                    }) => (
                       <Dropdown
                         id="medicamento"
                         value={values.medicamento}
                         options={medicamentoDropdownOptions}
                         optionLabel="label"
                         optionValue="value"
-                        onChange={(e: { value: MedicamentoDistinto | null }) => {
+                        onChange={(e: {
+                          value: MedicamentoDistinto | null;
+                        }) => {
                           setFieldValue("medicamento", e.value);
                           form.setFieldTouched("medicamento", true);
                         }}
                         onBlur={() => setFieldTouched("medicamento", true)}
-                        placeholder="Selecione o medicamento"
+                        placeholder="Selecione nome e concentração do medicamento"
                         className={`w-full ${errors.medicamento && touched.medicamento ? "p-invalid" : ""}`}
                       />
                     )}
                   </Field>
-                  <ErrorMessage component="span" name="medicamento" className="form-error" />
+                  <ErrorMessage
+                    component="span"
+                    name="medicamento"
+                    className="form-error"
+                  />
                 </div>
-                <LabelInput name="consumo_diario" label="Consumo diário" placeholder="Ex.: 2" type="number" />
-                <LabelInput name="observacoes" label="Observações (opcional)" placeholder="Observações" />
-                <LabelInput name="telefone" label="Telefone" placeholder="Telefone" />
-                <LabelInput name="data_liberacao" label="Data de liberação" type="date" />
+                <LabelInput
+                  name="consumo_diario"
+                  label="Consumo diário"
+                  placeholder="Ex.: 2"
+                  type="number"
+                />
+                <LabelInput
+                  name="observacoes"
+                  label="Observações (opcional)"
+                  placeholder="Observações"
+                />
+                <LabelInput
+                  name="telefone"
+                  label="Telefone"
+                  placeholder="Telefone"
+                />
+                <LabelInput
+                  name="data_liberacao"
+                  label="Data de liberação"
+                  type="date"
+                />
                 <div className="campo-dropdown">
-                  <label htmlFor="retorna_servico" className="input-label">O paciente vai retornar para o serviço?</label>
+                  <label htmlFor="retorna_servico" className="input-label">
+                    O paciente vai retornar para o serviço?
+                  </label>
                   <Dropdown
                     id="retorna_servico"
                     value={values.retorna_servico}
                     options={RETORNA_SERVICO_OPTIONS}
-                    onChange={(e: { value: boolean }) => setFieldValue("retorna_servico", e.value)}
+                    onChange={(e: { value: boolean }) =>
+                      setFieldValue("retorna_servico", e.value)
+                    }
                     placeholder="Sim ou Não"
                     className="w-full"
                   />
                 </div>
                 {values.retorna_servico && (
                   <div className="campo-dropdown">
-                    <label htmlFor="tipo_retorno" className="input-label">Tipo de retorno</label>
+                    <label htmlFor="tipo_retorno" className="input-label">
+                      Tipo de retorno
+                    </label>
                     <Field name="tipo_retorno">
-                      {({ form }: { form: { setFieldValue: (n: string, v: unknown) => void; setFieldTouched: (n: string, t: boolean) => void; errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
+                      {({
+                        form,
+                      }: {
+                        form: {
+                          setFieldValue: (n: string, v: unknown) => void;
+                          setFieldTouched: (n: string, t: boolean) => void;
+                          errors: Record<string, unknown>;
+                          touched: Record<string, unknown>;
+                        };
+                      }) => (
                         <Dropdown
                           id="tipo_retorno"
                           value={values.tipo_retorno}
@@ -463,13 +654,26 @@ export default function Pacientes() {
                         />
                       )}
                     </Field>
-                    <ErrorMessage component="span" name="tipo_retorno" className="form-error" />
+                    <ErrorMessage
+                      component="span"
+                      name="tipo_retorno"
+                      className="form-error"
+                    />
                   </div>
                 )}
               </div>
               <div className="pacientes-form-footer">
-                <Button type="button" label="Cancelar" className="p-button-text" onClick={closeForm} />
-                <ButtonSubmit type="submit" loading={isSubmitting} disabled={isSubmitting}>
+                <Button
+                  type="button"
+                  label="Cancelar"
+                  className="p-button-text"
+                  onClick={closeForm}
+                />
+                <ButtonSubmit
+                  type="submit"
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                >
                   {editingPaciente ? "Salvar" : "Salvar e confirmar"}
                 </ButtonSubmit>
               </div>
@@ -486,25 +690,67 @@ export default function Pacientes() {
         style={{ width: "92vw", maxWidth: "520px" }}
         footer={
           <div>
-            <Button label="Cancelar" className="p-button-text" onClick={handleCancelarConfirm} disabled={submittingConfirm} />
-            <Button label="Confirmar cadastro" onClick={handleConfirmarCadastro} loading={submittingConfirm} disabled={submittingConfirm || loadingImpact} />
+            <Button
+              label="Cancelar"
+              className="p-button-text"
+              onClick={handleCancelarConfirm}
+              disabled={submittingConfirm}
+            />
+            <Button
+              label="Confirmar cadastro"
+              onClick={handleConfirmarCadastro}
+              loading={submittingConfirm}
+              disabled={submittingConfirm || loadingImpact}
+            />
           </div>
         }
       >
         {pendingPayload && (
           <div className="pacientes-confirm-content">
-            <p><strong>Resumo:</strong> {String(pendingPayload.nome)} — Pront. {String(pendingPayload.prontuario)} — Medicamento: {String(pendingPayload.medicamento_nome)} ({String(pendingPayload.medicamento_concentracao)}). Consumo diário: {String(pendingPayload.consumo_diario)}.</p>
+            <p>
+              <strong>Resumo:</strong> {String(pendingPayload.nome)} — Pront.{" "}
+              {String(pendingPayload.prontuario)} — Medicamento:{" "}
+              {String(pendingPayload.medicamento_nome)} (
+              {String(pendingPayload.medicamento_concentracao)}). Consumo
+              diário: {String(pendingPayload.consumo_diario)}.
+            </p>
             <h4>Impacto no estoque</h4>
             {loadingImpact ? (
               <p>Carregando...</p>
             ) : impactData ? (
               <ul className="pacientes-impact-list">
-                <li>Estoque total do medicamento: <strong>{impactData.estoqueTotal}</strong> unidades</li>
-                <li>Pacientes já vinculados a este medicamento: <strong>{impactData.pacientesVinculados}</strong></li>
-                <li>Consumo diário atual (todos os pacientes): <strong>{impactData.consumoDiarioAtual.toFixed(2)}</strong></li>
-                <li>Consumo diário com este paciente: <strong>{impactData.consumoDiarioComNovo.toFixed(2)}</strong></li>
-                <li>Estoque atual dá para: <strong>{impactData.mesesEstoqueAtual != null ? `${impactData.mesesEstoqueAtual} meses` : "—"}</strong></li>
-                <li>Com este paciente, o estoque daria para: <strong>{impactData.mesesEstoqueComNovo != null ? `${impactData.mesesEstoqueComNovo} meses` : "—"}</strong></li>
+                <li>
+                  Estoque total do medicamento:{" "}
+                  <strong>{impactData.estoqueTotal}</strong> unidades
+                </li>
+                <li>
+                  Pacientes já vinculados a este medicamento:{" "}
+                  <strong>{impactData.pacientesVinculados}</strong>
+                </li>
+                <li>
+                  Consumo diário atual (todos os pacientes):{" "}
+                  <strong>{impactData.consumoDiarioAtual.toFixed(2)}</strong>
+                </li>
+                <li>
+                  Consumo diário com este paciente:{" "}
+                  <strong>{impactData.consumoDiarioComNovo.toFixed(2)}</strong>
+                </li>
+                <li>
+                  Estoque atual dá para:{" "}
+                  <strong>
+                    {impactData.mesesEstoqueAtual != null
+                      ? `${impactData.mesesEstoqueAtual} meses`
+                      : "—"}
+                  </strong>
+                </li>
+                <li>
+                  Com este paciente, o estoque daria para:{" "}
+                  <strong>
+                    {impactData.mesesEstoqueComNovo != null
+                      ? `${impactData.mesesEstoqueComNovo} meses`
+                      : "—"}
+                  </strong>
+                </li>
               </ul>
             ) : (
               <p>Não foi possível carregar o impacto no estoque.</p>
