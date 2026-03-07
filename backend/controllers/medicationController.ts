@@ -182,6 +182,22 @@ export const getMedicationById = (req: Request, res: Response): void => {
   );
 };
 
+/** Lista pares (nome, concentracao) distintos para dropdown de medicamento (ex.: cadastro de paciente) */
+export const getDistinctNomeConcentration = (req: Request, res: Response): void => {
+  db.query(
+    "SELECT DISTINCT nome, concentracao FROM medications ORDER BY nome, concentracao",
+    [],
+    (err: Error | null, results: unknown) => {
+      if (err) {
+        console.error("Erro ao buscar medicamentos distintos:", err);
+        res.status(500).json({ error: "Erro ao buscar medicamentos" });
+        return;
+      }
+      res.status(200).json((results as { nome: string; concentracao: string }[]) || []);
+    }
+  );
+};
+
 /** Lista todos os lotes (medicamentos) com mesmo nome e concentração para escolha na retirada */
 export const getLotsByNameConcentration = (req: Request, res: Response): void => {
   const nome = req.query.nome as string;
