@@ -5,6 +5,7 @@ const router: IRouter = express.Router();
 
 router.post("/", medicationController.registerMedication);
 router.get("/", medicationController.getMedications);
+router.get("/distinct-nome-concentration", medicationController.getDistinctNomeConcentration);
 router.get("/by-name-concentration", medicationController.getLotsByNameConcentration);
 router.post("/add-quantity", medicationController.addQuantity);
 router.get("/:id", medicationController.getMedicationById);

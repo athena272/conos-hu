@@ -49,14 +49,49 @@ function RegisterMedication() {
 
   const newLoteSchema = yup.object().shape({
     entryType: yup.string().oneOf(["new", "existing"]).required(),
-    name: yup.string(),
-    batch: yup.string(),
-    quantity: yup.string().required("A quantidade é obrigatória"),
-    classification: yup.string(),
-    concentration: yup.string(),
-    pharmaceuticalForm: yup.object().nullable(),
-    expiryDate: yup.string(),
-    existingMedicationId: yup.number().nullable(),
+    name: yup.string().when("entryType", {
+      is: "new",
+      then: (s) => s.required("O nome do medicamento é obrigatório").trim(),
+      otherwise: (s) => s.nullable(),
+    }),
+    batch: yup.string().when("entryType", {
+      is: "new",
+      then: (s) => s.required("O lote é obrigatório").trim(),
+      otherwise: (s) => s.nullable(),
+    }),
+    quantity: yup
+      .string()
+      .required("A quantidade é obrigatória")
+      .test("min", "Informe uma quantidade válida (maior que 0)", (val) => {
+        if (val == null || val === "") return false;
+        const n = parseInt(val, 10);
+        return !isNaN(n) && n > 0;
+      }),
+    classification: yup.string().when("entryType", {
+      is: "new",
+      then: (s) => s.required("A classificação é obrigatória").trim(),
+      otherwise: (s) => s.nullable(),
+    }),
+    concentration: yup.string().when("entryType", {
+      is: "new",
+      then: (s) => s.required("A concentração é obrigatória").trim(),
+      otherwise: (s) => s.nullable(),
+    }),
+    pharmaceuticalForm: yup.object().nullable().when("entryType", {
+      is: "new",
+      then: (s) => s.required("Selecione a forma farmacêutica"),
+      otherwise: (s) => s.nullable(),
+    }),
+    expiryDate: yup.string().when("entryType", {
+      is: "new",
+      then: (s) => s.required("A data de validade é obrigatória"),
+      otherwise: (s) => s.nullable(),
+    }),
+    existingMedicationId: yup.number().nullable().when("entryType", {
+      is: "existing",
+      then: (s) => s.required("Selecione um medicamento/lote"),
+      otherwise: (s) => s.nullable(),
+    }),
   });
 
   const handleRegisterMedication = (
@@ -225,31 +260,49 @@ function RegisterMedication() {
                   <div className="form-group">
                     <LabelInput
                       name="quantity"
-                      type="number"
+                      label="Quantidade"
                       placeholder="Quantidade a adicionar"
+                      type="number"
                     />
                   </div>
                 </>
               ) : (
                 <>
                   <div className="form-group">
-                    <LabelInput name="name" placeholder="Nome do Medicamento" />
+                    <LabelInput
+                      name="name"
+                      label="Nome do medicamento"
+                      placeholder="Digite o nome do medicamento"
+                    />
                   </div>
                   <div className="form-group">
-                    <LabelInput name="batch" placeholder="Lote" />
+                    <LabelInput
+                      name="batch"
+                      label="Lote"
+                      placeholder="Digite o nome do lote"
+                    />
                   </div>
                   <div className="form-group">
                     <LabelInput
                       name="quantity"
+                      label="Quantidade"
                       type="number"
-                      placeholder="Quantidade"
+                      placeholder="Digite a quantidade do medicamento"
                     />
                   </div>
                   <div className="form-group">
-                    <LabelInput name="classification" placeholder="Classificação" />
+                    <LabelInput
+                      name="classification"
+                      label="Classificação"
+                      placeholder="Digite a classificação do medicamento"
+                    />
                   </div>
                   <div className="form-group">
-                    <LabelInput name="concentration" placeholder="Concentração" />
+                    <LabelInput
+                      name="concentration"
+                      label="Concentração"
+                      placeholder="Ex.: 500mg, 250mg"
+                    />
                   </div>
                   <div className="form-group">
                     <DropdownInput
@@ -259,7 +312,12 @@ function RegisterMedication() {
                     />
                   </div>
                   <div className="form-group">
-                    <LabelInput name="expiryDate" placeholder="Validade" type="date" />
+                    <LabelInput
+                      name="expiryDate"
+                      label="Validade"
+                      placeholder="Validade"
+                      type="date"
+                    />
                   </div>
                 </>
               )}

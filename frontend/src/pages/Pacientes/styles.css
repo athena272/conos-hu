@@ -1,0 +1,87 @@
+.pacientes-container {
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.pacientes-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pacientes-title h2 {
+  margin: 0;
+}
+
+.pacientes-resumo-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--surface-ground, #f8f9fa);
+  border-radius: 8px;
+}
+
+.pacientes-resumo-section h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.pacientes-resumo-table {
+  margin-top: 0.5rem;
+}
+
+.pacientes-table {
+  margin-top: 0.5rem;
+}
+
+.pacientes-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pacientes-form-dialog .pacientes-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pacientes-form-dialog .campo-texto,
+.pacientes-form-dialog .campo-dropdown {
+  margin-bottom: 0;
+}
+
+.pacientes-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border, #dee2e6);
+}
+
+.pacientes-confirm-content h4 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.pacientes-impact-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.pacientes-impact-list li {
+  margin-bottom: 0.25rem;
+}
+
+.form-error {
+  color: var(--red-500, #dc3545);
+  font-size: 0.875rem;
+  display: block;
+  margin-top: 0.25rem;
+}

@@ -164,30 +164,26 @@ function RetiraMedication() {
           validateOnChange={true}
           validateOnBlur={true}
         >
-          {({ errors, touched, isSubmitting, values, setFieldValue }) => (
+          {({ isSubmitting, values, setFieldValue }) => (
             <>
               <FullScreenLoader active={isSubmitting} message="Processando retirada..." />
               <Form className="retire-form">
               <div className="form-group">
                 <LabelInput
                   name="name"
-                  placeholder="Nome do Medicamento"
+                  label="Nome do medicamento"
+                  placeholder="Digite o nome do medicamento (ex.: Dipirona)"
                   disabled={isSubmitting}
                 />
-                {touched.name && errors.name && (
-                  <div className="error-message">{errors.name}</div>
-                )}
               </div>
 
               <div className="form-group">
                 <LabelInput
                   name="concentration"
-                  placeholder="Concentração (ex: 500mg, 250mg)"
+                  label="Concentração"
+                  placeholder="Digite a concentração do medicamento (ex.: 500mg, 250mg)"
                   disabled={isSubmitting}
                 />
-                {touched.concentration && errors.concentration && (
-                  <div className="error-message">{errors.concentration}</div>
-                )}
               </div>
 
               <div className="form-group retire-form-actions">
@@ -291,13 +287,11 @@ function RetiraMedication() {
               <div className="form-group">
                 <LabelInput
                   name="quantity"
-                  placeholder="Quantidade"
+                  label="Quantidade"
+                  placeholder="Digite a quantidade à retirar"
                   type="number"
                   disabled={isSubmitting}
                 />
-                {touched.quantity && errors.quantity && (
-                  <div className="error-message">{errors.quantity}</div>
-                )}
               </div>
 
               <Button disabled={isSubmitting} type="submit">

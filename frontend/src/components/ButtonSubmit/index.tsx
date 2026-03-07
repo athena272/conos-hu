@@ -8,6 +8,7 @@ interface ButtonSubmitProps {
   type?: "button" | "submit" | "reset";
   loading?: boolean;
   onClick?: () => void;
+  className?: string;
 }
 
 function ButtonSubmit({
@@ -16,10 +17,11 @@ function ButtonSubmit({
   type = "submit",
   loading = false,
   onClick,
+  className,
 }: ButtonSubmitProps) {
   return (
     <div className="button-submit-wrapper">
-      <Button type={type} disabled={disabled || loading} loading={loading} onClick={onClick}>
+      <Button type={type} disabled={disabled || loading} loading={loading} onClick={onClick} className={className}>
         {children}
       </Button>
     </div>

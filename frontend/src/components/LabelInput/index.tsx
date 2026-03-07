@@ -4,14 +4,18 @@ import "./styles.css";
 
 interface LabelInputProps {
   name: string;
-  placeholder: string;
+  /** Texto exibido acima do campo (rótulo) */
+  label: string;
+  /** Texto de exemplo dentro do campo quando vazio */
+  placeholder?: string;
   type?: string;
   disabled?: boolean;
 }
 
 function LabelInput({
   name,
-  placeholder,
+  label,
+  placeholder = "",
   type = "text",
   disabled = false,
 }: LabelInputProps) {
@@ -20,11 +24,12 @@ function LabelInput({
       <Field name={name}>
         {({ field, form }: { field: Record<string, unknown>; form: { errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
           <div className="input-container">
-            <label htmlFor={name} className="input-label">{placeholder}</label>
+            <label htmlFor={name} className="input-label">{label}</label>
             <InputText
               id={name}
               {...field}
               type={type}
+              placeholder={placeholder}
               disabled={disabled}
               aria-describedby={`${name}-help`}
               className={`form-field ${form.errors[name] && form.touched[name] ? "p-invalid" : ""}`}
