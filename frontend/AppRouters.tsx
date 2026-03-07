@@ -14,6 +14,7 @@ import RetiraMedication from "./src/pages/RetiraMedication";
 import Simulador from "./src/pages/Simulador";
 import Dashboard from "./src/pages/Dashboard";
 import DashboardStock from "./src/pages/DashboardStock";
+import Pacientes from "./src/pages/Pacientes";
 import PrivateRoute from "./src/routes/PrivateRoute";
 
 const AppRoutes = () => {
@@ -54,6 +55,14 @@ const AppRoutes = () => {
           element={
             <PrivateRoute>
               <Simulador />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/pacientes"
+          element={
+            <PrivateRoute>
+              <Pacientes />
             </PrivateRoute>
           }
         />

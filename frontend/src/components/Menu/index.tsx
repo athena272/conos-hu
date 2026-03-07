@@ -37,6 +37,11 @@ export default function Menu() {
       ],
     },
     {
+      label: "Pacientes",
+      icon: "pi pi-users",
+      url: "/pacientes",
+    },
+    {
       label: "Dashboards",
       icon: "pi pi-box",
       items: [
