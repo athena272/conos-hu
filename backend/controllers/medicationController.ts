@@ -54,16 +54,17 @@ export const registerMedication = (req: Request, res: Response): void => {
 };
 
 export const getMedications = (req: Request, res: Response): void => {
-  db.query("SELECT * FROM medications", (err: Error | null, result: MedicationRow[]) => {
+  db.query("SELECT * FROM medications", [], (err: Error | null, result: unknown) => {
     if (err) {
       console.error("Erro ao buscar medicações:", err);
       res.status(500).json({ error: "Erro ao buscar medicações" });
       return;
     }
 
+    const rows = (result as MedicationRow[]) || [];
     const hoje = new Date();
 
-    const medicationsWithStatus = result.map((med) => {
+    const medicationsWithStatus = rows.map((med) => {
       const validade = new Date(med.data_validade);
       let status: string;
 
@@ -90,6 +91,7 @@ export const getMedications = (req: Request, res: Response): void => {
 export const getValidade = (req: Request, res: Response): void => {
   db.query(
     "SELECT * FROM medications WHERE data_validade < CURDATE()",
+    [],
     (err: Error | null, result: unknown) => {
       if (err) {
         console.error("Erro ao buscar medicações vencidas:", err);
@@ -104,13 +106,15 @@ export const getValidade = (req: Request, res: Response): void => {
 export const getQuantity = (req: Request, res: Response): void => {
   db.query(
     "SELECT SUM(quantidade) AS total FROM medications",
-    (err: Error | null, result: { total: number }[]) => {
+    [],
+    (err: Error | null, result: unknown) => {
       if (err) {
         console.error("Erro ao buscar a quantidade de medicações", err);
         res.status(500).json({ error: "Erro ao buscar a quantidade de medicações" });
         return;
       }
-      res.status(200).json({ total: result[0]?.total || 0 });
+      const rows = (result as { total: number }[]) || [];
+      res.status(200).json({ total: rows[0]?.total || 0 });
     }
   );
 };
