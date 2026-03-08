@@ -558,8 +558,8 @@ export default function Pacientes() {
                       form,
                     }: {
                       form: {
-                        setFieldValue: (n: string, v: unknown) => void;
-                        setFieldTouched: (n: string, t: boolean) => void;
+                        setFieldValue: (field: string, value: unknown) => void;
+                        setFieldTouched: (field: string, touched: boolean) => void;
                         errors: Record<string, unknown>;
                         touched: Record<string, unknown>;
                       };
@@ -634,8 +634,8 @@ export default function Pacientes() {
                         form,
                       }: {
                         form: {
-                          setFieldValue: (n: string, v: unknown) => void;
-                          setFieldTouched: (n: string, t: boolean) => void;
+                          setFieldValue: (field: string, value: unknown) => void;
+                          setFieldTouched: (field: string, touched: boolean) => void;
                           errors: Record<string, unknown>;
                           touched: Record<string, unknown>;
                         };
