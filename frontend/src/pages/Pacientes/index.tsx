@@ -535,6 +535,7 @@ export default function Pacientes() {
         className="pacientes-form-dialog"
       >
         <Formik
+          key={editingPaciente?.id ?? "new"}
           initialValues={editFormInitialValues}
           validationSchema={schema}
           enableReinitialize
