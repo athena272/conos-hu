@@ -486,6 +486,12 @@ export default function Pacientes() {
           style={{ minWidth: "10rem" }}
         />
         <Column
+          field="observacoes"
+          header="Observações"
+          body={(r: Paciente) => (r.observacoes?.trim() ? r.observacoes : "—")}
+          style={{ minWidth: "12rem", maxWidth: "16rem" }}
+        />
+        <Column
           field="data_liberacao"
           header="Data liberação"
           body={(r: Paciente) => formatDateBR(r.data_liberacao)}
