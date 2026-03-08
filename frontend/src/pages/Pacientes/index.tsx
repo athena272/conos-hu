@@ -94,7 +94,7 @@ const schema = yup.object().shape({
       return !isNaN(n) && n > 0;
     }),
   observacoes: yup.string().nullable(),
-  telefone: yup.string().required("Telefone é obrigatório").trim(),
+  telefone: yup.string().nullable().trim(),
   data_liberacao: yup
     .string()
     .required("Data de liberação é obrigatória")
@@ -206,7 +206,7 @@ export default function Pacientes() {
     medicamento_concentracao: values.medicamento!.concentracao,
     consumo_diario: parseFloat(String(values.consumo_diario).replace(",", ".")),
     observacoes: values.observacoes?.trim() || null,
-    telefone: values.telefone.trim(),
+    telefone: values.telefone?.trim() || "",
     data_liberacao: values.data_liberacao.trim(),
     retorna_servico: values.retorna_servico,
     tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
@@ -601,7 +601,7 @@ export default function Pacientes() {
                 />
                 <LabelInput
                   name="telefone"
-                  label="Telefone"
+                  label="Telefone (opcional)"
                   placeholder="Telefone"
                 />
                 <LabelInput

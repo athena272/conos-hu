@@ -31,7 +31,7 @@ function validateBodyCreateUpdate(body: Record<string, unknown>, isUpdate: boole
   if (!medicamento_concentracao || typeof medicamento_concentracao !== "string" || !medicamento_concentracao.trim()) return "medicamento_concentracao é obrigatório";
   const consumo = Number(consumo_diario);
   if (consumo === undefined || consumo === null || isNaN(consumo) || consumo <= 0) return "consumo_diario deve ser um número maior que zero";
-  if (!telefone || typeof telefone !== "string" || !telefone.trim()) return "telefone é obrigatório";
+  if (telefone !== undefined && telefone !== null && typeof telefone !== "string") return "telefone deve ser texto quando informado";
   if (!data_liberacao || typeof data_liberacao !== "string" || !data_liberacao.trim()) return "data_liberacao é obrigatória";
   const retorna = Boolean(retorna_servico);
   if (retorna && (!tipo_retorno || typeof tipo_retorno !== "string" || !TIPOS_RETORNO.includes(tipo_retorno as typeof TIPOS_RETORNO[number]))) {
@@ -122,7 +122,7 @@ export const createPaciente = (req: Request, res: Response): void => {
           String(medicamento_concentracao).trim(),
           consumoNum,
           observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          String(telefone).trim(),
+          (telefone != null && typeof telefone === "string" ? String(telefone).trim() : ""),
           String(data_liberacao).trim(),
           retorna ? 1 : 0,
           tipoRetornoVal,
@@ -196,7 +196,7 @@ export const updatePaciente = (req: Request, res: Response): void => {
           String(medicamento_concentracao).trim(),
           consumoNum,
           observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          String(telefone).trim(),
+          (telefone != null && typeof telefone === "string" ? String(telefone).trim() : ""),
           String(data_liberacao).trim(),
           retorna ? 1 : 0,
           tipoRetornoVal,
