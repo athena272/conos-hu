@@ -483,6 +483,7 @@ export default function Pacientes() {
         <Column
           field="telefone"
           header="Telefone"
+          body={(r: Paciente) => (r.telefone?.trim() ? r.telefone : "—")}
           style={{ minWidth: "10rem" }}
         />
         <Column
