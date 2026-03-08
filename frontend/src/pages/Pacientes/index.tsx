@@ -16,6 +16,7 @@ import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import LabelInput from "../../components/LabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
+import FullScreenLoader from "../../components/FullScreenLoader";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
@@ -134,6 +135,7 @@ export default function Pacientes() {
   > | null>(null);
   const [impactData, setImpactData] = useState<ImpactoEstoque | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
+  const [formSubmitting, setFormSubmitting] = useState(false);
   const [submittingConfirm, setSubmittingConfirm] = useState(false);
   const [deletingPaciente, setDeletingPaciente] = useState<Paciente | null>(
     null,
@@ -198,16 +200,16 @@ export default function Pacientes() {
   };
 
   const buildPayload = (values: FormValues): Record<string, unknown> => ({
-    nome: values.nome.trim(),
-    prontuario: parseInt(values.prontuario.trim(), 10),
-    apac: values.apac.trim(),
-    diagnostico: values.diagnostico.trim(),
+    nome: String(values.nome ?? "").trim(),
+    prontuario: parseInt(String(values.prontuario ?? "").trim(), 10),
+    apac: String(values.apac ?? "").trim(),
+    diagnostico: String(values.diagnostico ?? "").trim(),
     medicamento_nome: values.medicamento!.nome,
     medicamento_concentracao: values.medicamento!.concentracao,
     consumo_diario: parseFloat(String(values.consumo_diario).replace(",", ".")),
-    observacoes: values.observacoes?.trim() || null,
-    telefone: values.telefone?.trim() || "",
-    data_liberacao: values.data_liberacao.trim(),
+    observacoes: (values.observacoes != null && values.observacoes !== "") ? String(values.observacoes).trim() || null : null,
+    telefone: values.telefone != null ? String(values.telefone).trim() : "",
+    data_liberacao: String(values.data_liberacao ?? "").trim(),
     retorna_servico: values.retorna_servico,
     tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
   });
@@ -226,7 +228,20 @@ export default function Pacientes() {
       helpers.setSubmitting(false);
       return;
     }
-    const payload = buildPayload(values);
+    let payload: Record<string, unknown>;
+    try {
+      payload = buildPayload(values);
+    } catch (e) {
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro",
+        detail: "Verifique os dados do formulário.",
+        life: 4000,
+      });
+      helpers.setSubmitting(false);
+      return;
+    }
+    setFormSubmitting(true);
     if (editingPaciente) {
       setFormVisible(false);
       axios
@@ -249,7 +264,10 @@ export default function Pacientes() {
             life: 4000,
           });
         })
-        .finally(() => helpers.setSubmitting(false));
+        .finally(() => {
+          helpers.setSubmitting(false);
+          setFormSubmitting(false);
+        });
       return;
     }
     setPendingPayload(payload);
@@ -265,8 +283,11 @@ export default function Pacientes() {
       )
       .then((res) => setImpactData(res.data))
       .catch(() => setImpactData(null))
-      .finally(() => setLoadingImpact(false));
-    helpers.setSubmitting(false);
+      .finally(() => {
+        setLoadingImpact(false);
+        helpers.setSubmitting(false);
+        setFormSubmitting(false);
+      });
   };
 
   const handleConfirmarCadastro = () => {
@@ -363,6 +384,10 @@ export default function Pacientes() {
 
   return (
     <div className="pacientes-container">
+      <FullScreenLoader
+        active={formSubmitting || submittingConfirm}
+        message={submittingConfirm ? "Cadastrando paciente..." : "Salvando..."}
+      />
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog
         visible={!!deletingPaciente}
@@ -671,7 +696,6 @@ export default function Pacientes() {
                 />
                 <ButtonSubmit
                   type="submit"
-                  loading={isSubmitting}
                   disabled={isSubmitting}
                 >
                   {editingPaciente ? "Salvar" : "Salvar e confirmar"}
@@ -699,7 +723,6 @@ export default function Pacientes() {
             <Button
               label="Confirmar cadastro"
               onClick={handleConfirmarCadastro}
-              loading={submittingConfirm}
               disabled={submittingConfirm || loadingImpact}
             />
           </div>
