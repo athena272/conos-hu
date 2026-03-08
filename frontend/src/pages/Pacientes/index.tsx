@@ -483,7 +483,14 @@ export default function Pacientes() {
         <Column
           field="telefone"
           header="Telefone"
+          body={(r: Paciente) => (r.telefone?.trim() ? r.telefone : "—")}
           style={{ minWidth: "10rem" }}
+        />
+        <Column
+          field="observacoes"
+          header="Observações"
+          body={(r: Paciente) => (r.observacoes?.trim() ? r.observacoes : "—")}
+          style={{ minWidth: "12rem", maxWidth: "16rem" }}
         />
         <Column
           field="data_liberacao"
