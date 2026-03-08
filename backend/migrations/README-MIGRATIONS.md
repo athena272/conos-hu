@@ -1,4 +1,34 @@
-# Como rodar a migration da tabela `movimentacoes`
+# Migrations do banco de dados
+
+Este diretório contém os arquivos SQL de migration. No **GCP (Cloud Run)** as tabelas necessárias são criadas **na subida da aplicação** (ver abaixo). Em ambiente local ou para rodar manualmente, use as opções abaixo.
+
+---
+
+## Migrations ao subir no GCP (Cloud Run)
+
+**Não é necessário alterar o `cloudbuild.yaml`.**
+
+O backend está configurado para criar as tabelas ao iniciar:
+
+- Em **`backend/models/db.ts`**, na primeira conexão ao MySQL, o código executa:
+  - `CREATE TABLE IF NOT EXISTS movimentacoes ...`
+  - `CREATE TABLE IF NOT EXISTS pacientes ...`
+
+Assim, quando o Cloud Run sobe uma nova revisão, a API conecta ao banco e garante que essas tabelas existam. Não há passo de migration no Cloud Build.
+
+**Para adicionar uma nova tabela no futuro:**
+
+1. Crie o arquivo em `backend/migrations/N-create_table_nome.sql` (para referência e para rodar manualmente em outros ambientes).
+2. No `backend/models/db.ts`, adicione uma constante com o `CREATE TABLE IF NOT EXISTS ...` e chame esse SQL no mesmo bloco de inicialização (junto com `movimentacoes` e `pacientes`), antes de dar `connection.release()`.
+
+**Se um dia quiser rodar migrations no Cloud Build** (por exemplo, um script que aplica todos os `.sql` da pasta em ordem), seria preciso:
+
+- Um step no `cloudbuild.yaml` que execute esse script **com acesso ao Cloud SQL** (por exemplo, usando Cloud SQL Proxy em um container ou VPC connector).
+- O Cloud Build em si não tem acesso direto ao socket do Cloud SQL; por isso a abordagem atual (criar tabelas na subida do app) é a mais simples.
+
+---
+
+## Como rodar a migration da tabela `movimentacoes` (manual)
 
 A migration `4-create_table_movimentacoes.sql` cria a tabela de movimentações (entrada/saída) de medicamentos. Escolha uma das opções abaixo conforme onde está o seu MySQL.
 
