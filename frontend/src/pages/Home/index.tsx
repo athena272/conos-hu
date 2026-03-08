@@ -40,12 +40,19 @@ export default function Home() {
   const toast = useRef<Toast>(null);
   const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
   const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    nome: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    nome: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
     status: { value: null as string | null, matchMode: FilterMatchMode.EQUALS },
   });
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [editingMedication, setEditingMedication] = useState<MedicationWithStatus | null>(null);
+  const [editingMedication, setEditingMedication] =
+    useState<MedicationWithStatus | null>(null);
   const [editForm, setEditForm] = useState({
     nome: "",
     lote: "",
@@ -56,7 +63,8 @@ export default function Home() {
     data_validade: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
-  const [deletingMedication, setDeletingMedication] = useState<MedicationWithStatus | null>(null);
+  const [deletingMedication, setDeletingMedication] =
+    useState<MedicationWithStatus | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
 
   const [statusOptions] = useState([
@@ -67,9 +75,11 @@ export default function Home() {
   ]);
 
   const fetchMedications = () => {
-    axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`).then((response) => {
-      setMedications(response.data ?? []);
-    });
+    axios
+      .get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
+      .then((response) => {
+        setMedications(response.data ?? []);
+      });
   };
 
   useEffect(() => {
@@ -77,18 +87,17 @@ export default function Home() {
   }, [location.pathname]);
 
   const getStatusTag = (status: string) => {
-    const statusColors: Record<
-      string,
-      { label: string; color: string }
-    > = {
+    const statusColors: Record<string, { label: string; color: string }> = {
       emEstoque: { label: "Em Estoque", color: "#1AD698" },
       proximoVencer: { label: "Próximo a Vencer", color: "#FFBB00" },
       foraValidade: { label: "Fora da Validade", color: "#A83232" },
       emFalta: { label: "Em Falta", color: "#FF3838" },
     };
 
-    const statusInfo =
-      statusColors[status] || { label: "Desconhecido", color: "#CCC" };
+    const statusInfo = statusColors[status] || {
+      label: "Desconhecido",
+      color: "#CCC",
+    };
 
     return (
       <Tag
@@ -182,7 +191,9 @@ export default function Home() {
     if (!deletingMedication) return;
     setDeletingInProgress(true);
     try {
-      await axios.delete(`${API_BASE_URL}/medications/${deletingMedication.id}`);
+      await axios.delete(
+        `${API_BASE_URL}/medications/${deletingMedication.id}`,
+      );
       toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
@@ -287,9 +298,7 @@ export default function Home() {
         <Column
           field="status"
           header="Status"
-          body={(rowData: MedicationWithStatus) =>
-            getStatusTag(rowData.status)
-          }
+          body={(rowData: MedicationWithStatus) => getStatusTag(rowData.status)}
           style={{ minWidth: "10rem" }}
         />
         <Column
@@ -325,9 +334,18 @@ export default function Home() {
         style={{ width: "92vw", maxWidth: "580px" }}
         contentClassName="home-edit-dialog-content"
         footer={
-          <div>
-            <Button label="Cancelar" className="p-button-text" onClick={closeEdit} />
-            <Button label="Salvar" onClick={handleSaveEdit} loading={savingEdit} disabled={savingEdit} />
+          <div style={{ marginTop: "20px" }}>
+            <Button
+              label="Cancelar"
+              className="p-button-text"
+              onClick={closeEdit}
+            />
+            <Button
+              label="Salvar"
+              onClick={handleSaveEdit}
+              loading={savingEdit}
+              disabled={savingEdit}
+            />
           </div>
         }
       >
@@ -338,7 +356,9 @@ export default function Home() {
               <InputText
                 id="edit-nome"
                 value={editForm.nome}
-                onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, nome: e.target.value }))
+                }
                 className="w-full"
               />
             </div>
@@ -347,7 +367,9 @@ export default function Home() {
               <InputText
                 id="edit-lote"
                 value={editForm.lote}
-                onChange={(e) => setEditForm((f) => ({ ...f, lote: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, lote: e.target.value }))
+                }
                 className="w-full"
               />
             </div>
@@ -357,7 +379,12 @@ export default function Home() {
                 id="edit-quantidade"
                 type="number"
                 value={String(editForm.quantidade)}
-                onChange={(e) => setEditForm((f) => ({ ...f, quantidade: parseInt(e.target.value, 10) || 0 }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    quantidade: parseInt(e.target.value, 10) || 0,
+                  }))
+                }
                 className="w-full"
               />
             </div>
@@ -366,7 +393,9 @@ export default function Home() {
               <InputText
                 id="edit-classificacao"
                 value={editForm.classificacao}
-                onChange={(e) => setEditForm((f) => ({ ...f, classificacao: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, classificacao: e.target.value }))
+                }
                 className="w-full"
               />
             </div>
@@ -375,7 +404,9 @@ export default function Home() {
               <InputText
                 id="edit-concentracao"
                 value={editForm.concentracao}
-                onChange={(e) => setEditForm((f) => ({ ...f, concentracao: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, concentracao: e.target.value }))
+                }
                 className="w-full"
               />
             </div>
@@ -395,7 +426,9 @@ export default function Home() {
                 id="edit-validade"
                 type="date"
                 value={editForm.data_validade}
-                onChange={(e) => setEditForm((f) => ({ ...f, data_validade: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, data_validade: e.target.value }))
+                }
                 className="w-full"
               />
             </div>
