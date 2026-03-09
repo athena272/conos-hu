@@ -3,15 +3,19 @@ export type TipoRetorno =
   | "somente_farmacia"
   | "farmacia_enfermagem";
 
+export interface PacienteMedicamento {
+  medicamento_nome: string;
+  medicamento_concentracao: string;
+  consumo_diario: number;
+}
+
 export interface Paciente {
   id: number;
   nome: string;
   prontuario: number;
   apac: string;
   diagnostico: string;
-  medicamento_nome: string;
-  medicamento_concentracao: string;
-  consumo_diario: number;
+  medicamentos: PacienteMedicamento[];
   observacoes: string | null;
   telefone: string;
   data_liberacao: string;

@@ -48,11 +48,28 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 .pacientes-form-dialog .campo-texto,
 .pacientes-form-dialog .campo-dropdown {
   margin-bottom: 0;
+  min-width: 0;
+}
+
+/* Textareas: respeitam a largura da modal e não estouram o layout */
+.pacientes-form-dialog .campo-texto .input-container {
+  min-width: 0;
+}
+
+/* Textarea do PrimeReact: a classe p-inputtextarea está no próprio <textarea> */
+.pacientes-form-dialog .p-inputtextarea {
+  width: 100% !important;
+  max-width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .pacientes-field-hint {
@@ -60,6 +77,55 @@
   color: var(--text-color-secondary, #6c757d);
   margin: 0 0 0.5rem 0;
   line-height: 1.35;
+}
+
+.campo-lista-medicamentos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.pacientes-medicamento-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface-ground, #f8f9fa);
+  border-radius: 6px;
+}
+
+.pacientes-medicamento-row .campo-dropdown {
+  flex: 1;
+  min-width: 180px;
+}
+
+.campo-consumo-row {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.campo-consumo-row .input-container {
+  margin-bottom: 0;
+}
+
+.pacientes-remove-med {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.pacientes-impact-block {
+  margin-bottom: 1rem;
+}
+
+.pacientes-impact-block:last-child {
+  margin-bottom: 0;
+}
+
+.pacientes-impact-med-label {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.9375rem;
 }
 
 .pacientes-form-footer {
