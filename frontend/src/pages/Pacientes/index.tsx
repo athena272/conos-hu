@@ -247,9 +247,7 @@ export default function Pacientes() {
     helpers: FormikHelpers<FormValues>,
   ) => {
     const hasInvalidMedicamento = values.medicamentos.some(
-      (item) =>
-        !item.medicamento ||
-        !String(item.consumo_diario ?? "").trim(),
+      (item) => !item.medicamento || !String(item.consumo_diario ?? "").trim(),
     );
     if (hasInvalidMedicamento) {
       toast.current?.show({
@@ -490,19 +488,38 @@ export default function Pacientes() {
         paginator
         rows={10}
         emptyMessage="Nenhum paciente cadastrado."
-        className="pacientes-table"
+        className="pacientes-table pacientes-table-custom"
+        stripedRows
+        rowHover
+        responsiveLayout="scroll"
       >
-        <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
+        <Column
+          field="nome"
+          header="Nome"
+          style={{ minWidth: "12rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-nome"
+        />
         <Column
           field="prontuario"
           header="Prontuário"
           style={{ minWidth: "8rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-prontuario"
         />
-        <Column field="apac" header="APAC" style={{ minWidth: "10rem" }} />
+        <Column
+          field="apac"
+          header="APAC"
+          style={{ minWidth: "10rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-apac"
+        />
         <Column
           field="diagnostico"
           header="Diagnóstico"
           style={{ minWidth: "12rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-diagnostico"
         />
         <Column
           header="Medicamento"
@@ -514,7 +531,9 @@ export default function Pacientes() {
               )
               .join(", ") || "—"
           }
-          style={{ minWidth: "14rem" }}
+          style={{ minWidth: "16rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-medicamento"
         />
         <Column
           header="Consumo diário"
@@ -523,37 +542,59 @@ export default function Pacientes() {
               ? "Vários"
               : (r.medicamentos?.[0]?.consumo_diario ?? "—")
           }
-          style={{ minWidth: "8rem" }}
+          style={{ minWidth: "9rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-consumo"
         />
         <Column
           field="telefone"
           header="Telefone"
           body={(r: Paciente) => (r.telefone?.trim() ? r.telefone : "—")}
           style={{ minWidth: "10rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-telefone"
         />
         <Column
           field="observacoes"
           header="Observações"
           body={(r: Paciente) => (r.observacoes?.trim() ? r.observacoes : "—")}
-          style={{ minWidth: "12rem", maxWidth: "16rem" }}
+          style={{ minWidth: "14rem", maxWidth: "18rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-observacoes"
         />
         <Column
           field="data_liberacao"
           header="Data liberação"
           body={(r: Paciente) => formatDateBR(r.data_liberacao)}
           style={{ minWidth: "10rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-data"
         />
         <Column
           field="retorna_servico"
           header="Retorna?"
-          body={(r: Paciente) => (r.retorna_servico ? "Sim" : "Não")}
-          style={{ minWidth: "6rem" }}
+          body={(r: Paciente) => (
+            <span
+              className={
+                r.retorna_servico
+                  ? "pacientes-status pacientes-status--yes"
+                  : "pacientes-status pacientes-status--no"
+              }
+            >
+              {r.retorna_servico ? "Sim" : "Não"}
+            </span>
+          )}
+          style={{ minWidth: "7rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-retorna"
         />
         <Column
           field="tipo_retorno"
           header="Tipo retorno"
           body={(r: Paciente) => formatTipoRetorno(r.tipo_retorno)}
           style={{ minWidth: "12rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-tipo-retorno"
         />
         <Column
           header="Ações"
@@ -562,19 +603,21 @@ export default function Pacientes() {
               <Button
                 label="Editar"
                 icon="pi pi-pencil"
-                className="p-button-sm"
+                className="p-button-sm pacientes-btn-editar"
                 onClick={() => openEdit(r)}
               />
               <Button
                 label="Excluir"
                 icon="pi pi-trash"
-                className="p-button-sm p-button-danger"
+                className="p-button-sm p-button-danger pacientes-btn-excluir"
                 onClick={() => setDeletingPaciente(r)}
                 disabled={deletingInProgress}
               />
             </div>
           )}
-          style={{ minWidth: "10rem" }}
+          style={{ minWidth: "11rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-acoes"
         />
       </DataTable>
 

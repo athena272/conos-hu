@@ -210,7 +210,7 @@
 }
 
 .pacientes-medicamento-consumo {
-  flex: 0 0 140px;
+  flex: 0 0 85px;
   min-width: 140px;
   width: 100%;
 }
@@ -239,4 +239,148 @@ input.p-inputtext.p-component {
 
 .p-button.p-button-sm .p-button-icon {
   font-size: 1.25rem;
+}
+
+.pacientes-table-custom {
+  margin-top: 0.75rem;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--surface-border, #e5e7eb);
+}
+
+/* wrapper do PrimeReact */
+.pacientes-table-custom .p-datatable-wrapper {
+  border-radius: 12px;
+}
+
+/* tabela */
+.pacientes-table-custom .p-datatable-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+/* cabeçalho */
+.pacientes-table-custom .p-datatable-thead>tr>th {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 1rem 0.9rem;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+/* células */
+.pacientes-table-custom .p-datatable-tbody>tr>td {
+  padding: 1rem 0.9rem;
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f7;
+  color: #334155;
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+/* zebra */
+.pacientes-table-custom .p-datatable-tbody>tr:nth-child(even) {
+  background: #fcfcfd;
+}
+
+/* hover */
+.pacientes-table-custom .p-datatable-tbody>tr:hover {
+  background: #f8fbff !important;
+  transition: background 0.2s ease;
+}
+
+/* última linha sem borda muito pesada */
+.pacientes-table-custom .p-datatable-tbody>tr:last-child>td {
+  border-bottom: none;
+}
+
+/* paginação */
+.pacientes-table-custom .p-paginator {
+  border-top: 1px solid #e2e8f0;
+  padding: 0.75rem 1rem;
+  background: #fff;
+}
+
+/* nome em destaque */
+.pacientes-col-nome {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* colunas longas */
+.pacientes-col-diagnostico,
+.pacientes-col-medicamento,
+.pacientes-col-observacoes,
+.pacientes-col-tipo-retorno {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* colunas mais curtas/numéricas */
+.pacientes-col-prontuario,
+.pacientes-col-consumo,
+.pacientes-col-data,
+.pacientes-col-retorna {
+  white-space: nowrap;
+}
+
+/* observações com largura controlada */
+.pacientes-col-observacoes {
+  max-width: 18rem;
+}
+
+/* ações */
+.pacientes-col-acoes {
+  white-space: nowrap;
+}
+
+.pacientes-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pacientes-actions .p-button {
+  min-width: auto;
+}
+
+.pacientes-btn-editar,
+.pacientes-btn-excluir {
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* cabeçalho fixo visualmente melhor quando houver scroll horizontal */
+.pacientes-table-custom .p-datatable-thead>tr>th:first-child {
+  border-top-left-radius: 12px;
+}
+
+.pacientes-table-custom .p-datatable-thead>tr>th:last-child {
+  border-top-right-radius: 12px;
+}
+
+.pacientes-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pacientes-status--yes {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pacientes-status--no {
+  background: #fee2e2;
+  color: #991b1b;
 }
