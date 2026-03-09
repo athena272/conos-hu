@@ -231,3 +231,12 @@
 input.p-inputtext.p-component {
   width: 100%;
 }
+
+.p-button.p-button-text {
+  color: #dc3545;
+  font-weight: 900;
+}
+
+.p-button.p-button-sm .p-button-icon {
+  font-size: 1.25rem;
+}
