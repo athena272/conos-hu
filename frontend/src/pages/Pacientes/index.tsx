@@ -247,7 +247,9 @@ export default function Pacientes() {
     helpers: FormikHelpers<FormValues>,
   ) => {
     const hasInvalidMedicamento = values.medicamentos.some(
-      (item) => !item.medicamento || !item.consumo_diario?.trim(),
+      (item) =>
+        !item.medicamento ||
+        !String(item.consumo_diario ?? "").trim(),
     );
     if (hasInvalidMedicamento) {
       toast.current?.show({
@@ -306,6 +308,8 @@ export default function Pacientes() {
     setConfirmModalVisible(true);
     setImpactDataList([]);
     setLoadingImpact(true);
+    helpers.setSubmitting(false);
+    setFormSubmitting(false);
     const medicamentosPayload = payload.medicamentos as Array<{
       medicamento_nome: string;
       medicamento_concentracao: string;
@@ -320,11 +324,7 @@ export default function Pacientes() {
     )
       .then((responses) => setImpactDataList(responses.map((r) => r.data)))
       .catch(() => setImpactDataList([]))
-      .finally(() => {
-        setLoadingImpact(false);
-        helpers.setSubmitting(false);
-        setFormSubmitting(false);
-      });
+      .finally(() => setLoadingImpact(false));
   };
 
   const handleConfirmarCadastro = () => {
