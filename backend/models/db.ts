@@ -102,8 +102,11 @@ db.getConnection((err, connection) => {
         } else {
           console.log("✅ Tabela paciente_medicamentos verificada/criada.");
         }
-        connection.query(CHECK_OLD_PACIENTES_COLUMN, (checkErr, checkRows: { ok?: number }[]) => {
-          const hasOldColumn = !checkErr && Array.isArray(checkRows) && checkRows.length > 0;
+        connection.query(
+          { sql: CHECK_OLD_PACIENTES_COLUMN },
+          (checkErr, checkRows) => {
+          const rows = checkRows as { ok?: number }[] | undefined;
+          const hasOldColumn = !checkErr && Array.isArray(rows) && rows.length > 0;
           if (!hasOldColumn) {
             connection.release();
             return;
