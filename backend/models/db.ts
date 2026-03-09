@@ -65,6 +65,19 @@ const PACIENTE_MEDICAMENTOS_TABLE_SQL = `
   )
 `;
 
+const CHECK_OLD_PACIENTES_COLUMN =
+  "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pacientes' AND COLUMN_NAME = 'medicamento_nome' LIMIT 1";
+
+const MIGRATION_6_COPY =
+  "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) SELECT id, medicamento_nome, medicamento_concentracao, consumo_diario FROM pacientes WHERE medicamento_nome IS NOT NULL AND medicamento_nome != '' AND medicamento_concentracao IS NOT NULL AND medicamento_concentracao != ''";
+
+const MIGRATION_6_DROP_COLUMNS = `
+  ALTER TABLE pacientes
+  DROP COLUMN medicamento_nome,
+  DROP COLUMN medicamento_concentracao,
+  DROP COLUMN consumo_diario
+`;
+
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ Erro ao conectar ao MySQL:", err);
@@ -89,7 +102,34 @@ db.getConnection((err, connection) => {
         } else {
           console.log("✅ Tabela paciente_medicamentos verificada/criada.");
         }
-        connection.release();
+        connection.query(CHECK_OLD_PACIENTES_COLUMN, (checkErr, checkRows: { ok?: number }[]) => {
+          const hasOldColumn = !checkErr && Array.isArray(checkRows) && checkRows.length > 0;
+          if (!hasOldColumn) {
+            connection.release();
+            return;
+          }
+          console.log("🔄 Migration 6: base com schema antigo de pacientes. Aplicando migração...");
+          connection.query(MIGRATION_6_COPY, (copyErr) => {
+            if (copyErr) {
+              console.error("⚠️ Erro ao copiar dados para paciente_medicamentos:", copyErr.message);
+              connection.release();
+              return;
+            }
+            connection.query("ALTER TABLE pacientes DROP INDEX idx_pacientes_medicamento", (idxErr) => {
+              if (idxErr && (idxErr as { code?: string }).code !== "ER_CANT_DROP_FIELD_OR_KEY") {
+                console.warn("⚠️ Índice idx_pacientes_medicamento:", (idxErr as Error).message);
+              }
+              connection.query(MIGRATION_6_DROP_COLUMNS, (dropErr) => {
+                if (dropErr) {
+                  console.error("⚠️ Erro ao remover colunas antigas de pacientes (tente rodar a migration manualmente):", dropErr.message);
+                } else {
+                  console.log("✅ Migration 6 aplicada: colunas de medicamento removidas de pacientes.");
+                }
+                connection.release();
+              });
+            });
+          });
+        });
       });
     });
   });

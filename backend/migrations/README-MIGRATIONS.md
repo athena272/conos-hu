@@ -151,3 +151,62 @@ Se você usa Cloud SQL Proxy no PC (por exemplo em `127.0.0.1:3306`):
 | Cloud SQL via proxy local| Terminal local     | `mysql -h 127.0.0.1 -P 3306 -u conos -p conos < migrations/4-create_table_movimentacoes.sql` |
 
 **Sim:** se o banco de produção for no Google Cloud, a forma mais direta é usar o **Cloud Shell**, conectar no instance com `gcloud sql connect` e colar o SQL da tabela `movimentacoes` no prompt do MySQL.
+
+---
+
+## Migration 6: Paciente com múltiplos medicamentos
+
+### Execução automática no deploy (GCP / qualquer ambiente)
+
+A partir desta versão, a **migration 6 roda sozinha** quando a API sobe. Em `backend/models/db.ts`, logo após criar/verificar as tabelas, o código:
+
+1. Verifica se a tabela `pacientes` ainda tem a coluna `medicamento_nome` (schema antigo).
+2. Se tiver: cria `paciente_medicamentos` (se não existir), copia os dados de `pacientes` para `paciente_medicamentos`, remove o índice `idx_pacientes_medicamento` (se existir) e remove as colunas `medicamento_nome`, `medicamento_concentracao` e `consumo_diario` de `pacientes`.
+
+Ou seja: **no próximo build/deploy no GCP**, ao subir a revisão da API, a migration será aplicada no banco ao qual a API se conecta. Não é necessário rodar SQL manualmente no Cloud SQL, a não ser que a migração automática falhe (veja logs do Cloud Run).
+
+### Se a migração automática falhar (execução manual)
+
+Se nos logs do Cloud Run aparecer erro ao aplicar a migration 6, ou se por algum motivo precisar rodar manualmente no banco (Cloud SQL ou local), use os passos abaixo.
+
+### Passos manuais (Cloud SQL via Cloud Shell)
+
+1. Conecte ao instance e ao banco (ex.: `gcloud sql connect NOME_INSTANCIA --user=conos --database=conos`).
+2. Execute, **na ordem**, o conteúdo de `backend/migrations/6-paciente_medicamentos.sql`:
+
+   **Passo 1 – Criar tabela**
+   ```sql
+   CREATE TABLE IF NOT EXISTS paciente_medicamentos (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     paciente_id INT NOT NULL,
+     medicamento_nome VARCHAR(255) NOT NULL,
+     medicamento_concentracao VARCHAR(100) NOT NULL,
+     consumo_diario DECIMAL(10,2) NOT NULL,
+     KEY idx_pm_paciente (paciente_id),
+     KEY idx_pm_medicamento (medicamento_nome, medicamento_concentracao),
+     FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
+   );
+   ```
+
+   **Passo 2 – Copiar dados**
+   ```sql
+   INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario)
+   SELECT id, medicamento_nome, medicamento_concentracao, consumo_diario
+   FROM pacientes
+   WHERE medicamento_nome IS NOT NULL AND medicamento_nome != ''
+     AND medicamento_concentracao IS NOT NULL AND medicamento_concentracao != '';
+   ```
+
+   **Passo 3 – Remover colunas de `pacientes`**  
+   Se der erro de índice inexistente, rode primeiro `ALTER TABLE pacientes DROP INDEX idx_pacientes_medicamento;` (se existir) e depois:
+   ```sql
+   ALTER TABLE pacientes
+     DROP COLUMN medicamento_nome,
+     DROP COLUMN medicamento_concentracao,
+     DROP COLUMN consumo_diario;
+   ```
+   (Se o índice `idx_pacientes_medicamento` existir, inclua `DROP INDEX idx_pacientes_medicamento` no mesmo `ALTER` ou em um anterior.)
+
+3. Confirme: `SHOW TABLES LIKE 'paciente_medicamentos';` e `DESCRIBE pacientes;` (não deve listar `medicamento_nome`).
+
+Depois disso, o POST em `/pacientes` com `medicamentos: [...]` passará a funcionar em produção.
