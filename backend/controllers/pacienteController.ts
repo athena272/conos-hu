@@ -9,9 +9,6 @@ interface PacienteRow {
   prontuario: number;
   apac: string;
   diagnostico: string;
-  medicamento_nome: string;
-  medicamento_concentracao: string;
-  consumo_diario: number;
   observacoes: string | null;
   telefone: string;
   data_liberacao: string;
@@ -19,18 +16,37 @@ interface PacienteRow {
   tipo_retorno: string | null;
 }
 
-function validateBodyCreateUpdate(body: Record<string, unknown>, isUpdate: boolean): string | null {
-  const { nome, prontuario, apac, diagnostico, medicamento_nome, medicamento_concentracao, consumo_diario, telefone, data_liberacao, retorna_servico, tipo_retorno } = body;
+interface PacienteMedicamentoItem {
+  medicamento_nome: string;
+  medicamento_concentracao: string;
+  consumo_diario: number;
+}
+
+function validateMedicamentos(medicamentos: unknown): string | null {
+  if (!Array.isArray(medicamentos) || medicamentos.length < 1) return "É obrigatório informar ao menos um medicamento";
+  for (let i = 0; i < medicamentos.length; i++) {
+    const m = medicamentos[i];
+    if (!m || typeof m !== "object") return `Medicamento ${i + 1}: dados inválidos`;
+    const nome = (m as Record<string, unknown>).medicamento_nome;
+    const conc = (m as Record<string, unknown>).medicamento_concentracao;
+    const consumo = Number((m as Record<string, unknown>).consumo_diario);
+    if (!nome || typeof nome !== "string" || !String(nome).trim()) return `Medicamento ${i + 1}: nome é obrigatório`;
+    if (!conc || typeof conc !== "string" || !String(conc).trim()) return `Medicamento ${i + 1}: concentração é obrigatória`;
+    if (isNaN(consumo) || consumo <= 0) return `Medicamento ${i + 1}: consumo diário deve ser maior que zero`;
+  }
+  return null;
+}
+
+function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: boolean): string | null {
+  const { nome, prontuario, apac, diagnostico, medicamentos, telefone, data_liberacao, retorna_servico, tipo_retorno } = body;
   if (!nome || typeof nome !== "string" || !nome.trim()) return "nome é obrigatório";
   if (prontuario === undefined || prontuario === null) return "prontuario é obrigatório";
   const prontNum = Number(prontuario);
   if (!Number.isInteger(prontNum) || prontNum < 0) return "prontuario deve ser um número inteiro não negativo";
   if (!apac || typeof apac !== "string" || !apac.trim()) return "apac é obrigatório";
   if (!diagnostico || typeof diagnostico !== "string" || !diagnostico.trim()) return "diagnostico é obrigatório";
-  if (!medicamento_nome || typeof medicamento_nome !== "string" || !medicamento_nome.trim()) return "medicamento_nome é obrigatório";
-  if (!medicamento_concentracao || typeof medicamento_concentracao !== "string" || !medicamento_concentracao.trim()) return "medicamento_concentracao é obrigatório";
-  const consumo = Number(consumo_diario);
-  if (consumo === undefined || consumo === null || isNaN(consumo) || consumo <= 0) return "consumo_diario deve ser um número maior que zero";
+  const errMed = validateMedicamentos(medicamentos);
+  if (errMed) return errMed;
   if (telefone !== undefined && telefone !== null && typeof telefone !== "string") return "telefone deve ser texto quando informado";
   if (!data_liberacao || typeof data_liberacao !== "string" || !data_liberacao.trim()) return "data_liberacao é obrigatória";
   const retorna = Boolean(retorna_servico);
@@ -47,7 +63,40 @@ export const listPacientes = (req: Request, res: Response): void => {
       res.status(500).json({ error: "Erro ao listar pacientes" });
       return;
     }
-    res.status(200).json((results as PacienteRow[]) || []);
+    const pacientes = (results as PacienteRow[]) || [];
+    if (pacientes.length === 0) {
+      res.status(200).json([]);
+      return;
+    }
+    const ids = pacientes.map((p) => p.id);
+    const placeholders = ids.map(() => "?").join(",");
+    db.query(
+      `SELECT paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario FROM paciente_medicamentos WHERE paciente_id IN (${placeholders}) ORDER BY paciente_id`,
+      ids,
+      (errMed: Error | null, medRows: unknown) => {
+        if (errMed) {
+          console.error("Erro ao listar medicamentos dos pacientes:", errMed);
+          res.status(500).json({ error: "Erro ao listar pacientes" });
+          return;
+        }
+        const rows = (medRows as { paciente_id: number; medicamento_nome: string; medicamento_concentracao: string; consumo_diario: number }[]) || [];
+        const byPaciente = new Map<number, PacienteMedicamentoItem[]>();
+        for (const r of rows) {
+          const list = byPaciente.get(r.paciente_id) ?? [];
+          list.push({
+            medicamento_nome: r.medicamento_nome,
+            medicamento_concentracao: r.medicamento_concentracao,
+            consumo_diario: Number(r.consumo_diario),
+          });
+          byPaciente.set(r.paciente_id, list);
+        }
+        const out = pacientes.map((p) => ({
+          ...p,
+          medicamentos: byPaciente.get(p.id) ?? [],
+        }));
+        res.status(200).json(out);
+      }
+    );
   });
 };
 
@@ -69,7 +118,27 @@ export const getPacienteById = (req: Request, res: Response): void => {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
     }
-    res.status(200).json(rows[0]);
+    const paciente = rows[0];
+    db.query(
+      "SELECT medicamento_nome, medicamento_concentracao, consumo_diario FROM paciente_medicamentos WHERE paciente_id = ?",
+      [id],
+      (errMed: Error | null, medRows: unknown) => {
+        if (errMed) {
+          console.error("Erro ao buscar medicamentos do paciente:", errMed);
+          res.status(500).json({ error: "Erro ao buscar paciente" });
+          return;
+        }
+        const list = (medRows as { medicamento_nome: string; medicamento_concentracao: string; consumo_diario: number }[]) || [];
+        res.status(200).json({
+          ...paciente,
+          medicamentos: list.map((m) => ({
+            medicamento_nome: m.medicamento_nome,
+            medicamento_concentracao: m.medicamento_concentracao,
+            consumo_diario: Number(m.consumo_diario),
+          })),
+        });
+      }
+    );
   });
 };
 
@@ -84,9 +153,7 @@ export const createPaciente = (req: Request, res: Response): void => {
     prontuario,
     apac,
     diagnostico,
-    medicamento_nome,
-    medicamento_concentracao,
-    consumo_diario,
+    medicamentos,
     observacoes,
     telefone,
     data_liberacao,
@@ -94,9 +161,9 @@ export const createPaciente = (req: Request, res: Response): void => {
     tipo_retorno,
   } = req.body;
   const prontNum = Number(prontuario);
-  const consumoNum = Number(consumo_diario);
   const retorna = Boolean(retorna_servico);
   const tipoRetornoVal = retorna && tipo_retorno ? String(tipo_retorno) : null;
+  const medList = medicamentos as PacienteMedicamentoItem[];
 
   db.query(
     "SELECT id FROM pacientes WHERE prontuario = ?",
@@ -112,17 +179,14 @@ export const createPaciente = (req: Request, res: Response): void => {
         return;
       }
       db.query(
-        "INSERT INTO pacientes (nome, prontuario, apac, diagnostico, medicamento_nome, medicamento_concentracao, consumo_diario, observacoes, telefone, data_liberacao, retorna_servico, tipo_retorno) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO pacientes (nome, prontuario, apac, diagnostico, observacoes, telefone, data_liberacao, retorna_servico, tipo_retorno) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           String(nome).trim(),
           prontNum,
           String(apac).trim(),
           String(diagnostico).trim(),
-          String(medicamento_nome).trim(),
-          String(medicamento_concentracao).trim(),
-          consumoNum,
           observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          (telefone != null && typeof telefone === "string" ? String(telefone).trim() : ""),
+          telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
           String(data_liberacao).trim(),
           retorna ? 1 : 0,
           tipoRetornoVal,
@@ -133,8 +197,30 @@ export const createPaciente = (req: Request, res: Response): void => {
             res.status(500).json({ error: "Erro ao cadastrar paciente" });
             return;
           }
-          const insertId = (result as { insertId?: number })?.insertId;
-          res.status(201).json({ message: "Paciente cadastrado com sucesso", id: insertId });
+          const pacienteId = (result as { insertId?: number })?.insertId;
+          if (pacienteId == null) {
+            res.status(500).json({ error: "Erro ao cadastrar paciente" });
+            return;
+          }
+          let inserted = 0;
+          const total = medList.length;
+          if (total === 0) {
+            res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+            return;
+          }
+          for (const m of medList) {
+            db.query(
+              "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) VALUES (?, ?, ?, ?)",
+              [pacienteId, String(m.medicamento_nome).trim(), String(m.medicamento_concentracao).trim(), Number(m.consumo_diario)],
+              (insMedErr: Error | null) => {
+                if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
+                inserted += 1;
+                if (inserted === total) {
+                  res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+                }
+              }
+            );
+          }
         }
       );
     }
@@ -158,9 +244,7 @@ export const updatePaciente = (req: Request, res: Response): void => {
     prontuario,
     apac,
     diagnostico,
-    medicamento_nome,
-    medicamento_concentracao,
-    consumo_diario,
+    medicamentos,
     observacoes,
     telefone,
     data_liberacao,
@@ -168,9 +252,9 @@ export const updatePaciente = (req: Request, res: Response): void => {
     tipo_retorno,
   } = req.body;
   const prontNum = Number(prontuario);
-  const consumoNum = Number(consumo_diario);
   const retorna = Boolean(retorna_servico);
   const tipoRetornoVal = retorna && tipo_retorno ? String(tipo_retorno) : null;
+  const medList = medicamentos as PacienteMedicamentoItem[];
 
   db.query(
     "SELECT id FROM pacientes WHERE prontuario = ? AND id != ?",
@@ -186,17 +270,14 @@ export const updatePaciente = (req: Request, res: Response): void => {
         return;
       }
       db.query(
-        "UPDATE pacientes SET nome = ?, prontuario = ?, apac = ?, diagnostico = ?, medicamento_nome = ?, medicamento_concentracao = ?, consumo_diario = ?, observacoes = ?, telefone = ?, data_liberacao = ?, retorna_servico = ?, tipo_retorno = ? WHERE id = ?",
+        "UPDATE pacientes SET nome = ?, prontuario = ?, apac = ?, diagnostico = ?, observacoes = ?, telefone = ?, data_liberacao = ?, retorna_servico = ?, tipo_retorno = ? WHERE id = ?",
         [
           String(nome).trim(),
           prontNum,
           String(apac).trim(),
           String(diagnostico).trim(),
-          String(medicamento_nome).trim(),
-          String(medicamento_concentracao).trim(),
-          consumoNum,
           observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          (telefone != null && typeof telefone === "string" ? String(telefone).trim() : ""),
+          telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
           String(data_liberacao).trim(),
           retorna ? 1 : 0,
           tipoRetornoVal,
@@ -212,7 +293,32 @@ export const updatePaciente = (req: Request, res: Response): void => {
             res.status(404).json({ error: "Paciente não encontrado" });
             return;
           }
-          res.status(200).json({ message: "Paciente atualizado com sucesso" });
+          db.query("DELETE FROM paciente_medicamentos WHERE paciente_id = ?", [id], (delErr: Error | null) => {
+            if (delErr) {
+              console.error("Erro ao remover medicamentos do paciente:", delErr);
+              res.status(500).json({ error: "Erro ao atualizar paciente" });
+              return;
+            }
+            if (medList.length === 0) {
+              res.status(200).json({ message: "Paciente atualizado com sucesso" });
+              return;
+            }
+            let inserted = 0;
+            const total = medList.length;
+            for (const m of medList) {
+              db.query(
+                "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) VALUES (?, ?, ?, ?)",
+                [id, String(m.medicamento_nome).trim(), String(m.medicamento_concentracao).trim(), Number(m.consumo_diario)],
+                (insMedErr: Error | null) => {
+                  if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
+                  inserted += 1;
+                  if (inserted === total) {
+                    res.status(200).json({ message: "Paciente atualizado com sucesso" });
+                  }
+                }
+              );
+            }
+          });
         }
       );
     }
@@ -266,16 +372,17 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
       const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
 
       db.query(
-        "SELECT id, consumo_diario FROM pacientes WHERE medicamento_nome = ? AND medicamento_concentracao = ?",
+        "SELECT paciente_id, consumo_diario FROM paciente_medicamentos WHERE medicamento_nome = ? AND medicamento_concentracao = ?",
         [medicamento_nome, medicamento_concentracao],
         (errPac: Error | null, pacRows: unknown) => {
           if (errPac) {
-            console.error("Erro ao buscar pacientes:", errPac);
+            console.error("Erro ao buscar vínculos:", errPac);
             res.status(500).json({ error: "Erro ao calcular impacto" });
             return;
           }
-          const pacientes = (pacRows as { id: number; consumo_diario: number }[]) || [];
-          const consumoDiarioAtual = pacientes.reduce((s, p) => s + Number(p.consumo_diario ?? 0), 0);
+          const rows = (pacRows as { paciente_id: number; consumo_diario: number }[]) || [];
+          const consumoDiarioAtual = rows.reduce((s, p) => s + Number(p.consumo_diario ?? 0), 0);
+          const pacientesVinculados = new Set(rows.map((p) => p.paciente_id)).size;
           const consumoDiarioComNovo = consumoDiarioAtual + consumo_diario;
           const diasPorMes = 30;
           const mesesEstoqueAtual =
@@ -293,7 +400,7 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
 
           res.status(200).json({
             estoqueTotal,
-            pacientesVinculados: pacientes.length,
+            pacientesVinculados,
             consumoDiarioAtual,
             consumoDiarioComNovo,
             mesesEstoqueAtual,
@@ -305,10 +412,10 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
   );
 };
 
-/** GET /pacientes/resumo-por-medicamento - para cada par (nome, concentracao) com pacientes: estoque, qtd pacientes, consumo total, meses */
+/** GET /pacientes/resumo-por-medicamento */
 export const getResumoPorMedicamento = (req: Request, res: Response): void => {
   db.query(
-    "SELECT medicamento_nome, medicamento_concentracao, COUNT(*) AS qtd_pacientes, SUM(consumo_diario) AS consumo_diario_total FROM pacientes GROUP BY medicamento_nome, medicamento_concentracao",
+    "SELECT medicamento_nome, medicamento_concentracao, COUNT(DISTINCT paciente_id) AS qtd_pacientes, SUM(consumo_diario) AS consumo_diario_total FROM paciente_medicamentos GROUP BY medicamento_nome, medicamento_concentracao",
     [],
     (errPac: Error | null, pacRows: unknown) => {
       if (errPac) {
