@@ -5,6 +5,11 @@
   height: 100vh;
 }
 
+.register-form {
+  width: 100%;
+  max-width: 450px;
+}
+
 .register-form .form-group {
   margin-bottom: 25px;
 }
