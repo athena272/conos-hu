@@ -523,14 +523,23 @@ export default function Pacientes() {
         />
         <Column
           header="Medicamento"
-          body={(r: Paciente) =>
-            (r.medicamentos ?? [])
-              .map(
-                (m) =>
-                  `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_diario}/dia)`,
-              )
-              .join(", ") || "—"
-          }
+          body={(r: Paciente) => {
+            const meds = r.medicamentos ?? [];
+            if (!meds.length) return "—";
+
+            return (
+              <div className="pacientes-medicamentos-list">
+                {meds.map((m, index) => (
+                  <div
+                    key={`${m.medicamento_nome}-${m.medicamento_concentracao}-${index}`}
+                  >
+                    {m.medicamento_nome} {m.medicamento_concentracao} (
+                    {m.consumo_diario}/dia)
+                  </div>
+                ))}
+              </div>
+            );
+          }}
           style={{ minWidth: "16rem" }}
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-medicamento"

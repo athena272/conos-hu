@@ -232,9 +232,9 @@ input.p-inputtext.p-component {
   width: 100%;
 }
 
-.p-button.p-button-text {
+.pacientes-form-footer .p-button.p-button-text {
   color: #dc3545;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .p-button.p-button-sm .p-button-icon {
@@ -383,4 +383,33 @@ input.p-inputtext.p-component {
 .pacientes-status--no {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.pacientes-medicamentos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pacientes-table-custom .p-datatable-wrapper {
+  overflow-x: auto;
+}
+
+@media (max-width: 1024px) {
+
+  .pacientes-table-custom .p-datatable-thead>tr>th,
+  .pacientes-table-custom .p-datatable-tbody>tr>td {
+    padding: 0.85rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .pacientes-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pacientes-actions .p-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
