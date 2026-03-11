@@ -101,6 +101,18 @@ const PACIENTE_MEDICAMENTOS_TABLE_SQL = `
   )
 `;
 
+const PACIENTE_RETORNOS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS paciente_retornos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    paciente_id INT NOT NULL,
+    data_retorno DATE NOT NULL,
+    tipo_retorno VARCHAR(50) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_pr_paciente (paciente_id),
+    FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
+  )
+`;
+
 const CHECK_OLD_PACIENTES_COLUMN =
   "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pacientes' AND COLUMN_NAME = 'medicamento_nome' LIMIT 1";
 
@@ -147,8 +159,14 @@ db.getConnection((err, connection) => {
         } else {
           console.log("✅ Tabela paciente_medicamentos verificada/criada.");
         }
-        connection.query(
-          { sql: CHECK_OLD_PACIENTES_COLUMN },
+        connection.query(PACIENTE_RETORNOS_TABLE_SQL, (prErr) => {
+          if (prErr) {
+            console.error("⚠️ Erro ao criar tabela paciente_retornos (pode já existir):", prErr.message);
+          } else {
+            console.log("✅ Tabela paciente_retornos verificada/criada.");
+          }
+          connection.query(
+            { sql: CHECK_OLD_PACIENTES_COLUMN },
           (checkErr, checkRows) => {
           const rows = checkRows as { ok?: number }[] | undefined;
           const hasOldColumn = !checkErr && Array.isArray(rows) && rows.length > 0;
@@ -178,6 +196,7 @@ db.getConnection((err, connection) => {
             });
           });
         });
+        });
       });
     });
   });
@@ -185,5 +204,4 @@ db.getConnection((err, connection) => {
   });
   });
 });
-
 export default db;

@@ -23,6 +23,13 @@ export interface Paciente {
   tipo_retorno: TipoRetorno | null;
 }
 
+export interface PacienteRetorno {
+  id: number;
+  data_retorno: string;
+  tipo_retorno: string | null;
+  created_at?: string;
+}
+
 export interface ImpactoEstoque {
   estoqueTotal: number;
   pacientesVinculados: number;

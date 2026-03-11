@@ -23,6 +23,7 @@ import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
 import type {
   Paciente,
+  PacienteRetorno,
   ImpactoEstoque,
   MedicamentoDistinto,
   ResumoPorMedicamento,
@@ -56,6 +57,7 @@ interface FormValues {
   data_liberacao: string;
   retorna_servico: boolean;
   tipo_retorno: string;
+  data_retorno: string;
 }
 
 const initialMedicamentoItem: MedicamentoFormItem = {
@@ -74,6 +76,7 @@ const initialFormValues: FormValues = {
   data_liberacao: "",
   retorna_servico: false,
   tipo_retorno: "",
+  data_retorno: "",
 };
 
 const medicamentoItemSchema = yup.object().shape({
@@ -163,6 +166,17 @@ export default function Pacientes() {
   );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [loadingResumo, setLoadingResumo] = useState(false);
+  const [historicoPaciente, setHistoricoPaciente] = useState<Paciente | null>(
+    null,
+  );
+  const [historicoRetornos, setHistoricoRetornos] = useState<
+    PacienteRetorno[]
+  >([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [novaDataRetorno, setNovaDataRetorno] = useState("");
+  const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
+  const [addingRetorno, setAddingRetorno] = useState(false);
+  const [showAddRetornoForm, setShowAddRetornoForm] = useState(false);
 
   const fetchPacientes = () => {
     axios
@@ -197,6 +211,24 @@ export default function Pacientes() {
     fetchResumoPorMedicamento();
   }, []);
 
+  useEffect(() => {
+    if (!historicoPaciente) {
+      setHistoricoRetornos([]);
+      setShowAddRetornoForm(false);
+      setNovaDataRetorno("");
+      setNovoTipoRetorno("");
+      return;
+    }
+    setLoadingHistorico(true);
+    axios
+      .get<PacienteRetorno[]>(
+        `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
+      )
+      .then((res) => setHistoricoRetornos(res.data ?? []))
+      .catch(() => setHistoricoRetornos([]))
+      .finally(() => setLoadingHistorico(false));
+  }, [historicoPaciente]);
+
   const medicamentoDropdownOptions = medicamentosDistintos.map((m) => ({
     label: `${m.nome} - ${m.concentracao}`,
     value: m,
@@ -210,6 +242,51 @@ export default function Pacientes() {
   const openEdit = (p: Paciente) => {
     setEditingPaciente(p);
     setFormVisible(true);
+  };
+
+  const handleAddRetorno = () => {
+    if (!historicoPaciente || !novaDataRetorno.trim()) {
+      toast.current?.show({
+        severity: "warn",
+        summary: "Atenção",
+        detail: "Informe a data de retorno.",
+        life: 3000,
+      });
+      return;
+    }
+    setAddingRetorno(true);
+    axios
+      .post(
+        `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
+        {
+          data_retorno: novaDataRetorno.trim(),
+          tipo_retorno: novoTipoRetorno.trim() || undefined,
+        },
+      )
+      .then(() => {
+        toast.current?.show({
+          severity: "success",
+          summary: "Sucesso",
+          detail: "Data de retorno adicionada.",
+          life: 3000,
+        });
+        setNovaDataRetorno("");
+        setNovoTipoRetorno("");
+        setShowAddRetornoForm(false);
+        return axios.get<PacienteRetorno[]>(
+          `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
+        );
+      })
+      .then((res) => setHistoricoRetornos(res.data ?? []))
+      .catch((err: unknown) => {
+        toast.current?.show({
+          severity: "error",
+          summary: "Erro",
+          detail: normalizeErrorMessage(err),
+          life: 4000,
+        });
+      })
+      .finally(() => setAddingRetorno(false));
   };
 
   const closeForm = () => {
@@ -240,6 +317,10 @@ export default function Pacientes() {
     data_liberacao: String(values.data_liberacao ?? "").trim(),
     retorna_servico: values.retorna_servico,
     tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
+    data_retorno:
+      values.retorna_servico && values.data_retorno?.trim()
+        ? String(values.data_retorno).trim()
+        : undefined,
   });
 
   const handleSubmit = (
@@ -413,6 +494,7 @@ export default function Pacientes() {
         data_liberacao: toInputDateValue(editingPaciente.data_liberacao ?? ""),
         retorna_servico: Boolean(editingPaciente.retorna_servico),
         tipo_retorno: editingPaciente.tipo_retorno ?? "",
+        data_retorno: "",
       }
     : initialFormValues;
 
@@ -609,6 +691,15 @@ export default function Pacientes() {
           header="Ações"
           body={(r: Paciente) => (
             <div className="pacientes-actions">
+              {r.retorna_servico && (
+                <Button
+                  label="Histórico"
+                  icon="pi pi-calendar"
+                  className="p-button-sm p-button-secondary"
+                  onClick={() => setHistoricoPaciente(r)}
+                  title="Histórico de retornos"
+                />
+              )}
               <Button
                 label="Editar"
                 icon="pi pi-pencil"
@@ -1020,6 +1111,13 @@ export default function Pacientes() {
                     />
                   </div>
                 )}
+                {values.retorna_servico && (
+                  <LabelInput
+                    name="data_retorno"
+                    label="Data de retorno (opcional)"
+                    type="date"
+                  />
+                )}
               </div>
               <div className="pacientes-form-footer">
                 <Button
@@ -1146,6 +1244,114 @@ export default function Pacientes() {
               </>
             )}
           </div>
+        )}
+      </Dialog>
+
+      <Dialog
+        header={
+          historicoPaciente
+            ? `Histórico de retornos — ${historicoPaciente.nome}`
+            : "Histórico de retornos"
+        }
+        visible={!!historicoPaciente}
+        onHide={() => setHistoricoPaciente(null)}
+        draggable={false}
+        style={{ width: "92vw", maxWidth: "520px" }}
+        className="pacientes-form-dialog"
+        footer={
+          <Button
+            label="Fechar"
+            onClick={() => setHistoricoPaciente(null)}
+          />
+        }
+      >
+        {loadingHistorico ? (
+          <p>Carregando...</p>
+        ) : (
+          <>
+            {historicoRetornos.length === 0 && !showAddRetornoForm ? (
+              <p className="pacientes-field-hint">
+                Nenhuma data de retorno cadastrada.
+              </p>
+            ) : (
+              <DataTable
+                value={historicoRetornos}
+                size="small"
+                emptyMessage="Nenhuma data de retorno"
+                className="pacientes-table pacientes-table-custom"
+                style={{ marginBottom: "1rem" }}
+              >
+                <Column
+                  field="data_retorno"
+                  header="Data"
+                  body={(row: PacienteRetorno) =>
+                    formatDateBR(row.data_retorno)
+                  }
+                />
+                <Column
+                  field="tipo_retorno"
+                  header="Tipo"
+                  body={(row: PacienteRetorno) =>
+                    formatTipoRetorno(row.tipo_retorno)
+                  }
+                />
+              </DataTable>
+            )}
+            {!showAddRetornoForm ? (
+              <Button
+                label="Adicionar data de retorno"
+                icon="pi pi-plus"
+                className="p-button-sm p-button-secondary"
+                onClick={() => setShowAddRetornoForm(true)}
+              />
+            ) : (
+              <div className="pacientes-form-fields" style={{ marginTop: "1rem" }}>
+                <div className="campo-texto">
+                  <div className="input-container">
+                    <label htmlFor="nova-data-retorno" className="input-label">
+                      Data de retorno
+                    </label>
+                    <input
+                      id="nova-data-retorno"
+                      type="date"
+                      value={novaDataRetorno}
+                      onChange={(e) => setNovaDataRetorno(e.target.value)}
+                      className="p-inputtext p-component w-full form-field"
+                    />
+                  </div>
+                </div>
+                <div className="campo-dropdown" style={{ marginTop: "0.5rem" }}>
+                  <label className="input-label">Tipo de retorno (opcional)</label>
+                  <Dropdown
+                    value={novoTipoRetorno}
+                    options={TIPO_RETORNO_OPTIONS}
+                    onChange={(e: { value: string }) =>
+                      setNovoTipoRetorno(e.value ?? "")
+                    }
+                    placeholder="Selecione"
+                    className="w-full"
+                  />
+                </div>
+                <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
+                  <Button
+                    label="Adicionar"
+                    onClick={handleAddRetorno}
+                    disabled={addingRetorno || !novaDataRetorno.trim()}
+                  />
+                  <Button
+                    label="Cancelar"
+                    className="p-button-text"
+                    onClick={() => {
+                      setShowAddRetornoForm(false);
+                      setNovaDataRetorno("");
+                      setNovoTipoRetorno("");
+                    }}
+                    disabled={addingRetorno}
+                  />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Dialog>
     </div>
