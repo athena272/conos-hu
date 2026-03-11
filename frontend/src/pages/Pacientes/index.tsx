@@ -139,7 +139,9 @@ const schemaDataRetornoObrigatoria = yup.string().when("retorna_servico", {
   is: true,
   then: (s) =>
     s
-      .required("Data de retorno é obrigatória quando o paciente retorna ao serviço")
+      .required(
+        "Data de retorno é obrigatória quando o paciente retorna ao serviço",
+      )
       .trim()
       .matches(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (YYYY-MM-DD)"),
   otherwise: (s) => s.nullable(),
@@ -203,9 +205,9 @@ export default function Pacientes() {
   const [historicoPaciente, setHistoricoPaciente] = useState<Paciente | null>(
     null,
   );
-  const [historicoRetornos, setHistoricoRetornos] = useState<
-    PacienteRetorno[]
-  >([]);
+  const [historicoRetornos, setHistoricoRetornos] = useState<PacienteRetorno[]>(
+    [],
+  );
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
@@ -290,13 +292,10 @@ export default function Pacientes() {
     }
     setAddingRetorno(true);
     axios
-      .post(
-        `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
-        {
-          data_retorno: novaDataRetorno.trim(),
-          tipo_retorno: novoTipoRetorno.trim() || undefined,
-        },
-      )
+      .post(`${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`, {
+        data_retorno: novaDataRetorno.trim(),
+        tipo_retorno: novoTipoRetorno.trim() || undefined,
+      })
       .then(() => {
         toast.current?.show({
           severity: "success",
@@ -725,7 +724,7 @@ export default function Pacientes() {
           header="Ações"
           body={(r: Paciente) => (
             <div className="pacientes-actions">
-              {r.retorna_servico && (
+              {r.retorna_servico ? (
                 <Button
                   label="Histórico"
                   icon="pi pi-calendar"
@@ -733,7 +732,7 @@ export default function Pacientes() {
                   onClick={() => setHistoricoPaciente(r)}
                   title="Histórico de retornos"
                 />
-              )}
+              ) : null}
               <Button
                 label="Editar"
                 icon="pi pi-pencil"
@@ -1295,10 +1294,7 @@ export default function Pacientes() {
         style={{ width: "92vw", maxWidth: "520px" }}
         className="pacientes-form-dialog"
         footer={
-          <Button
-            label="Fechar"
-            onClick={() => setHistoricoPaciente(null)}
-          />
+          <Button label="Fechar" onClick={() => setHistoricoPaciente(null)} />
         }
       >
         {loadingHistorico ? (
@@ -1341,7 +1337,10 @@ export default function Pacientes() {
                 onClick={() => setShowAddRetornoForm(true)}
               />
             ) : (
-              <div className="pacientes-form-fields" style={{ marginTop: "1rem" }}>
+              <div
+                className="pacientes-form-fields"
+                style={{ marginTop: "1rem" }}
+              >
                 <div className="campo-texto">
                   <div className="input-container">
                     <label htmlFor="nova-data-retorno" className="input-label">
@@ -1357,7 +1356,9 @@ export default function Pacientes() {
                   </div>
                 </div>
                 <div className="campo-dropdown" style={{ marginTop: "0.5rem" }}>
-                  <label className="input-label">Tipo de retorno (opcional)</label>
+                  <label className="input-label">
+                    Tipo de retorno (opcional)
+                  </label>
                   <Dropdown
                     value={novoTipoRetorno}
                     options={TIPO_RETORNO_OPTIONS}
@@ -1368,7 +1369,13 @@ export default function Pacientes() {
                     className="w-full"
                   />
                 </div>
-                <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    display: "flex",
+                    gap: "0.5rem",
+                  }}
+                >
                   <Button
                     label="Adicionar"
                     onClick={handleAddRetorno}
