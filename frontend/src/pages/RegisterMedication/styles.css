@@ -5,9 +5,10 @@
   height: 100vh;
 }
 
-.register-form {
+.container-register-medication .register-form {
   width: 100%;
-  padding-right: 50px;
+  max-width: 450px;
+  padding: 0;
 }
 
 .register-form .form-group {
