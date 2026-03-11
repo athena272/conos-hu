@@ -64,3 +64,9 @@ a:hover {
     padding: 20px;
   }
 }
+
+.login-form {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 50px;
+}

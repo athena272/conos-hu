@@ -1,8 +1,14 @@
 # Cloud Build: build backend, push para Artifact Registry, deploy no Cloud Run
 # Trigger: push na branch main (repositório athena272/conos)
 #
-# Pré-requisito: criar o repositório no Artifact Registry (uma vez):
-#   gcloud artifacts repositories create conos --repository-format=docker --location=us-central1
+# Pré-requisitos (uma vez):
+#   1. Artifact Registry: gcloud artifacts repositories create conos --repository-format=docker --location=us-central1
+#   2. Secret Manager – criar o secret com a senha do banco e dar acesso ao Cloud Run:
+#      echo -n "SUA_SENHA_DO_BANCO" | gcloud secrets create conos-db-password --data-file=-
+#      gcloud secrets add-iam-policy-binding conos-db-password \
+#        --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+#        --role="roles/secretmanager.secretAccessor"
+#      (substitua PROJECT_NUMBER pelo número do projeto ou use: gcloud projects describe smooth-helper-486601-t3 --format="value(projectNumber)")
 
 substitutions:
   _REGION: us-central1
@@ -10,9 +16,8 @@ substitutions:
   _REPOSITORY: conos
   _IMAGE_NAME: backend
   _SERVICE_NAME: conos-api
-  _CONNECTION_NAME: smooth-helper-486601-t3:us-central1:conos-db
-  # Senha do banco (para produção prefira Secret Manager)
-  _DB_PASSWORD: 'C0no$US#r143'
+  _CONNECTION_NAME: smooth-helper-486601-t3:us-central1:conos-db-beta
+  _SECRET_DB_PASSWORD: conos-db-password
   # Origens CORS (URL do frontend na Vercel; vírgula para várias)
   _ALLOWED_ORIGINS: ''
 
@@ -58,7 +63,9 @@ steps:
       - --add-cloudsql-instances
       - ${_CONNECTION_NAME}
       - --set-env-vars
-      - INSTANCE_CONNECTION_NAME=${_CONNECTION_NAME},DB_USER=conos,DB_NAME=conos,DB_PASSWORD=${_DB_PASSWORD},ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}
+      - INSTANCE_CONNECTION_NAME=${_CONNECTION_NAME},DB_USER=conos,DB_NAME=conos,ALLOWED_ORIGINS=${_ALLOWED_ORIGINS}
+      - --set-secrets
+      - DB_PASSWORD=${_SECRET_DB_PASSWORD}:latest
     waitFor: [push]
 
 # Imagem resultante (opcional, para uso em outros steps)

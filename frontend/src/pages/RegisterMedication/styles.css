@@ -7,7 +7,7 @@
 
 .register-form {
   width: 100%;
-  max-width: 450px;
+  padding-right: 50px;
 }
 
 .register-form .form-group {
