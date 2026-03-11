@@ -1152,11 +1152,6 @@ export default function Pacientes() {
                       label="Data de retorno"
                       type="date"
                     />
-                    <ErrorMessage
-                      component="span"
-                      name="data_retorno"
-                      className="form-error"
-                    />
                   </>
                 )}
               </div>
