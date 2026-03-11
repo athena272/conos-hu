@@ -37,8 +37,17 @@ function validateMedicamentos(medicamentos: unknown): string | null {
   return null;
 }
 
+function isValidDateString(s: string): boolean {
+  if (!s || typeof s !== "string" || s.trim().length === 0) return false;
+  const trimmed = s.trim();
+  const match = /^\d{4}-\d{2}-\d{2}$/.exec(trimmed);
+  if (!match) return false;
+  const d = new Date(trimmed);
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === trimmed;
+}
+
 function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: boolean): string | null {
-  const { nome, prontuario, apac, diagnostico, medicamentos, telefone, data_liberacao, retorna_servico, tipo_retorno } = body;
+  const { nome, prontuario, apac, diagnostico, medicamentos, telefone, data_liberacao, retorna_servico, tipo_retorno, data_retorno } = body;
   if (!nome || typeof nome !== "string" || !nome.trim()) return "nome é obrigatório";
   if (prontuario === undefined || prontuario === null) return "prontuario é obrigatório";
   const prontNum = Number(prontuario);
@@ -52,6 +61,9 @@ function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: bool
   const retorna = Boolean(retorna_servico);
   if (retorna && (!tipo_retorno || typeof tipo_retorno !== "string" || !TIPOS_RETORNO.includes(tipo_retorno as typeof TIPOS_RETORNO[number]))) {
     return "tipo_retorno deve ser um de: farmacia_medico, somente_farmacia, farmacia_enfermagem quando retorna_servico é true";
+  }
+  if (data_retorno !== undefined && data_retorno !== null && data_retorno !== "" && !isValidDateString(String(data_retorno))) {
+    return "data_retorno deve ser uma data válida no formato YYYY-MM-DD";
   }
   return null;
 }
@@ -159,10 +171,15 @@ export const createPaciente = (req: Request, res: Response): void => {
     data_liberacao,
     retorna_servico,
     tipo_retorno,
+    data_retorno,
   } = req.body;
   const prontNum = Number(prontuario);
   const retorna = Boolean(retorna_servico);
   const tipoRetornoVal = retorna && tipo_retorno ? String(tipo_retorno) : null;
+  const dataRetornoVal =
+    retorna && data_retorno != null && String(data_retorno).trim() !== "" && isValidDateString(String(data_retorno))
+      ? String(data_retorno).trim()
+      : null;
   const medList = medicamentos as PacienteMedicamentoItem[];
 
   db.query(
@@ -202,12 +219,28 @@ export const createPaciente = (req: Request, res: Response): void => {
             res.status(500).json({ error: "Erro ao cadastrar paciente" });
             return;
           }
-          let inserted = 0;
+          const maybeInsertRetorno = (onDone: () => void) => {
+            if (!dataRetornoVal) {
+              onDone();
+              return;
+            }
+            db.query(
+              "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
+              [pacienteId, dataRetornoVal, tipoRetornoVal],
+              (retErr: Error | null) => {
+                if (retErr) console.error("Erro ao inserir data de retorno:", retErr);
+                onDone();
+              }
+            );
+          };
           const total = medList.length;
           if (total === 0) {
-            res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+            maybeInsertRetorno(() => {
+              res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+            });
             return;
           }
+          let inserted = 0;
           for (const m of medList) {
             db.query(
               "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) VALUES (?, ?, ?, ?)",
@@ -216,7 +249,9 @@ export const createPaciente = (req: Request, res: Response): void => {
                 if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
                 inserted += 1;
                 if (inserted === total) {
-                  res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+                  maybeInsertRetorno(() => {
+                    res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+                  });
                 }
               }
             );
@@ -250,10 +285,15 @@ export const updatePaciente = (req: Request, res: Response): void => {
     data_liberacao,
     retorna_servico,
     tipo_retorno,
+    data_retorno,
   } = req.body;
   const prontNum = Number(prontuario);
   const retorna = Boolean(retorna_servico);
   const tipoRetornoVal = retorna && tipo_retorno ? String(tipo_retorno) : null;
+  const dataRetornoVal =
+    data_retorno != null && String(data_retorno).trim() !== "" && isValidDateString(String(data_retorno))
+      ? String(data_retorno).trim()
+      : null;
   const medList = medicamentos as PacienteMedicamentoItem[];
 
   db.query(
@@ -299,8 +339,24 @@ export const updatePaciente = (req: Request, res: Response): void => {
               res.status(500).json({ error: "Erro ao atualizar paciente" });
               return;
             }
+            const maybeInsertRetorno = (onDone: () => void) => {
+              if (!dataRetornoVal) {
+                onDone();
+                return;
+              }
+              db.query(
+                "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
+                [id, dataRetornoVal, tipoRetornoVal],
+                (retErr: Error | null) => {
+                  if (retErr) console.error("Erro ao inserir data de retorno:", retErr);
+                  onDone();
+                }
+              );
+            };
             if (medList.length === 0) {
-              res.status(200).json({ message: "Paciente atualizado com sucesso" });
+              maybeInsertRetorno(() => {
+                res.status(200).json({ message: "Paciente atualizado com sucesso" });
+              });
               return;
             }
             let inserted = 0;
@@ -313,7 +369,9 @@ export const updatePaciente = (req: Request, res: Response): void => {
                   if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
                   inserted += 1;
                   if (inserted === total) {
-                    res.status(200).json({ message: "Paciente atualizado com sucesso" });
+                    maybeInsertRetorno(() => {
+                      res.status(200).json({ message: "Paciente atualizado com sucesso" });
+                    });
                   }
                 }
               );
@@ -468,4 +526,92 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
       });
     }
   );
+};
+
+/** GET /pacientes/:id/retornos */
+export const getRetornos = (req: Request, res: Response): void => {
+  const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(idParam ?? "", 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+  db.query("SELECT id FROM pacientes WHERE id = ?", [id], (err: Error | null, rows: unknown) => {
+    if (err) {
+      console.error("Erro ao buscar paciente:", err);
+      res.status(500).json({ error: "Erro ao buscar histórico de retornos" });
+      return;
+    }
+    if ((rows as { id: number }[])?.length === 0) {
+      res.status(404).json({ error: "Paciente não encontrado" });
+      return;
+    }
+    db.query(
+      "SELECT id, data_retorno, tipo_retorno, created_at FROM paciente_retornos WHERE paciente_id = ? ORDER BY data_retorno ASC, created_at ASC",
+      [id],
+      (retErr: Error | null, retRows: unknown) => {
+        if (retErr) {
+          console.error("Erro ao listar retornos:", retErr);
+          res.status(500).json({ error: "Erro ao buscar histórico de retornos" });
+          return;
+        }
+        const list = (retRows as { id: number; data_retorno: string; tipo_retorno: string | null; created_at: string }[]) || [];
+        res.status(200).json(
+          list.map((r) => ({
+            id: r.id,
+            data_retorno: r.data_retorno,
+            tipo_retorno: r.tipo_retorno,
+            created_at: r.created_at,
+          }))
+        );
+      }
+    );
+  });
+};
+
+/** POST /pacientes/:id/retornos */
+export const addRetorno = (req: Request, res: Response): void => {
+  const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(idParam ?? "", 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+  const { data_retorno, tipo_retorno } = req.body;
+  if (!data_retorno || typeof data_retorno !== "string" || !data_retorno.trim()) {
+    res.status(400).json({ error: "data_retorno é obrigatória" });
+    return;
+  }
+  if (!isValidDateString(data_retorno.trim())) {
+    res.status(400).json({ error: "data_retorno deve ser uma data válida no formato YYYY-MM-DD" });
+    return;
+  }
+  const tipoVal =
+    tipo_retorno != null && typeof tipo_retorno === "string" && TIPOS_RETORNO.includes(tipo_retorno as (typeof TIPOS_RETORNO)[number])
+      ? tipo_retorno.trim()
+      : null;
+  db.query("SELECT id FROM pacientes WHERE id = ?", [id], (err: Error | null, rows: unknown) => {
+    if (err) {
+      console.error("Erro ao buscar paciente:", err);
+      res.status(500).json({ error: "Erro ao adicionar data de retorno" });
+      return;
+    }
+    if ((rows as { id: number }[])?.length === 0) {
+      res.status(404).json({ error: "Paciente não encontrado" });
+      return;
+    }
+    db.query(
+      "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
+      [id, data_retorno.trim(), tipoVal],
+      (insErr: Error | null, result: unknown) => {
+        if (insErr) {
+          console.error("Erro ao inserir data de retorno:", insErr);
+          res.status(500).json({ error: "Erro ao adicionar data de retorno" });
+          return;
+        }
+        const insertId = (result as { insertId?: number })?.insertId;
+        res.status(201).json({ message: "Data de retorno adicionada", id: insertId });
+      }
+    );
+  });
 };
