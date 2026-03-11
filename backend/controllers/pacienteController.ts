@@ -62,7 +62,16 @@ function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: bool
   if (retorna && (!tipo_retorno || typeof tipo_retorno !== "string" || !TIPOS_RETORNO.includes(tipo_retorno as typeof TIPOS_RETORNO[number]))) {
     return "tipo_retorno deve ser um de: farmacia_medico, somente_farmacia, farmacia_enfermagem quando retorna_servico é true";
   }
-  if (data_retorno !== undefined && data_retorno !== null && data_retorno !== "" && !isValidDateString(String(data_retorno))) {
+  if (retorna) {
+    if (!_isUpdate) {
+      if (!data_retorno || typeof data_retorno !== "string" || !data_retorno.trim()) {
+        return "data_retorno é obrigatória quando retorna_servico é true";
+      }
+    }
+    if (data_retorno !== undefined && data_retorno !== null && data_retorno !== "" && !isValidDateString(String(data_retorno).trim())) {
+      return "data_retorno deve ser uma data válida no formato YYYY-MM-DD";
+    }
+  } else if (data_retorno !== undefined && data_retorno !== null && data_retorno !== "" && !isValidDateString(String(data_retorno))) {
     return "data_retorno deve ser uma data válida no formato YYYY-MM-DD";
   }
   return null;
