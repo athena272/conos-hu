@@ -23,6 +23,42 @@ const dbConfig = instanceConnectionName
 
 const db = mysql.createPool(dbConfig);
 
+// Ordem: tabelas base primeiro (sem FK), depois as que dependem delas
+const USUARIOS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS usuarios (
+    idusuarios INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`;
+
+const MEDICATIONS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS medications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    lote VARCHAR(100) NOT NULL,
+    quantidade INT NOT NULL,
+    classificacao VARCHAR(100),
+    concentracao VARCHAR(100) NOT NULL,
+    forma ENUM('1', '2', '3', '4') NOT NULL,
+    data_validade DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`;
+
+const RETIRA_MEDICATIONS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS retira_medications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    medication_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    data_retirada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (medication_id) REFERENCES medications(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(idusuarios)
+  )
+`;
+
 const MOVIMENTACOES_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS movimentacoes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -84,13 +120,22 @@ db.getConnection((err, connection) => {
     return;
   }
   console.log("✅ Conectado ao banco MySQL com sucesso!");
-  connection.query(MOVIMENTACOES_TABLE_SQL, (movErr) => {
-    if (movErr) {
-      console.error("⚠️ Erro ao criar tabela movimentacoes (pode já existir):", movErr.message);
-    } else {
-      console.log("✅ Tabela movimentacoes verificada/criada.");
-    }
-    connection.query(PACIENTES_TABLE_SQL, (pacErr) => {
+  connection.query(USUARIOS_TABLE_SQL, (uErr) => {
+    if (uErr) console.error("⚠️ Erro ao criar tabela usuarios (pode já existir):", uErr.message);
+    else console.log("✅ Tabela usuarios verificada/criada.");
+    connection.query(MEDICATIONS_TABLE_SQL, (mErr) => {
+      if (mErr) console.error("⚠️ Erro ao criar tabela medications (pode já existir):", mErr.message);
+      else console.log("✅ Tabela medications verificada/criada.");
+      connection.query(RETIRA_MEDICATIONS_TABLE_SQL, (rErr) => {
+        if (rErr) console.error("⚠️ Erro ao criar tabela retira_medications (pode já existir):", rErr.message);
+        else console.log("✅ Tabela retira_medications verificada/criada.");
+        connection.query(MOVIMENTACOES_TABLE_SQL, (movErr) => {
+          if (movErr) {
+            console.error("⚠️ Erro ao criar tabela movimentacoes (pode já existir):", movErr.message);
+          } else {
+            console.log("✅ Tabela movimentacoes verificada/criada.");
+          }
+          connection.query(PACIENTES_TABLE_SQL, (pacErr) => {
       if (pacErr) {
         console.error("⚠️ Erro ao criar tabela pacientes (pode já existir):", pacErr.message);
       } else {
@@ -135,6 +180,9 @@ db.getConnection((err, connection) => {
         });
       });
     });
+  });
+  });
+  });
   });
 });
 
