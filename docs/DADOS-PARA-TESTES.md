@@ -42,19 +42,21 @@ Cada paciente pode ter **um ou vários medicamentos**; use o botão "Adicionar m
 
 Na tabela abaixo, a coluna **Medicamentos** lista cada vínculo no formato *nome + concentração (consumo/dia)*; ao cadastrar, adicione um item na lista para cada linha indicada.
 
-| Nome              | Prontuário | APAC        | Diagnóstico           | Medicamentos (nome + conc., consumo/dia) | Observações     | Telefone      | Data liberação | Retorna? | Tipo retorno        |
-|------------------|------------|-------------|------------------------|------------------------------------------|-----------------|---------------|----------------|----------|----------------------|
-| Maria Silva      | 100001     | APAC-2024-001 | Dor crônica          | Paracetamol - 500mg (2/dia)              | Uso contínuo    | (11) 98765-4321 | 2025-01-15   | Sim      | Farmácia e médico    |
-| João Santos      | 100002     | APAC-2024-002 | Pós-operatório        | Sugamadex - 100mg/ml (1/dia)             | —               | (11) 91234-5678 | 2025-02-01   | Sim      | Somente farmácia     |
-| Ana Oliveira     | 100003     | APAC-2024-003 | Refluxo               | Omeprazol - 20mg (1/dia)                 | Manhã em jejum  | (21) 99876-5432 | 2025-01-20   | Não      | —                    |
-| Pedro Costa      | 100004     | APAC-2024-004 | Diabetes tipo 2       | Metformina - 850mg (2/dia)               | —               | (31) 97654-3210 | 2025-02-10   | Sim      | Farmácia e enfermagem |
-| Carla Mendes     | 100005     | APAC-2024-005 | Alergia respiratória  | Loratadina - 10mg (1/dia)                | —               | (11) 96543-2109 | 2025-01-25   | Sim      | Somente farmácia     |
-| Roberto Lima     | 100006     | APAC-2024-006 | Dor e febre           | Paracetamol - 500mg (3/dia)              | Tratamento 7 dias | (11) 95432-1098 | 2025-02-05   | Não      | —                    |
-| Fernanda Rocha   | 100007     | APAC-2024-007 | Infecção bacteriana   | Amoxicilina - 500mg (3/dia)              | 7 dias          | (21) 94321-0987 | 2025-02-08   | Não      | —                    |
-| Lucas Pereira    | 100008     | APAC-2024-008 | Dor pós-cirúrgica     | Dipirona - 500mg/ml (2/dia)              | —               | (31) 93210-9876 | 2025-02-12   | Sim      | Farmácia e médico    |
-| **Helena Souza** | **100009** | **APAC-2024-009** | **Dor crônica + refluxo** | **Paracetamol - 500mg (2/dia); Omeprazol - 20mg (1/dia)** | Uso contínuo | (11) 98888-1111 | 2025-02-15 | Sim | Farmácia e médico |
-| **Ricardo Alves**| **100010** | **APAC-2024-010** | **Diabetes + dor** | **Metformina - 850mg (2/dia); Paracetamol - 500mg (1/dia)** | — | (21) 97777-2222 | 2025-02-18 | Sim | Farmácia e enfermagem |
-| **Tatiana Nunes**| **100011** | **APAC-2024-011** | **Pós-op + alergia** | **Sugamadex - 100mg/ml (1/dia); Loratadina - 10mg (1/dia)** | — | (31) 96666-3333 | 2025-02-20 | Não | — |
+**Importante:** Quando **Retorna?** for **Sim**, os campos **Tipo retorno** e **Data de retorno** são obrigatórios na **criação** do paciente. Na **edição**, a Data de retorno é opcional (deixe em branco para não adicionar nova data; use o botão **Histórico** para ver e adicionar datas). Ver cenários 3.2.
+
+| Nome              | Prontuário | APAC        | Diagnóstico           | Medicamentos (nome + conc., consumo/dia) | Observações     | Telefone      | Data liberação | Retorna? | Tipo retorno        | Data retorno |
+|------------------|------------|-------------|------------------------|------------------------------------------|-----------------|---------------|----------------|----------|----------------------|--------------|
+| Maria Silva      | 100001     | APAC-2024-001 | Dor crônica          | Paracetamol - 500mg (2/dia)              | Uso contínuo    | (11) 98765-4321 | 2025-01-15   | Sim      | Farmácia e médico    | 2025-03-01   |
+| João Santos      | 100002     | APAC-2024-002 | Pós-operatório        | Sugamadex - 100mg/ml (1/dia)             | —               | (11) 91234-5678 | 2025-02-01   | Sim      | Somente farmácia     | 2025-03-15   |
+| Ana Oliveira     | 100003     | APAC-2024-003 | Refluxo               | Omeprazol - 20mg (1/dia)                 | Manhã em jejum  | (21) 99876-5432 | 2025-01-20   | Não      | —                    | —            |
+| Pedro Costa      | 100004     | APAC-2024-004 | Diabetes tipo 2       | Metformina - 850mg (2/dia)               | —               | (31) 97654-3210 | 2025-02-10   | Sim      | Farmácia e enfermagem | 2025-04-01   |
+| Carla Mendes     | 100005     | APAC-2024-005 | Alergia respiratória  | Loratadina - 10mg (1/dia)                | —               | (11) 96543-2109 | 2025-01-25   | Sim      | Somente farmácia     | 2025-03-20   |
+| Roberto Lima     | 100006     | APAC-2024-006 | Dor e febre           | Paracetamol - 500mg (3/dia)              | Tratamento 7 dias | (11) 95432-1098 | 2025-02-05   | Não      | —                    | —            |
+| Fernanda Rocha   | 100007     | APAC-2024-007 | Infecção bacteriana   | Amoxicilina - 500mg (3/dia)              | 7 dias          | (21) 94321-0987 | 2025-02-08   | Não      | —                    | —            |
+| Lucas Pereira    | 100008     | APAC-2024-008 | Dor pós-cirúrgica     | Dipirona - 500mg/ml (2/dia)              | —               | (31) 93210-9876 | 2025-02-12   | Sim      | Farmácia e médico    | 2025-03-25   |
+| **Helena Souza** | **100009** | **APAC-2024-009** | **Dor crônica + refluxo** | **Paracetamol - 500mg (2/dia); Omeprazol - 20mg (1/dia)** | Uso contínuo | (11) 98888-1111 | 2025-02-15 | Sim | Farmácia e médico | 2025-04-10 |
+| **Ricardo Alves**| **100010** | **APAC-2024-010** | **Diabetes + dor** | **Metformina - 850mg (2/dia); Paracetamol - 500mg (1/dia)** | — | (21) 97777-2222 | 2025-02-18 | Sim | Farmácia e enfermagem | 2025-04-15 |
+| **Tatiana Nunes**| **100011** | **APAC-2024-011** | **Pós-op + alergia** | **Sugamadex - 100mg/ml (1/dia); Loratadina - 10mg (1/dia)** | — | (31) 96666-3333 | 2025-02-20 | Não | — | — |
 
 ---
 
@@ -79,7 +81,11 @@ Na tabela abaixo, a coluna **Medicamentos** lista cada vínculo no formato *nome
 | Editar paciente – adicionar/remover medicamento | Editar paciente que tem 1 medicamento → Adicionar medicamento (ex.: segundo item Omeprazol 20mg, 1/dia) → Salvar | Paciente passa a exibir dois medicamentos na lista. Inversamente: editar paciente com 2 medicamentos → Remover um item (manter ao menos um) → Salvar. |
 | Excluir paciente | Na lista → Excluir → confirmar | Paciente some da lista; toast de sucesso. |
 | Prontuário duplicado | Novo paciente com prontuário já existente (ex. 100001) | Backend retorna erro; toast com mensagem de prontuário já existente. |
-| Retorno ao serviço | Novo paciente → "O paciente vai retornar?" Sim → escolher "Somente farmácia" | Tipo retorno salvo; na lista aparece "Sim" e "Somente farmácia". |
+| Retorno ao serviço | Novo paciente → "O paciente vai retornar?" Sim → escolher tipo (ex.: "Somente farmácia") e **preencher Data de retorno** (obrigatório) → Salvar e confirmar | Tipo e data salvos; na lista aparece "Sim" e o tipo; a data fica no histórico de retornos. |
+| Data de retorno obrigatória | Novo paciente → "O paciente vai retornar?" Sim → deixar Data de retorno em branco e tentar salvar | Validação exibe erro: "Data de retorno é obrigatória quando o paciente retorna ao serviço". Preencher a data para prosseguir. |
+| Histórico de retornos | Na lista de pacientes → em um paciente com "Sim" em retorno → clicar no botão **Histórico** (ícone calendário) | Abre modal "Histórico de retornos" com o nome do paciente; lista as datas de retorno já cadastradas (tabela Data e Tipo). |
+| Adicionar data pelo histórico | No modal Histórico de retornos → **Adicionar data de retorno** → informar data (e tipo opcional) → Adicionar | Nova data é inserida no histórico; lista no modal atualiza; toast de sucesso. O paciente não precisa ser editado. |
+| Editar paciente e nova data de retorno | Editar um paciente que retorna ao serviço → preencher o campo **Data de retorno** com uma nova data → Salvar | A nova data é adicionada ao histórico (as datas antigas permanecem). |
 
 ### 3.3 Estoque e impacto
 
@@ -107,5 +113,6 @@ Na tabela abaixo, a coluna **Medicamentos** lista cada vínculo no formato *nome
 
 - **Forma farmacêutica (medicamento):** 1 = Comprimido, 2 = Injetável, 3 = Gotas, 4 = Outros  
 - **Tipo retorno (paciente):** Farmácia e médico | Somente farmácia | Farmácia e enfermagem  
+- **Data de retorno:** obrigatória quando "O paciente vai retornar para o serviço?" = **Sim**. Formato: YYYY-MM-DD (ex.: 2025-03-01). Várias datas podem ser registradas ao longo do tempo (na criação, na edição ou pelo botão **Histórico**).
 
 APAC e diagnóstico podem ser texto livre; use os exemplos acima ou variações conforme sua necessidade.

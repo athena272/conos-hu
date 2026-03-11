@@ -98,7 +98,7 @@ const medicamentoItemSchema = yup.object().shape({
     }),
 });
 
-const schema = yup.object().shape({
+const baseSchema = {
   nome: yup.string().required("Nome é obrigatório").trim(),
   prontuario: yup
     .string()
@@ -133,6 +133,40 @@ const schema = yup.object().shape({
         .oneOf(["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"]),
     otherwise: (s) => s.nullable(),
   }),
+};
+
+const schemaDataRetornoObrigatoria = yup.string().when("retorna_servico", {
+  is: true,
+  then: (s) =>
+    s
+      .required("Data de retorno é obrigatória quando o paciente retorna ao serviço")
+      .trim()
+      .matches(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida (YYYY-MM-DD)"),
+  otherwise: (s) => s.nullable(),
+});
+
+const schemaDataRetornoOpcional = yup
+  .string()
+  .nullable()
+  .trim()
+  .test(
+    "valid-date-optional",
+    "Informe uma data válida (YYYY-MM-DD)",
+    function (value) {
+      if (!this.parent.retorna_servico) return true;
+      if (!value || value.trim() === "") return true;
+      return /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+    },
+  );
+
+const schemaCreate = yup.object().shape({
+  ...baseSchema,
+  data_retorno: schemaDataRetornoObrigatoria,
+});
+
+const schemaEdit = yup.object().shape({
+  ...baseSchema,
+  data_retorno: schemaDataRetornoOpcional,
 });
 
 function formatTipoRetorno(tipo: string | null): string {
@@ -732,7 +766,7 @@ export default function Pacientes() {
         <Formik
           key={editingPaciente?.id ?? "new"}
           initialValues={editFormInitialValues}
-          validationSchema={schema}
+          validationSchema={editingPaciente ? schemaEdit : schemaCreate}
           enableReinitialize
           onSubmit={handleSubmit}
         >
@@ -1112,11 +1146,18 @@ export default function Pacientes() {
                   </div>
                 )}
                 {values.retorna_servico && (
-                  <LabelInput
-                    name="data_retorno"
-                    label="Data de retorno (opcional)"
-                    type="date"
-                  />
+                  <>
+                    <LabelInput
+                      name="data_retorno"
+                      label="Data de retorno"
+                      type="date"
+                    />
+                    <ErrorMessage
+                      component="span"
+                      name="data_retorno"
+                      className="form-error"
+                    />
+                  </>
                 )}
               </div>
               <div className="pacientes-form-footer">
