@@ -77,14 +77,20 @@ function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: bool
   return null;
 }
 
+interface PacienteRowWithProximaRetorno extends PacienteRow {
+  proxima_data_retorno: string | null;
+}
+
 export const listPacientes = (req: Request, res: Response): void => {
-  db.query("SELECT * FROM pacientes ORDER BY nome", [], (err: Error | null, results: unknown) => {
+  const sqlPacientes =
+    "SELECT p.*, (SELECT MIN(pr.data_retorno) FROM paciente_retornos pr WHERE pr.paciente_id = p.id AND pr.data_retorno >= CURDATE()) AS proxima_data_retorno FROM pacientes p ORDER BY p.nome";
+  db.query(sqlPacientes, [], (err: Error | null, results: unknown) => {
     if (err) {
       console.error("Erro ao listar pacientes:", err);
       res.status(500).json({ error: "Erro ao listar pacientes" });
       return;
     }
-    const pacientes = (results as PacienteRow[]) || [];
+    const pacientes = (results as PacienteRowWithProximaRetorno[]) || [];
     if (pacientes.length === 0) {
       res.status(200).json([]);
       return;
@@ -111,11 +117,31 @@ export const listPacientes = (req: Request, res: Response): void => {
           });
           byPaciente.set(r.paciente_id, list);
         }
-        const out = pacientes.map((p) => ({
-          ...p,
-          medicamentos: byPaciente.get(p.id) ?? [],
-        }));
-        res.status(200).json(out);
+        db.query(
+          `SELECT DISTINCT pm.paciente_id, m.lote FROM paciente_medicamentos pm INNER JOIN medications m ON m.nome = pm.medicamento_nome AND m.concentracao = pm.medicamento_concentracao WHERE pm.paciente_id IN (${placeholders})`,
+          ids,
+          (errLotes: Error | null, loteRows: unknown) => {
+            if (errLotes) {
+              console.error("Erro ao listar lotes dos pacientes:", errLotes);
+              res.status(500).json({ error: "Erro ao listar pacientes" });
+              return;
+            }
+            const lotesRaw = (loteRows as { paciente_id: number; lote: string }[]) || [];
+            const lotesByPaciente = new Map<number, string[]>();
+            for (const row of lotesRaw) {
+              const list = lotesByPaciente.get(row.paciente_id) ?? [];
+              if (!list.includes(row.lote)) list.push(row.lote);
+              lotesByPaciente.set(row.paciente_id, list);
+            }
+            const out = pacientes.map((p) => ({
+              ...p,
+              medicamentos: byPaciente.get(p.id) ?? [],
+              proxima_data_retorno: p.proxima_data_retorno ?? null,
+              lotes: lotesByPaciente.get(p.id) ?? [],
+            }));
+            res.status(200).json(out);
+          }
+        );
       }
     );
   });

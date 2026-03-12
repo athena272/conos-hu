@@ -34,6 +34,23 @@
   margin-top: 0.5rem;
 }
 
+.pacientes-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.pacientes-filter-busca .pacientes-input-busca,
+.pacientes-input-lote {
+  min-width: 12rem;
+}
+
+.pacientes-dropdown-sort {
+  min-width: 14rem;
+}
+
 .pacientes-table {
   margin-top: 0.5rem;
 }
@@ -262,6 +279,12 @@ input.p-inputtext.p-component {
   width: 100%;
 }
 
+/* bordas verticais entre colunas */
+.pacientes-table-custom .p-datatable-thead > tr > th:not(:last-child),
+.pacientes-table-custom .p-datatable-tbody > tr > td:not(:last-child) {
+  border-right: 1px solid var(--surface-border, #e2e8f0);
+}
+
 /* cabeçalho */
 .pacientes-table-custom .p-datatable-thead>tr>th {
   background: #f8fafc;
@@ -325,6 +348,7 @@ input.p-inputtext.p-component {
 .pacientes-col-prontuario,
 .pacientes-col-consumo,
 .pacientes-col-data,
+.pacientes-col-prox-retorno,
 .pacientes-col-retorna {
   white-space: nowrap;
 }
