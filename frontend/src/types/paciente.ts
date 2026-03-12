@@ -21,6 +21,8 @@ export interface Paciente {
   data_liberacao: string;
   retorna_servico: number;
   tipo_retorno: TipoRetorno | null;
+  proxima_data_retorno?: string | null;
+  lotes?: string[];
 }
 
 export interface PacienteRetorno {

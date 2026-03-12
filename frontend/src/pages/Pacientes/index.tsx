@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
@@ -39,6 +39,17 @@ const TIPO_RETORNO_OPTIONS = [
   { label: "Farmácia e médico", value: "farmacia_medico" },
   { label: "Somente farmácia", value: "somente_farmacia" },
   { label: "Farmácia e enfermagem", value: "farmacia_enfermagem" },
+];
+
+const SORT_OPTIONS = [
+  { label: "Data de retorno (mais perto)", value: "proxima_data_retorno_asc" },
+  { label: "Data de retorno (mais distante)", value: "proxima_data_retorno_desc" },
+  { label: "Nome (A–Z)", value: "nome_asc" },
+  { label: "Nome (Z–A)", value: "nome_desc" },
+  { label: "Data liberação (mais recente)", value: "data_liberacao_desc" },
+  { label: "Data liberação (mais antiga)", value: "data_liberacao_asc" },
+  { label: "Prontuário (crescente)", value: "prontuario_asc" },
+  { label: "Prontuário (decrescente)", value: "prontuario_desc" },
 ];
 
 interface MedicamentoFormItem {
@@ -213,6 +224,60 @@ export default function Pacientes() {
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
   const [addingRetorno, setAddingRetorno] = useState(false);
   const [showAddRetornoForm, setShowAddRetornoForm] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [buscaDebounced, setBuscaDebounced] = useState("");
+  const [filtroLote, setFiltroLote] = useState("");
+  const [sortKey, setSortKey] = useState("proxima_data_retorno_asc");
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setBuscaDebounced(busca), 300);
+    return () => window.clearTimeout(t);
+  }, [busca]);
+
+  const filteredAndSortedPacientes = useMemo(() => {
+    let list = pacientes;
+    const buscaNorm = buscaDebounced.trim().toLowerCase();
+    if (buscaNorm) {
+      list = list.filter((p) => {
+        if (p.nome.toLowerCase().includes(buscaNorm)) return true;
+        const meds = p.medicamentos ?? [];
+        return meds.some(
+          (m) =>
+            m.medicamento_nome.toLowerCase().includes(buscaNorm) ||
+            (m.medicamento_concentracao ?? "").toLowerCase().includes(buscaNorm)
+        );
+      });
+    }
+    const loteNorm = filtroLote.trim().toLowerCase();
+    if (loteNorm) {
+      list = list.filter((p) =>
+        (p.lotes ?? []).some((l) => l.toLowerCase().includes(loteNorm))
+      );
+    }
+    const [field, dir] = sortKey.split("_") as [string, "asc" | "desc"];
+    const asc = dir === "asc";
+    return [...list].sort((a, b) => {
+      if (field === "proxima_data_retorno") {
+        const da = a.proxima_data_retorno ?? null;
+        const db = b.proxima_data_retorno ?? null;
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return asc ? da.localeCompare(db) : db.localeCompare(da);
+      }
+      if (field === "nome")
+        return asc
+          ? a.nome.localeCompare(b.nome)
+          : b.nome.localeCompare(a.nome);
+      if (field === "data_liberacao")
+        return asc
+          ? a.data_liberacao.localeCompare(b.data_liberacao)
+          : b.data_liberacao.localeCompare(a.data_liberacao);
+      if (field === "prontuario")
+        return asc ? a.prontuario - b.prontuario : b.prontuario - a.prontuario;
+      return 0;
+    });
+  }, [pacientes, buscaDebounced, filtroLote, sortKey]);
 
   const fetchPacientes = () => {
     axios
@@ -598,8 +663,33 @@ export default function Pacientes() {
         </div>
       )}
 
+      <div className="pacientes-filters-bar">
+        <span className="p-input-icon-left pacientes-filter-busca">
+          <i className="pi pi-search" />
+          <InputText
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome ou medicamento"
+            className="pacientes-input-busca"
+          />
+        </span>
+        <InputText
+          value={filtroLote}
+          onChange={(e) => setFiltroLote(e.target.value)}
+          placeholder="Filtrar por lote"
+          className="pacientes-input-lote"
+        />
+        <Dropdown
+          value={sortKey}
+          options={SORT_OPTIONS}
+          onChange={(e) => setSortKey(e.value ?? "proxima_data_retorno_asc")}
+          placeholder="Ordenar por"
+          className="pacientes-dropdown-sort"
+        />
+      </div>
+
       <DataTable
-        value={pacientes}
+        value={filteredAndSortedPacientes}
         paginator
         rows={10}
         emptyMessage="Nenhum paciente cadastrado."
@@ -693,6 +783,17 @@ export default function Pacientes() {
           style={{ minWidth: "10rem" }}
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-data"
+        />
+        <Column
+          header="Próx. retorno"
+          body={(r: Paciente) =>
+            r.proxima_data_retorno
+              ? formatDateBR(r.proxima_data_retorno)
+              : "—"
+          }
+          style={{ minWidth: "10rem" }}
+          headerClassName="pacientes-col-header"
+          bodyClassName="pacientes-col-prox-retorno"
         />
         <Column
           field="retorna_servico"
