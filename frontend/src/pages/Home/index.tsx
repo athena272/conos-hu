@@ -10,8 +10,8 @@ import { Button } from "primereact/button";
 import { ConfirmDialog } from "primereact/confirmdialog";
 import { Dialog } from "primereact/dialog";
 import { Toast } from "primereact/toast";
-import axios from "axios";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
+import { isAdmin } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
 import React from "react";
@@ -75,8 +75,8 @@ export default function Home() {
   ]);
 
   const fetchMedications = () => {
-    axios
-      .get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
+    api
+      .get<MedicationWithStatus[]>("/medications")
       .then((response) => {
         setMedications(response.data ?? []);
       });
@@ -158,7 +158,7 @@ export default function Home() {
     if (!editingMedication) return;
     setSavingEdit(true);
     try {
-      await axios.put(`${API_BASE_URL}/medications/${editingMedication.id}`, {
+      await api.put(`/medications/${editingMedication.id}`, {
         nome: editForm.nome,
         lote: editForm.lote,
         quantidade: editForm.quantidade,
@@ -191,9 +191,7 @@ export default function Home() {
     if (!deletingMedication) return;
     setDeletingInProgress(true);
     try {
-      await axios.delete(
-        `${API_BASE_URL}/medications/${deletingMedication.id}`,
-      );
+      await api.delete(`/medications/${deletingMedication.id}`);
       toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
@@ -235,11 +233,13 @@ export default function Home() {
     </div>
   );
 
+  const admin = isAdmin();
+
   return (
     <div className="home-container">
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog
-        visible={!!deletingMedication}
+        visible={admin && !!deletingMedication}
         onHide={() => !deletingInProgress && setDeletingMedication(null)}
         header="Excluir medicação"
         message="Deseja realmente excluir esta medicação? Esta ação não pode ser desfeita."
@@ -301,33 +301,35 @@ export default function Home() {
           body={(rowData: MedicationWithStatus) => getStatusTag(rowData.status)}
           style={{ minWidth: "10rem" }}
         />
-        <Column
-          header="Ações"
-          body={(rowData: MedicationWithStatus) => (
-            <div className="home-actions-buttons">
-              <Button
-                label="Editar"
-                icon="pi pi-pencil"
-                className="p-button-sm"
-                onClick={() => openEdit(rowData)}
-              />
-              <Button
-                label="Excluir"
-                icon="pi pi-trash"
-                className="p-button-sm p-button-danger"
-                onClick={() => setDeletingMedication(rowData)}
-                aria-label="Excluir medicação"
-                disabled={deletingInProgress}
-              />
-            </div>
-          )}
-          style={{ minWidth: "10rem" }}
-        />
+        {admin && (
+          <Column
+            header="Ações"
+            body={(rowData: MedicationWithStatus) => (
+              <div className="home-actions-buttons">
+                <Button
+                  label="Editar"
+                  icon="pi pi-pencil"
+                  className="p-button-sm"
+                  onClick={() => openEdit(rowData)}
+                />
+                <Button
+                  label="Excluir"
+                  icon="pi pi-trash"
+                  className="p-button-sm p-button-danger"
+                  onClick={() => setDeletingMedication(rowData)}
+                  aria-label="Excluir medicação"
+                  disabled={deletingInProgress}
+                />
+              </div>
+            )}
+            style={{ minWidth: "10rem" }}
+          />
+        )}
       </DataTable>
 
       <Dialog
         header="Editar medicação"
-        visible={!!editingMedication}
+        visible={admin && !!editingMedication}
         onHide={closeEdit}
         draggable={false}
         className="home-edit-dialog"

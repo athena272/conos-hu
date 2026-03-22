@@ -5,8 +5,7 @@ import Button from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { Dropdown } from "primereact/dropdown";
 import { Toast } from "primereact/toast";
-import Axios from "axios";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import type { MedicationWithStatus } from "../../types";
@@ -32,7 +31,8 @@ export default function Simulador() {
 
   useEffect(() => {
     setLoadingMedications(true);
-    Axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
+    api
+      .get<MedicationWithStatus[]>("/medications")
       .then((res) => setMedications(res.data ?? []))
       .catch((err) => {
         setMedications([]);

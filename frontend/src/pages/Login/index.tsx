@@ -2,10 +2,10 @@ import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Formik, Form } from "formik";
 import * as yup from "yup";
-import Axios from "axios";
 import { Toast } from "primereact/toast";
 
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
+import { setAuth, type UserRole } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FloatLabelInput from "../../components/FloatLabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
@@ -35,15 +35,23 @@ function Login() {
 
   const handleClickLogin = async (values: LoginValues) => {
     try {
-      const response = await Axios.post<{ userId: number; message: string }>(
-        `${API_BASE_URL}/login`,
-        {
-          email: values.email,
-          password: values.password,
-        }
-      );
+      const response = await api.post<{
+        userId: number;
+        email: string;
+        role: UserRole;
+        token: string;
+        message: string;
+      }>("/login", {
+        email: values.email,
+        password: values.password,
+      });
 
-      localStorage.setItem("userId", String(response.data.userId));
+      setAuth({
+        token: response.data.token,
+        userId: response.data.userId,
+        email: response.data.email,
+        role: response.data.role,
+      });
 
       toast.current?.show({
         severity: "success",

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import { api } from "../../api/client";
+import { isAdmin } from "../../auth/session";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import { DataTable } from "primereact/datatable";
@@ -18,7 +19,6 @@ import Menu from "../../components/Menu";
 import LabelInput from "../../components/LabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
-import { API_BASE_URL } from "../../config/api";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
 import type {
@@ -280,27 +280,23 @@ export default function Pacientes() {
   }, [pacientes, buscaDebounced, filtroLote, sortKey]);
 
   const fetchPacientes = () => {
-    axios
-      .get<Paciente[]>(`${API_BASE_URL}/pacientes`)
+    api
+      .get<Paciente[]>("/pacientes")
       .then((res) => setPacientes(res.data ?? []))
       .catch(() => setPacientes([]));
   };
 
   const fetchMedicamentosDistintos = () => {
-    axios
-      .get<MedicamentoDistinto[]>(
-        `${API_BASE_URL}/medications/distinct-nome-concentration`,
-      )
+    api
+      .get<MedicamentoDistinto[]>("/medications/distinct-nome-concentration")
       .then((res) => setMedicamentosDistintos(res.data ?? []))
       .catch(() => setMedicamentosDistintos([]));
   };
 
   const fetchResumoPorMedicamento = () => {
     setLoadingResumo(true);
-    axios
-      .get<ResumoPorMedicamento[]>(
-        `${API_BASE_URL}/pacientes/resumo-por-medicamento`,
-      )
+    api
+      .get<ResumoPorMedicamento[]>("/pacientes/resumo-por-medicamento")
       .then((res) => setResumoPorMedicamento(res.data ?? []))
       .catch(() => setResumoPorMedicamento([]))
       .finally(() => setLoadingResumo(false));
@@ -321,10 +317,8 @@ export default function Pacientes() {
       return;
     }
     setLoadingHistorico(true);
-    axios
-      .get<PacienteRetorno[]>(
-        `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
-      )
+    api
+      .get<PacienteRetorno[]>(`/pacientes/${historicoPaciente.id}/retornos`)
       .then((res) => setHistoricoRetornos(res.data ?? []))
       .catch(() => setHistoricoRetornos([]))
       .finally(() => setLoadingHistorico(false));
@@ -356,8 +350,8 @@ export default function Pacientes() {
       return;
     }
     setAddingRetorno(true);
-    axios
-      .post(`${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`, {
+    api
+      .post(`/pacientes/${historicoPaciente.id}/retornos`, {
         data_retorno: novaDataRetorno.trim(),
         tipo_retorno: novoTipoRetorno.trim() || undefined,
       })
@@ -371,8 +365,8 @@ export default function Pacientes() {
         setNovaDataRetorno("");
         setNovoTipoRetorno("");
         setShowAddRetornoForm(false);
-        return axios.get<PacienteRetorno[]>(
-          `${API_BASE_URL}/pacientes/${historicoPaciente.id}/retornos`,
+        return api.get<PacienteRetorno[]>(
+          `/pacientes/${historicoPaciente.id}/retornos`,
         );
       })
       .then((res) => setHistoricoRetornos(res.data ?? []))
@@ -455,8 +449,8 @@ export default function Pacientes() {
     setFormSubmitting(true);
     if (editingPaciente) {
       setFormVisible(false);
-      axios
-        .put(`${API_BASE_URL}/pacientes/${editingPaciente.id}`, payload)
+      api
+        .put(`/pacientes/${editingPaciente.id}`, payload)
         .then(() => {
           toast.current?.show({
             severity: "success",
@@ -494,8 +488,8 @@ export default function Pacientes() {
     }>;
     Promise.all(
       medicamentosPayload.map((m) =>
-        axios.get<ImpactoEstoque>(
-          `${API_BASE_URL}/pacientes/impacto-estoque?medicamento_nome=${encodeURIComponent(m.medicamento_nome)}&medicamento_concentracao=${encodeURIComponent(m.medicamento_concentracao)}&consumo_diario=${m.consumo_diario}`,
+        api.get<ImpactoEstoque>(
+          `/pacientes/impacto-estoque?medicamento_nome=${encodeURIComponent(m.medicamento_nome)}&medicamento_concentracao=${encodeURIComponent(m.medicamento_concentracao)}&consumo_diario=${m.consumo_diario}`,
         ),
       ),
     )
@@ -507,8 +501,8 @@ export default function Pacientes() {
   const handleConfirmarCadastro = () => {
     if (!pendingPayload) return;
     setSubmittingConfirm(true);
-    axios
-      .post(`${API_BASE_URL}/pacientes`, pendingPayload)
+    api
+      .post("/pacientes", pendingPayload)
       .then(() => {
         toast.current?.show({
           severity: "success",
@@ -541,7 +535,7 @@ export default function Pacientes() {
     if (!deletingPaciente) return;
     setDeletingInProgress(true);
     try {
-      await axios.delete(`${API_BASE_URL}/pacientes/${deletingPaciente.id}`);
+      await api.delete(`/pacientes/${deletingPaciente.id}`);
       toast.current?.show({
         severity: "success",
         summary: "Sucesso",
@@ -596,6 +590,8 @@ export default function Pacientes() {
       }
     : initialFormValues;
 
+  const admin = isAdmin();
+
   return (
     <div className="pacientes-container">
       <FullScreenLoader
@@ -604,7 +600,7 @@ export default function Pacientes() {
       />
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog
-        visible={!!deletingPaciente}
+        visible={admin && !!deletingPaciente}
         onHide={() => !deletingInProgress && setDeletingPaciente(null)}
         header="Excluir paciente"
         message="Deseja realmente excluir este paciente? Esta ação não pode ser desfeita."
@@ -618,13 +614,15 @@ export default function Pacientes() {
       <Menu />
       <div className="pacientes-title">
         <h2>Pacientes</h2>
-        <Button
-          label="Novo paciente"
-          icon="pi pi-plus"
-          onClick={openCreate}
-          className="p-button-primary"
-          style={{ marginTop: "20px" }}
-        />
+        {admin && (
+          <Button
+            label="Novo paciente"
+            icon="pi pi-plus"
+            onClick={openCreate}
+            className="p-button-primary"
+            style={{ marginTop: "20px" }}
+          />
+        )}
       </div>
 
       {resumoPorMedicamento.length > 0 && (
@@ -834,19 +832,23 @@ export default function Pacientes() {
                   title="Histórico de retornos"
                 />
               ) : null}
-              <Button
-                label="Editar"
-                icon="pi pi-pencil"
-                className="p-button-sm pacientes-btn-editar"
-                onClick={() => openEdit(r)}
-              />
-              <Button
-                label="Excluir"
-                icon="pi pi-trash"
-                className="p-button-sm p-button-danger pacientes-btn-excluir"
-                onClick={() => setDeletingPaciente(r)}
-                disabled={deletingInProgress}
-              />
+              {admin && (
+                <>
+                  <Button
+                    label="Editar"
+                    icon="pi pi-pencil"
+                    className="p-button-sm pacientes-btn-editar"
+                    onClick={() => openEdit(r)}
+                  />
+                  <Button
+                    label="Excluir"
+                    icon="pi pi-trash"
+                    className="p-button-sm p-button-danger pacientes-btn-excluir"
+                    onClick={() => setDeletingPaciente(r)}
+                    disabled={deletingInProgress}
+                  />
+                </>
+              )}
             </div>
           )}
           style={{ minWidth: "11rem" }}
@@ -1431,12 +1433,14 @@ export default function Pacientes() {
               </DataTable>
             )}
             {!showAddRetornoForm ? (
-              <Button
-                label="Adicionar data de retorno"
-                icon="pi pi-plus"
-                className="p-button-sm p-button-secondary"
-                onClick={() => setShowAddRetornoForm(true)}
-              />
+              admin ? (
+                <Button
+                  label="Adicionar data de retorno"
+                  icon="pi pi-plus"
+                  className="p-button-sm p-button-secondary"
+                  onClick={() => setShowAddRetornoForm(true)}
+                />
+              ) : null
             ) : (
               <div
                 className="pacientes-form-fields"

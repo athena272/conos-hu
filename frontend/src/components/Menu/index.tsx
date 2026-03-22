@@ -1,11 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { Menubar } from "primereact/menubar";
+import { clearAuth, isAdmin } from "../../auth/session";
 import "./styles.css";
 
 export default function Menu() {
   const navigate = useNavigate();
+  const admin = isAdmin();
+
   const handleLogout = () => {
-    localStorage.removeItem("userId");
+    clearAuth();
     navigate("/login");
   };
 
@@ -19,16 +22,20 @@ export default function Menu() {
       label: "Medicações",
       icon: "pi pi-tablet",
       items: [
-        {
-          label: "Registrar",
-          icon: "pi pi-plus-circle",
-          url: "/register-medication",
-        },
-        {
-          label: "Retirar",
-          icon: "pi pi-cart-arrow-down",
-          url: "/retira-medication",
-        },
+        ...(admin
+          ? [
+              {
+                label: "Registrar",
+                icon: "pi pi-plus-circle",
+                url: "/register-medication",
+              },
+              {
+                label: "Retirar",
+                icon: "pi pi-cart-arrow-down",
+                url: "/retira-medication",
+              },
+            ]
+          : []),
         {
           label: "Simulador",
           icon: "pi pi-calculator",

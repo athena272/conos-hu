@@ -4,10 +4,10 @@ import FloatLabelInput from "../../components/FloatLabelInput";
 import Button from "../../components/ButtonSubmit";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
-import Axios from "axios";
 import { Toast } from "primereact/toast";
 
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
+import { setAuth, type UserRole } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import registerImage from "../../assets/images/register.svg";
@@ -27,14 +27,25 @@ function Register() {
     values: RegisterValues,
     { setSubmitting }: FormikHelpers<RegisterValues>
   ) => {
-    Axios.post(`${API_BASE_URL}/register`, {
-      email: values.email,
-      password: values.password,
-    })
-      .then((response: { data?: { userId?: number } }) => {
-        if (response.data?.userId) {
-          localStorage.setItem("userId", String(response.data.userId));
-        }
+    api
+      .post<{
+        userId: number;
+        email: string;
+        role: UserRole;
+        token: string;
+        message: string;
+      }>("/register", {
+        email: values.email,
+        password: values.password,
+      })
+      .then((response) => {
+        const d = response.data;
+        setAuth({
+          token: d.token,
+          userId: d.userId,
+          email: d.email,
+          role: d.role,
+        });
 
         toast.current?.show({
           severity: "success",
