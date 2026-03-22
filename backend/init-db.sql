@@ -8,11 +8,12 @@ FLUSH PRIVILEGES;
 
 USE conos;
 
--- Criar tabela usuários
+-- Criar tabela usuários (role: admin = CRUD completo; viewer = somente leitura; novos cadastros = viewer)
 CREATE TABLE IF NOT EXISTS usuarios (
     idusuarios INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'viewer') NOT NULL DEFAULT 'viewer',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -40,6 +41,6 @@ CREATE TABLE IF NOT EXISTS retira_medications (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(idusuarios)
 );
 
--- Inserir usuário de teste (opcional)
-INSERT IGNORE INTO usuarios (email, password) VALUES 
-('admin@conos.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'); -- password: password
+-- Usuário de teste admin (opcional). Senha de exemplo: password
+INSERT IGNORE INTO usuarios (email, password, role) VALUES 
+('admin@conos.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');

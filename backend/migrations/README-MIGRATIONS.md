@@ -210,3 +210,24 @@ Se nos logs do Cloud Run aparecer erro ao aplicar a migration 6, ou se por algum
 3. Confirme: `SHOW TABLES LIKE 'paciente_medicamentos';` e `DESCRIBE pacientes;` (não deve listar `medicamento_nome`).
 
 Depois disso, o POST em `/pacientes` com `medicamentos: [...]` passará a funcionar em produção.
+
+---
+
+## Migration 8: coluna `role` em `usuarios` (admin / viewer)
+
+### Execução automática no deploy
+
+Em [`backend/models/db.ts`](../models/db.ts), na subida da API, após criar/verificar `usuarios`, o código verifica se existe a coluna `role` em `INFORMATION_SCHEMA`; se não existir, executa `ALTER TABLE usuarios ADD COLUMN role ENUM('admin','viewer') NOT NULL DEFAULT 'viewer'`.
+
+### Dados existentes: definir um administrador
+
+Após a coluna existir, todos os usuários antigos ficam com `role = 'viewer'` (DEFAULT). Promova **um** e-mail para admin no MySQL (substitua pelo e-mail real):
+
+```sql
+UPDATE usuarios SET role = 'viewer';
+UPDATE usuarios SET role = 'admin' WHERE email = 'seu-admin@exemplo.com';
+```
+
+Em deploy automatizado, você pode usar a variável de ambiente **`ADMIN_EMAIL`** apenas como **documentação** do e-mail a usar nesse segundo `UPDATE` (o aplicativo não executa esse `UPDATE` sozinho por segurança).
+
+Arquivo SQL de referência: [`8-add_usuario_role.sql`](8-add_usuario_role.sql).
