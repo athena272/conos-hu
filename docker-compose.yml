@@ -1,34 +1,28 @@
-version: "3.8"
-
 services:
-  conos-api:
-    build: ./backend
-    container_name: conos-api
-    restart: always
-    ports:
-      - "3001:3001"
+  db:
+    image: mysql:8.0
+    container_name: conos-db
+    restart: unless-stopped
     environment:
-      DB_HOST: 10.20.8.49 # Banco de dados externo
-      DB_USER: conos
-      DB_PASSWORD: C0no$US#r143
-      DB_NAME: conos
-      DB_PORT: 3306
-      NODE_ENV: production
-    networks:
-      - conos-net
-
-  conos-frontend:
-    build: ./frontend
-    container_name: conos-frontend
-    restart: always
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-conos}
+      MYSQL_USER: ${MYSQL_USER:-conos}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "5173:5173" # Porta do Vite local
-    environment:
-      - VITE_API_URL=http://localhost:3001 # Acesso local à API
-    depends_on:
-      - conos-api
-    networks:
-      - conos-net
+      - "3306:3306"
+    volumes:
+      - conos_mysql_data:/var/lib/mysql
+    healthcheck:
+      # Usa a env dentro do container ($$ vira $ no YAML do Compose).
+      test:
+        [
+          "CMD-SHELL",
+          'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" || exit 1',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-networks:
-  conos-net:
+volumes:
+  conos_mysql_data:

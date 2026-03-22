@@ -81,20 +81,40 @@ Fluxo típico: o frontend chama a API com `Authorization: Bearer <token>` após 
 
 ## Requisitos
 
-- **Node.js** 18 ou superior (alinhado às imagens Docker do projeto).
-- **MySQL** acessível pela API (5.7+ ou 8.x, conforme seu ambiente).
+- **Node.js** 18 ou superior.
+- **MySQL** 8.x acessível pela API (instalação própria, **ou** apenas **Docker** + Docker Compose para subir o MySQL localmente — ver abaixo).
 - Gerenciador de pacotes: **npm** ou **pnpm** (há `pnpm-lock.yaml` no backend; use o que preferir, de forma consistente em cada pasta).
+- **Docker Desktop** (ou Docker Engine + Compose) — opcional, recomendado se quiser o banco local sem instalar o MySQL na máquina.
 
 ---
 
 ## Instalação local (desenvolvimento)
 
+Fluxo **híbrido** recomendado: **Docker Compose** sobe **somente o MySQL**; **backend** e **frontend** rodam na sua máquina com `npm run dev`.
+
+Ordem sugerida: (1) banco no Docker; (2) variáveis `JWT_SECRET` e `DB_*` no backend; (3) `npm run dev` em `backend` e `frontend`.
+
 ### 1. Banco MySQL
 
-1. Crie um banco de dados (ex.: `conos`) e um usuário com permissões adequadas nesse banco.
-2. Anote **host**, **porta**, **usuário**, **senha** e **nome do banco** — você usará nas variáveis `DB_*` da API.
+**Opção A — MySQL com Docker (recomendado para desenvolvimento)**
 
-Na **primeira conexão** bem-sucedida da API, o código em `backend/models/db.ts` cria e ajusta tabelas necessárias (`CREATE TABLE IF NOT EXISTS` e migrações leves em código). Para cenários específicos ou produção, consulte também [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md).
+1. Na raiz do repositório, copie [`.env.example`](.env.example) para `.env` e defina `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER` e `MYSQL_PASSWORD` (o arquivo lista o que replicar no backend).
+2. Suba o container:
+
+   ```bash
+   docker compose up -d
+   ```
+
+3. Aguarde o serviço ficar saudável (`docker compose ps`). A API deve usar `DB_HOST=127.0.0.1`, `DB_PORT=3306` e o mesmo banco, usuário e senha definidos em `.env` (`MYSQL_*` ↔ `DB_*`).
+
+Para parar: `docker compose down`. Para apagar os dados persistidos do volume: `docker compose down -v` (irreversível).
+
+**Opção B — MySQL já instalado (sem Docker)**
+
+1. Crie um banco (ex.: `conos`) e um usuário com permissões nesse banco.
+2. Use **host**, **porta**, **usuário**, **senha** e **nome do banco** nas variáveis `DB_*` da API.
+
+Em ambos os casos, na **primeira conexão** bem-sucedida da API, o código em [`backend/models/db.ts`](backend/models/db.ts) cria e ajusta as tabelas necessárias. Para SQL manual ou produção (GCP), veja [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md). O arquivo [`backend/init-db.sql`](backend/init-db.sql) é **opcional** (bootstrap manual ou referência).
 
 ### 2. Backend
 
@@ -208,20 +228,15 @@ Para execução manual de SQL, ordem de dependências e notas de deploy (GCP), u
 
 ## Docker
 
-Na raiz do repositório existe um [`docker-compose.yml`](docker-compose.yml) que sobe **API** e **frontend** (o frontend na imagem atual roda o Vite em modo desenvolvimento com `--host`).
+O [`docker-compose.yml`](docker-compose.yml) na raiz sobe **apenas o MySQL** (imagem `mysql:8.0`), com volume persistente `conos_mysql_data` e porta **3306** em `localhost`. **Não** inclui API nem frontend — estes continuam com `npm run dev` nas pastas `backend` e `frontend`.
 
-**Importante:**
+1. Copie [`.env.example`](.env.example) para `.env` e preencha as variáveis `MYSQL_*`.
+2. `docker compose up -d`
+3. Configure o backend com `DB_HOST=127.0.0.1` e as mesmas credenciais (`DB_NAME`, `DB_USER`, `DB_PASSWORD` alinhadas a `MYSQL_*`).
 
-- Ajuste **credenciais e host do MySQL** via variáveis de ambiente do serviço `conos-api` — não commite senhas reais.
-- O `Dockerfile` do backend expõe a porta **8080** na imagem, mas o processo usa `PORT` do ambiente; alinhe o mapeamento de portas do Compose com o valor de `PORT` que a API realmente escuta.
-- Em produção, o frontend costuma ser **build estático** (por exemplo `npm run build` + nginx ou hospedagem tipo Vercel), não o servidor de desenvolvimento do Vite.
+Os arquivos [`backend/Dockerfile`](backend/Dockerfile) e [`frontend/Dockerfile`](frontend/Dockerfile) permanecem para **deploy** (por exemplo Cloud Run); o Compose local **não** os utiliza.
 
-Comandos típicos:
-
-```bash
-docker compose build
-docker compose up
-```
+O arquivo `.env` está no [`.gitignore`](.gitignore) da raiz — não commite senhas.
 
 ---
 

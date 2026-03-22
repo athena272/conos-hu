@@ -1,8 +1,15 @@
+-- Opcional / referência: o schema completo e as migrações leves são aplicados na primeira
+-- conexão da API (veja backend/models/db.ts). Use este script apenas para bootstrap manual
+-- em um MySQL onde você não vá subir a API de imediato, ou como documentação legada.
+--
+-- Com Docker Compose na raiz do projeto, o banco e o usuário da app já são criados pelas
+-- variáveis MYSQL_*; não é necessário executar este arquivo para o fluxo local com Docker.
+
 -- Criar database se não existir
 CREATE DATABASE IF NOT EXISTS conos;
 
--- Criar usuário se não existir e conceder privilégios
-CREATE USER IF NOT EXISTS 'conos'@'%' IDENTIFIED BY 'C0no$US#r143';
+-- Criar usuário se não existir e conceder privilégios (ajuste a senha antes de rodar)
+CREATE USER IF NOT EXISTS 'conos'@'%' IDENTIFIED BY 'changeme_local_only';
 GRANT ALL PRIVILEGES ON conos.* TO 'conos'@'%';
 FLUSH PRIVILEGES;
 
@@ -25,7 +32,7 @@ CREATE TABLE IF NOT EXISTS medications (
     quantidade INT NOT NULL,
     classificacao VARCHAR(100),
     concentracao  VARCHAR(100) NOT NULL,
-    forma ENUM('1', '2', '3', '4') NOT NULL;
+    forma ENUM('1', '2', '3', '4') NOT NULL,
     data_validade DATE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -41,6 +48,6 @@ CREATE TABLE IF NOT EXISTS retira_medications (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(idusuarios)
 );
 
--- Usuário de teste admin (opcional). Senha de exemplo: password
+-- Usuário de teste admin (opcional). Hash bcrypt corresponde à senha literal: password
 INSERT IGNORE INTO usuarios (email, password, role) VALUES 
 ('admin@conos.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
