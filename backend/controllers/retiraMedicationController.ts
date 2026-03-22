@@ -14,16 +14,17 @@ interface PoolConnection {
 }
 
 export const retiraMedication = (req: Request, res: Response): void => {
-  const { medication_id, usuario_id, quantidade } = req.body;
+  const usuario_id = req.user!.id;
+  const { medication_id, quantidade } = req.body;
 
-  console.log("📥 Dados recebidos para retirada:", req.body);
+  console.log("📥 Dados recebidos para retirada:", { ...req.body, usuario_id });
 
-  const quantidadeNum = parseInt(quantidade);
+  const quantidadeNum = parseInt(quantidade, 10);
 
-  if (!medication_id || !usuario_id || isNaN(quantidadeNum)) {
-    console.log("❌ Dados inválidos:", { medication_id, usuario_id, quantidade });
+  if (!medication_id || isNaN(quantidadeNum)) {
+    console.log("❌ Dados inválidos:", { medication_id, quantidade });
     res.status(400).json({
-      error: "Todos os campos são obrigatórios e quantidade deve ser numérica",
+      error: "medication_id e quantidade numérica são obrigatórios",
     });
     return;
   }

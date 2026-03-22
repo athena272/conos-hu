@@ -1,16 +1,25 @@
 import express, { type IRouter } from "express";
 import * as medicationController from "../controllers/medicationController";
+import { requireAuth, requireAdmin } from "../middleware/authMiddleware";
 
 const router: IRouter = express.Router();
 
-router.post("/", medicationController.registerMedication);
-router.get("/", medicationController.getMedications);
-router.get("/distinct-nome-concentration", medicationController.getDistinctNomeConcentration);
-router.get("/by-name-concentration", medicationController.getLotsByNameConcentration);
-router.post("/add-quantity", medicationController.addQuantity);
-router.get("/:id", medicationController.getMedicationById);
-router.put("/:id", medicationController.updateMedication);
-router.delete("/:id", medicationController.deleteMedication);
-router.post("/search", medicationController.searchMedication);
+router.post("/", requireAuth, requireAdmin, medicationController.registerMedication);
+router.get("/", requireAuth, medicationController.getMedications);
+router.get(
+  "/distinct-nome-concentration",
+  requireAuth,
+  medicationController.getDistinctNomeConcentration
+);
+router.get(
+  "/by-name-concentration",
+  requireAuth,
+  medicationController.getLotsByNameConcentration
+);
+router.post("/add-quantity", requireAuth, requireAdmin, medicationController.addQuantity);
+router.post("/search", requireAuth, medicationController.searchMedication);
+router.get("/:id", requireAuth, medicationController.getMedicationById);
+router.put("/:id", requireAuth, requireAdmin, medicationController.updateMedication);
+router.delete("/:id", requireAuth, requireAdmin, medicationController.deleteMedication);
 
 export default router;

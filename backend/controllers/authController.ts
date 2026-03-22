@@ -1,11 +1,20 @@
 import { Request, Response } from "express";
+import type { ResultSetHeader } from "mysql2";
 import db from "../models/db";
 import bcrypt from "bcryptjs";
+import { signAuthToken } from "../services/authToken";
+import type { UserRole } from "../types/roles";
 
 interface UsuarioRow {
   idusuarios: number;
   email: string;
   password: string;
+  role: UserRole;
+}
+
+function normalizeRole(value: unknown): UserRole {
+  if (value === "admin") return "admin";
+  return "viewer";
 }
 
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
@@ -31,15 +40,25 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
         const hashedPassword = await bcrypt.hash(password, 10);
 
         db.query(
-          "INSERT INTO usuarios (email, password) VALUES (?, ?)",
+          "INSERT INTO usuarios (email, password, role) VALUES (?, ?, 'viewer')",
           [email, hashedPassword],
-          (insertErr: Error | null) => {
+          (insertErr: Error | null, insertResult: unknown) => {
             if (insertErr) {
               console.error("Erro ao registrar usuário:", insertErr);
               res.status(500).json({ message: "Erro no servidor", error: insertErr.message });
               return;
             }
-            res.status(201).json({ message: "Usuário criado com sucesso" });
+            const header = insertResult as ResultSetHeader;
+            const userId = header.insertId;
+            const role: UserRole = "viewer";
+            const token = signAuthToken({ userId, email, role });
+            res.status(201).json({
+              message: "Usuário criado com sucesso",
+              userId,
+              email,
+              role,
+              token,
+            });
           }
         );
       }
@@ -56,7 +75,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
 
   try {
     db.query(
-      "SELECT idusuarios, email, password FROM usuarios WHERE email = ?",
+      "SELECT idusuarios, email, password, role FROM usuarios WHERE email = ?",
       [email],
       async (err: Error | null, results: unknown) => {
         if (err) {
@@ -79,9 +98,19 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
           return;
         }
 
+        const role = normalizeRole(user.role);
+        const token = signAuthToken({
+          userId: user.idusuarios,
+          email: user.email,
+          role,
+        });
+
         res.status(200).json({
           message: "Login realizado com sucesso",
           userId: user.idusuarios,
+          email: user.email,
+          role,
+          token,
         });
       }
     );

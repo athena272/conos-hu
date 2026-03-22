@@ -1,16 +1,21 @@
 import express, { type IRouter } from "express";
 import * as pacienteController from "../controllers/pacienteController";
+import { requireAuth, requireAdmin } from "../middleware/authMiddleware";
 
 const router: IRouter = express.Router();
 
-router.get("/impacto-estoque", pacienteController.getImpactoEstoque);
-router.get("/resumo-por-medicamento", pacienteController.getResumoPorMedicamento);
-router.get("/", pacienteController.listPacientes);
-router.get("/:id/retornos", pacienteController.getRetornos);
-router.post("/:id/retornos", pacienteController.addRetorno);
-router.get("/:id", pacienteController.getPacienteById);
-router.post("/", pacienteController.createPaciente);
-router.put("/:id", pacienteController.updatePaciente);
-router.delete("/:id", pacienteController.deletePaciente);
+router.get("/impacto-estoque", requireAuth, pacienteController.getImpactoEstoque);
+router.get(
+  "/resumo-por-medicamento",
+  requireAuth,
+  pacienteController.getResumoPorMedicamento
+);
+router.get("/", requireAuth, pacienteController.listPacientes);
+router.get("/:id/retornos", requireAuth, pacienteController.getRetornos);
+router.post("/:id/retornos", requireAuth, requireAdmin, pacienteController.addRetorno);
+router.get("/:id", requireAuth, pacienteController.getPacienteById);
+router.post("/", requireAuth, requireAdmin, pacienteController.createPaciente);
+router.put("/:id", requireAuth, requireAdmin, pacienteController.updatePaciente);
+router.delete("/:id", requireAuth, requireAdmin, pacienteController.deletePaciente);
 
 export default router;
