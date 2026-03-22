@@ -12,6 +12,8 @@ A interface está publicada na **Vercel**:
 
 A API continua em serviço separado; na Vercel configure `VITE_API_URL` apontando para essa API e, no backend, `ALLOWED_ORIGINS` incluindo `https://conos-hu.vercel.app`.
 
+O **banco de dados em produção** é **MySQL** hospedado no **Google Cloud SQL** (conexão via host/porta ou socket Unix com `INSTANCE_CONNECTION_NAME` no Cloud Run, conforme `backend/models/db.ts`).
+
 ---
 
 ## Sumário
@@ -36,7 +38,7 @@ A API continua em serviço separado; na Vercel configure `VITE_API_URL` apontand
 |--------|------------|--------|
 | Backend | Express 4, TypeScript, `mysql2`, JWT (`bcryptjs` para senhas) | `backend/` |
 | Frontend | React 18, Vite 6, PrimeReact, Chart.js, Formik/Yup, Axios | `frontend/` |
-| Banco | MySQL (pool de conexões; suporte a socket Unix do Cloud SQL em produção) | — |
+| Banco | MySQL — em produção, **Google Cloud SQL**; localmente, instância própria ou túnel (ex.: Cloud SQL Auth Proxy) | — |
 
 Fluxo típico: o frontend chama a API com `Authorization: Bearer <token>` após o login; respostas `401` limpam a sessão e redirecionam para o login.
 
@@ -187,6 +189,8 @@ Detalhes em [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/READM
 ---
 
 ## Banco de dados
+
+Em **produção**, os dados ficam no **Google Cloud SQL** (MySQL). Em **desenvolvimento**, use um MySQL local ou conecte-se ao Cloud SQL por IP autorizado ou [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/mysql/connect-auth-proxy).
 
 Principais entidades (criadas/ajustadas na inicialização da API, conforme `backend/models/db.ts`):
 
