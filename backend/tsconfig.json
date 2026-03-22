@@ -20,6 +20,9 @@
     "./controllers/**/*.ts",
     "./routes/**/*.ts",
     "./models/**/*.ts",
+    "./middleware/**/*.ts",
+    "./services/**/*.ts",
+    "./types/**/*.ts",
     "./test-db-connection.ts"
   ],
   "exclude": ["node_modules", "dist"]

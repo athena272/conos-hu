@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 import { TabView, TabPanel } from "primereact/tabview";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import CardKanban from "../../components/CardKanban";
@@ -19,8 +18,8 @@ function DashboardStock() {
   );
 
   useEffect(() => {
-    axios
-      .get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
+    api
+      .get<MedicationWithStatus[]>("/medications")
       .then((response) => {
         setMedications(response.data);
       })

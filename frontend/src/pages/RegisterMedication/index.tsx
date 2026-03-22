@@ -7,9 +7,8 @@ import Menu from "../../components/Menu";
 import { Dropdown } from "primereact/dropdown";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
-import Axios from "axios";
 import { Toast } from "primereact/toast";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
@@ -42,7 +41,8 @@ function RegisterMedication() {
   ];
 
   useEffect(() => {
-    Axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`)
+    api
+      .get<MedicationWithStatus[]>("/medications")
       .then((res) => setMedications(res.data ?? []))
       .catch(() => setMedications([]));
   }, []);
@@ -121,7 +121,8 @@ function RegisterMedication() {
         setSubmitting(false);
         return;
       }
-      Axios.post(`${API_BASE_URL}/medications/add-quantity`, {
+      api
+        .post("/medications/add-quantity", {
         medication_id: medicationId,
         quantidade: qty,
       })
@@ -165,7 +166,8 @@ function RegisterMedication() {
       return;
     }
 
-    Axios.post(`${API_BASE_URL}/medications`, {
+    api
+      .post("/medications", {
       nome: values.name,
       lote: values.batch,
       quantidade: values.quantity,

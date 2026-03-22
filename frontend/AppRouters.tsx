@@ -16,6 +16,7 @@ import Dashboard from "./src/pages/Dashboard";
 import DashboardStock from "./src/pages/DashboardStock";
 import Pacientes from "./src/pages/Pacientes";
 import PrivateRoute from "./src/routes/PrivateRoute";
+import AdminRoute from "./src/routes/AdminRoute";
 
 const AppRoutes = () => {
   return (
@@ -38,7 +39,9 @@ const AppRoutes = () => {
           path="/register-medication"
           element={
             <PrivateRoute>
-              <RegisterMedication />
+              <AdminRoute>
+                <RegisterMedication />
+              </AdminRoute>
             </PrivateRoute>
           }
         />
@@ -46,7 +49,9 @@ const AppRoutes = () => {
           path="/retira-medication"
           element={
             <PrivateRoute>
-              <RetiraMedication />
+              <AdminRoute>
+                <RetiraMedication />
+              </AdminRoute>
             </PrivateRoute>
           }
         />

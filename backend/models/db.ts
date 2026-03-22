@@ -29,8 +29,16 @@ const USUARIOS_TABLE_SQL = `
     idusuarios INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'viewer') NOT NULL DEFAULT 'viewer',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
+`;
+
+const CHECK_USUARIO_ROLE_COLUMN =
+  "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios' AND COLUMN_NAME = 'role' LIMIT 1";
+
+const ADD_USUARIO_ROLE_COLUMN = `
+  ALTER TABLE usuarios ADD COLUMN role ENUM('admin', 'viewer') NOT NULL DEFAULT 'viewer'
 `;
 
 const MEDICATIONS_TABLE_SQL = `
@@ -126,6 +134,28 @@ const MIGRATION_6_DROP_COLUMNS = `
   DROP COLUMN consumo_diario
 `;
 
+function ensureUsuariosRoleColumn(
+  connection: mysql.PoolConnection,
+  next: (err?: Error | null) => void
+): void {
+  connection.query(CHECK_USUARIO_ROLE_COLUMN, (checkErr, checkRows) => {
+    const rows = checkRows as { ok?: number }[] | undefined;
+    const hasRole = !checkErr && Array.isArray(rows) && rows.length > 0;
+    if (hasRole) {
+      next(null);
+      return;
+    }
+    connection.query(ADD_USUARIO_ROLE_COLUMN, (alterErr) => {
+      if (alterErr) {
+        console.error("⚠️ Erro ao adicionar coluna usuarios.role:", alterErr.message);
+      } else {
+        console.log("✅ Coluna usuarios.role adicionada (migration 8).");
+      }
+      next(alterErr);
+    });
+  });
+}
+
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ Erro ao conectar ao MySQL:", err);
@@ -135,6 +165,7 @@ db.getConnection((err, connection) => {
   connection.query(USUARIOS_TABLE_SQL, (uErr) => {
     if (uErr) console.error("⚠️ Erro ao criar tabela usuarios (pode já existir):", uErr.message);
     else console.log("✅ Tabela usuarios verificada/criada.");
+    ensureUsuariosRoleColumn(connection, () => {
     connection.query(MEDICATIONS_TABLE_SQL, (mErr) => {
       if (mErr) console.error("⚠️ Erro ao criar tabela medications (pode já existir):", mErr.message);
       else console.log("✅ Tabela medications verificada/criada.");
@@ -195,13 +226,14 @@ db.getConnection((err, connection) => {
               });
             });
           });
+          });
         });
         });
       });
     });
   });
   });
-  });
+    });
   });
 });
 export default db;

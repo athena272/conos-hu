@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import StatusCard from "../../components/StatusCard";
@@ -59,9 +58,7 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      const { data: medications } = await axios.get<MedicationWithStatus[]>(
-        `${API_BASE_URL}/medications`
-      );
+      const { data: medications } = await api.get<MedicationWithStatus[]>("/medications");
 
       const statusCounts: MedicationStats = {
         emEstoque: 0,

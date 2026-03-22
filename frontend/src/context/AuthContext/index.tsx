@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, useRef, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { API_BASE_URL } from "../../config/api";
-import { normalizeErrorMessage } from "../utils/errorMessages";
+import { api } from "../../api/client";
+import type { UserRole } from "../../auth/session";
+import { setAuth } from "../../auth/session";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { Toast } from "primereact/toast";
 
 interface AuthContextType {
-  user: { id: number; email: string } | null;
+  user: { id: number; email: string; role: UserRole } | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -18,20 +19,34 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<{ id: number; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: number; email: string; role: UserRole } | null>(
+    null
+  );
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await axios.post<{ userId: number; message: string }>(
-        `${API_BASE_URL}/login`,
-        { email, password }
-      );
+      const response = await api.post<{
+        userId: number;
+        email: string;
+        role: UserRole;
+        token: string;
+        message: string;
+      }>("/login", { email, password });
 
-      const userData = { id: response.data.userId, email };
+      const userData = {
+        id: response.data.userId,
+        email: response.data.email,
+        role: response.data.role,
+      };
       setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
+      setAuth({
+        token: response.data.token,
+        userId: response.data.userId,
+        email: response.data.email,
+        role: response.data.role,
+      });
 
       toast.current?.show({
         severity: "success",
@@ -60,6 +75,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("auth");
+    localStorage.removeItem("userId");
     navigate("/login");
   };
 

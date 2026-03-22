@@ -7,8 +7,8 @@ import Menu from "../../components/Menu";
 import { Dropdown } from "primereact/dropdown";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
-import Axios from "axios";
-import { API_BASE_URL } from "../../config/api";
+import { api } from "../../api/client";
+import { getAuth } from "../../auth/session";
 import { Toast } from "primereact/toast";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
@@ -39,11 +39,8 @@ function RetiraMedication() {
   const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
 
   useEffect(() => {
-    const userId = localStorage.getItem("userId");
-    console.log("🔐 ID do usuário no localStorage:", userId);
-
-    if (!userId) {
-      console.warn("⚠️ Usuário não está logado!");
+    const session = getAuth();
+    if (!session) {
       toast.current?.show({
         severity: "warn",
         summary: "Atenção!",
@@ -58,8 +55,7 @@ function RetiraMedication() {
     { resetForm }: FormikHelpers<RetiraMedicationValues>
   ) => {
     try {
-      const usuarioId = localStorage.getItem("userId");
-      if (!usuarioId) {
+      if (!getAuth()) {
         toast.current?.show({
           severity: "error",
           summary: "Erro!",
@@ -91,16 +87,10 @@ function RetiraMedication() {
 
       const retiradaData = {
         medication_id: medicationId,
-        usuario_id: parseInt(usuarioId),
-        quantidade: parseInt(String(values.quantity)),
+        quantidade: parseInt(String(values.quantity), 10),
       };
 
-      await Axios.post(`${API_BASE_URL}/retira`, retiradaData, {
-        timeout: 10000,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      await api.post("/retira", retiradaData, { timeout: 10000 });
 
       toast.current?.show({
         severity: "success",
@@ -195,8 +185,8 @@ function RetiraMedication() {
                     setLoadingMode("filter");
                     setFieldValue("selectedMedicationId", null);
                     try {
-                      const res = await Axios.get<MedicationWithStatus[]>(
-                        `${API_BASE_URL}/medications/by-name-concentration`,
+                      const res = await api.get<MedicationWithStatus[]>(
+                        "/medications/by-name-concentration",
                         {
                           params: {
                             nome: values.name.trim(),
@@ -238,7 +228,7 @@ function RetiraMedication() {
                     setLoadingMode("all");
                     setFieldValue("selectedMedicationId", null);
                     try {
-                      const res = await Axios.get<MedicationWithStatus[]>(`${API_BASE_URL}/medications`);
+                      const res = await api.get<MedicationWithStatus[]>("/medications");
                       setLots(res.data ?? []);
                       if (!res.data?.length) {
                         toast.current?.show({
