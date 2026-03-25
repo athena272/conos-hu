@@ -35,10 +35,17 @@
 
 .pacientes-filters-bar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.pacientes-filters-bar-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  width: 100%;
 }
 
 .pacientes-filter-busca {
@@ -50,12 +57,69 @@
 }
 
 .pacientes-filter-busca .pacientes-input-busca,
-.pacientes-input-lote {
+.pacientes-filter-lote-wrap .pacientes-input-lote {
   min-width: 12rem;
+}
+
+.pacientes-filter-lote-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 18rem;
 }
 
 .pacientes-dropdown-sort {
   min-width: 14rem;
+  width: 100%;
+}
+
+.pacientes-filter-sort-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 14rem;
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+.pacientes-filter-data-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 0 1 11rem;
+  max-width: 13rem;
+}
+
+.pacientes-filter-data-label {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary, #6c757d);
+  line-height: 1.2;
+}
+
+/* Calendar + botão do ícone: ocupa a coluna do filtro */
+.pacientes-filter-data-wrap .pacientes-calendar-filter {
+  width: 100%;
+  max-width: 100%;
+}
+
+.pacientes-filter-data-wrap .pacientes-calendar-filter .p-inputtext {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Altura próxima ao Dropdown PrimeReact na mesma barra */
+.pacientes-filters-bar-secondary .p-inputtext,
+.pacientes-filters-bar-secondary .p-dropdown {
+  min-height: 2.75rem;
+  box-sizing: border-box;
+}
+
+.pacientes-filters-bar-secondary .pacientes-calendar-filter .p-datepicker-trigger {
+  min-height: 2.75rem;
+  box-sizing: border-box;
 }
 
 .pacientes-table {
