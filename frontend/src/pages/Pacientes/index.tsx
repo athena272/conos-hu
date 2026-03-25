@@ -28,6 +28,8 @@ import type {
   MedicamentoDistinto,
   ResumoPorMedicamento,
 } from "../../types";
+import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
+import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
 import "./styles.css";
 
 const RETORNA_SERVICO_OPTIONS = [
@@ -227,6 +229,9 @@ export default function Pacientes() {
   const [busca, setBusca] = useState("");
   const [buscaDebounced, setBuscaDebounced] = useState("");
   const [filtroLote, setFiltroLote] = useState("");
+  const [filtroDataLiberacaoInicio, setFiltroDataLiberacaoInicio] =
+    useState("");
+  const [filtroDataLiberacaoFim, setFiltroDataLiberacaoFim] = useState("");
   const [sortKey, setSortKey] = useState("proxima_data_retorno_asc");
 
   useEffect(() => {
@@ -254,6 +259,11 @@ export default function Pacientes() {
         (p.lotes ?? []).some((l) => l.toLowerCase().includes(loteNorm))
       );
     }
+    list = filterPacientesByDataLiberacaoRange(
+      list,
+      filtroDataLiberacaoInicio,
+      filtroDataLiberacaoFim,
+    );
     const [field, dir] = sortKey.split("_") as [string, "asc" | "desc"];
     const asc = dir === "asc";
     return [...list].sort((a, b) => {
@@ -277,7 +287,14 @@ export default function Pacientes() {
         return asc ? a.prontuario - b.prontuario : b.prontuario - a.prontuario;
       return 0;
     });
-  }, [pacientes, buscaDebounced, filtroLote, sortKey]);
+  }, [
+    pacientes,
+    buscaDebounced,
+    filtroLote,
+    filtroDataLiberacaoInicio,
+    filtroDataLiberacaoFim,
+    sortKey,
+  ]);
 
   const fetchPacientes = () => {
     api
@@ -671,19 +688,45 @@ export default function Pacientes() {
             className="pacientes-input-busca"
           />
         </span>
-        <InputText
-          value={filtroLote}
-          onChange={(e) => setFiltroLote(e.target.value)}
-          placeholder="Filtrar por lote"
-          className="pacientes-input-lote"
-        />
-        <Dropdown
-          value={sortKey}
-          options={SORT_OPTIONS}
-          onChange={(e) => setSortKey(e.value ?? "proxima_data_retorno_asc")}
-          placeholder="Ordenar por"
-          className="pacientes-dropdown-sort"
-        />
+        <div className="pacientes-filters-bar-secondary">
+          <div className="pacientes-filter-lote-wrap">
+            <label
+              className="pacientes-filter-data-label"
+              htmlFor="pacientes-filtro-lote"
+            >
+              Lote
+            </label>
+            <InputText
+              id="pacientes-filtro-lote"
+              value={filtroLote}
+              onChange={(e) => setFiltroLote(e.target.value)}
+              placeholder="Filtrar por lote"
+              className="pacientes-input-lote"
+            />
+          </div>
+          <PacientesDateRangeFilter
+            dataInicio={filtroDataLiberacaoInicio}
+            dataFim={filtroDataLiberacaoFim}
+            onDataInicioChange={setFiltroDataLiberacaoInicio}
+            onDataFimChange={setFiltroDataLiberacaoFim}
+          />
+          <div className="pacientes-filter-sort-wrap">
+            <label
+              className="pacientes-filter-data-label"
+              htmlFor="pacientes-filtro-ordenacao"
+            >
+              Ordenar por
+            </label>
+            <Dropdown
+              inputId="pacientes-filtro-ordenacao"
+              value={sortKey}
+              options={SORT_OPTIONS}
+              onChange={(e) => setSortKey(e.value ?? "proxima_data_retorno_asc")}
+              placeholder="Selecione"
+              className="pacientes-dropdown-sort"
+            />
+          </div>
+        </div>
       </div>
 
       <DataTable
