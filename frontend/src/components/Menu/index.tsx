@@ -19,7 +19,7 @@ export default function Menu() {
       url: "/home",
     },
     {
-      label: "Medicações",
+      label: "Medicamentos",
       icon: "pi pi-tablet",
       items: [
         ...(admin

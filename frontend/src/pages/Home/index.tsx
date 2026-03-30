@@ -170,7 +170,7 @@ export default function Home() {
       toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
-        detail: "Medicação atualizada com sucesso.",
+        detail: "Medicamento atualizado com sucesso.",
         life: 3000,
       });
       closeEdit();
@@ -195,7 +195,7 @@ export default function Home() {
       toast.current?.show({
         severity: "success",
         summary: "Sucesso!",
-        detail: "Medicação excluída com sucesso.",
+        detail: "Medicamento excluído com sucesso.",
         life: 3000,
       });
       setDeletingMedication(null);
@@ -217,7 +217,7 @@ export default function Home() {
       <InputText
         value={globalFilterValue}
         onChange={onGlobalFilterChange}
-        placeholder="Buscar Medicação"
+        placeholder="Buscar Medicamento"
       />
       <Dropdown
         value={filters.status.value}
@@ -241,8 +241,8 @@ export default function Home() {
       <ConfirmDialog
         visible={admin && !!deletingMedication}
         onHide={() => !deletingInProgress && setDeletingMedication(null)}
-        header="Excluir medicação"
-        message="Deseja realmente excluir esta medicação? Esta ação não pode ser desfeita."
+        header="Excluir medicamento"
+        message="Deseja realmente excluir este medicamento? Esta ação não pode ser desfeita."
         acceptLabel="Excluir"
         rejectLabel="Cancelar"
         acceptClassName="p-button-danger"
@@ -252,7 +252,7 @@ export default function Home() {
       <Header />
       <Menu />
       <div className="title-home">
-        <h2>Medicações</h2>
+        <h2>Medicamentos</h2>
       </div>
       <DataTable
         value={medications}
@@ -262,7 +262,7 @@ export default function Home() {
         filterDisplay="row"
         globalFilterFields={["nome", "lote", "status"]}
         header={header}
-        emptyMessage="Nenhuma medicação encontrada."
+        emptyMessage="Nenhum medicamento encontrado."
       >
         <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
         <Column field="lote" header="Lote" style={{ minWidth: "10rem" }} />
@@ -317,7 +317,7 @@ export default function Home() {
                   icon="pi pi-trash"
                   className="p-button-sm p-button-danger"
                   onClick={() => setDeletingMedication(rowData)}
-                  aria-label="Excluir medicação"
+                  aria-label="Excluir medicamento"
                   disabled={deletingInProgress}
                 />
               </div>
@@ -328,7 +328,7 @@ export default function Home() {
       </DataTable>
 
       <Dialog
-        header="Editar medicação"
+        header="Editar medicamento"
         visible={admin && !!editingMedication}
         onHide={closeEdit}
         draggable={false}

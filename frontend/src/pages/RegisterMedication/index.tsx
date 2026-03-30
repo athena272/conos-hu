@@ -180,7 +180,7 @@ function RegisterMedication() {
         toast.current?.show({
           severity: "success",
           summary: "Sucesso!",
-          detail: "Medicação registrada com sucesso!",
+          detail: "Medicamento registrado com sucesso!",
           life: 3000,
         });
         resetForm();
@@ -201,8 +201,8 @@ function RegisterMedication() {
       <Header />
       <Menu />
       <div className="container-register-medication">
-        <h2>Registrar Medicação</h2>
-        <p>Preencha os dados abaixo para registrar uma nova medicação.</p>
+        <h2>Registrar Medicamento</h2>
+        <p>Preencha os dados abaixo para registrar um novo medicamento.</p>
         <Toast ref={toast} position="top-right" />
 
         <Formik

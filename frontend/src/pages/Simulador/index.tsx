@@ -174,7 +174,7 @@ export default function Simulador() {
             {result && (
               <div className="simulador-result" role="status">
                 {result.emFalta ? (
-                  <p className="simulador-result--warning">Medicação em falta.</p>
+                  <p className="simulador-result--warning">Medicamento em falta.</p>
                 ) : (
                   <>
                     <p>

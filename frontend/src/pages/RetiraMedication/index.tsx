@@ -138,8 +138,8 @@ function RetiraMedication() {
       <Header />
       <Menu />
       <div className="container-retire-medication">
-        <h2>Retirar Medicação</h2>
-        <p>Preencha os dados abaixo para retirar uma medicação.</p>
+        <h2>Retirar Medicamento</h2>
+        <p>Preencha os dados abaixo para retirar um medicamento.</p>
         <Toast ref={toast} position="top-right" />
 
         <Formik

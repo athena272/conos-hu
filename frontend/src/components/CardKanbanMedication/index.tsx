@@ -125,7 +125,7 @@ function CardKanbanMedication({ medications }: CardKanbanMedicationProps) {
                   </div>
                 ))
               ) : (
-                <p>Nenhuma medicação.</p>
+                <p>Nenhum medicamento.</p>
               )}
             </div>
           );

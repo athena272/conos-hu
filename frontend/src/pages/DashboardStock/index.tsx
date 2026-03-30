@@ -24,7 +24,7 @@ function DashboardStock() {
         setMedications(response.data);
       })
       .catch((error) => {
-        console.error("Erro ao buscar as medicações:", error);
+        console.error("Erro ao buscar os medicamentos:", error);
       });
   }, []);
 
