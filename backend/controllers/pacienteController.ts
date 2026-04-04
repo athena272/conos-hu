@@ -1,5 +1,11 @@
 import { Request, Response } from "express";
 import db from "../models/db";
+import {
+  parseRegimeConsumo,
+  taxaFromPersistRow,
+  taxaUnidadesPorDia,
+  type RegimeConsumo,
+} from "../utils/pacienteMedicamentoRegime";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
 
@@ -20,6 +26,9 @@ interface PacienteMedicamentoItem {
   medicamento_nome: string;
   medicamento_concentracao: string;
   consumo_diario: number;
+  regime_consumo?: RegimeConsumo;
+  unidades_por_ciclo?: number | null;
+  intervalo_ciclo_dias?: number | null;
 }
 
 function validateMedicamentos(medicamentos: unknown): string | null {
@@ -27,14 +36,56 @@ function validateMedicamentos(medicamentos: unknown): string | null {
   for (let i = 0; i < medicamentos.length; i++) {
     const m = medicamentos[i];
     if (!m || typeof m !== "object") return `Medicamento ${i + 1}: dados inválidos`;
-    const nome = (m as Record<string, unknown>).medicamento_nome;
-    const conc = (m as Record<string, unknown>).medicamento_concentracao;
-    const consumo = Number((m as Record<string, unknown>).consumo_diario);
+    const rec = m as Record<string, unknown>;
+    const nome = rec.medicamento_nome;
+    const conc = rec.medicamento_concentracao;
+    const regime = parseRegimeConsumo(rec.regime_consumo);
     if (!nome || typeof nome !== "string" || !String(nome).trim()) return `Medicamento ${i + 1}: nome é obrigatório`;
     if (!conc || typeof conc !== "string" || !String(conc).trim()) return `Medicamento ${i + 1}: concentração é obrigatória`;
-    if (isNaN(consumo) || consumo <= 0) return `Medicamento ${i + 1}: consumo diário deve ser maior que zero`;
+    if (regime === "diario") {
+      const consumo = Number(rec.consumo_diario);
+      if (isNaN(consumo) || consumo <= 0) return `Medicamento ${i + 1}: consumo diário deve ser maior que zero`;
+    } else {
+      const unidades = Number(rec.unidades_por_ciclo);
+      const intervalo = Number(rec.intervalo_ciclo_dias);
+      if (isNaN(unidades) || unidades <= 0) return `Medicamento ${i + 1}: unidades por ciclo deve ser maior que zero`;
+      if (!Number.isInteger(intervalo) || intervalo < 1) return `Medicamento ${i + 1}: intervalo do ciclo (dias) deve ser um inteiro maior ou igual a 1`;
+    }
   }
   return null;
+}
+
+/** Valores (sem paciente_id) na ordem do INSERT em paciente_medicamentos. */
+function sqlValuesForMedicamento(m: PacienteMedicamentoItem): [string, string, number, RegimeConsumo, number | null, number | null] {
+  const nome = String(m.medicamento_nome).trim();
+  const conc = String(m.medicamento_concentracao).trim();
+  const regime = parseRegimeConsumo(m.regime_consumo);
+  if (regime === "por_ciclo") {
+    return [nome, conc, 0, "por_ciclo", Number(m.unidades_por_ciclo), Number(m.intervalo_ciclo_dias)];
+  }
+  return [nome, conc, Number(m.consumo_diario), "diario", null, null];
+}
+
+type MedicamentoPersistRow = {
+  paciente_id: number;
+  medicamento_nome: string;
+  medicamento_concentracao: string;
+  consumo_diario: number;
+  regime_consumo: string | null;
+  unidades_por_ciclo: number | null;
+  intervalo_ciclo_dias: number | null;
+};
+
+function mapMedicamentoToResponse(r: MedicamentoPersistRow) {
+  const regime = parseRegimeConsumo(r.regime_consumo);
+  return {
+    medicamento_nome: r.medicamento_nome,
+    medicamento_concentracao: r.medicamento_concentracao,
+    consumo_diario: Number(r.consumo_diario),
+    regime_consumo: regime,
+    unidades_por_ciclo: r.unidades_por_ciclo != null ? Number(r.unidades_por_ciclo) : null,
+    intervalo_ciclo_dias: r.intervalo_ciclo_dias != null ? Number(r.intervalo_ciclo_dias) : null,
+  };
 }
 
 function isValidDateString(s: string): boolean {
@@ -98,7 +149,7 @@ export const listPacientes = (req: Request, res: Response): void => {
     const ids = pacientes.map((p) => p.id);
     const placeholders = ids.map(() => "?").join(",");
     db.query(
-      `SELECT paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario FROM paciente_medicamentos WHERE paciente_id IN (${placeholders}) ORDER BY paciente_id`,
+      `SELECT paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE paciente_id IN (${placeholders}) ORDER BY paciente_id`,
       ids,
       (errMed: Error | null, medRows: unknown) => {
         if (errMed) {
@@ -106,15 +157,11 @@ export const listPacientes = (req: Request, res: Response): void => {
           res.status(500).json({ error: "Erro ao listar pacientes" });
           return;
         }
-        const rows = (medRows as { paciente_id: number; medicamento_nome: string; medicamento_concentracao: string; consumo_diario: number }[]) || [];
-        const byPaciente = new Map<number, PacienteMedicamentoItem[]>();
+        const rows = (medRows as MedicamentoPersistRow[]) || [];
+        const byPaciente = new Map<number, ReturnType<typeof mapMedicamentoToResponse>[]>();
         for (const r of rows) {
           const list = byPaciente.get(r.paciente_id) ?? [];
-          list.push({
-            medicamento_nome: r.medicamento_nome,
-            medicamento_concentracao: r.medicamento_concentracao,
-            consumo_diario: Number(r.consumo_diario),
-          });
+          list.push(mapMedicamentoToResponse(r));
           byPaciente.set(r.paciente_id, list);
         }
         db.query(
@@ -167,7 +214,7 @@ export const getPacienteById = (req: Request, res: Response): void => {
     }
     const paciente = rows[0];
     db.query(
-      "SELECT medicamento_nome, medicamento_concentracao, consumo_diario FROM paciente_medicamentos WHERE paciente_id = ?",
+      "SELECT medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE paciente_id = ?",
       [id],
       (errMed: Error | null, medRows: unknown) => {
         if (errMed) {
@@ -175,14 +222,10 @@ export const getPacienteById = (req: Request, res: Response): void => {
           res.status(500).json({ error: "Erro ao buscar paciente" });
           return;
         }
-        const list = (medRows as { medicamento_nome: string; medicamento_concentracao: string; consumo_diario: number }[]) || [];
+        const list = (medRows as Omit<MedicamentoPersistRow, "paciente_id">[]) || [];
         res.status(200).json({
           ...paciente,
-          medicamentos: list.map((m) => ({
-            medicamento_nome: m.medicamento_nome,
-            medicamento_concentracao: m.medicamento_concentracao,
-            consumo_diario: Number(m.consumo_diario),
-          })),
+          medicamentos: list.map((m) => mapMedicamentoToResponse({ ...m, paciente_id: id })),
         });
       }
     );
@@ -277,9 +320,10 @@ export const createPaciente = (req: Request, res: Response): void => {
           }
           let inserted = 0;
           for (const m of medList) {
+            const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
             db.query(
-              "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) VALUES (?, ?, ?, ?)",
-              [pacienteId, String(m.medicamento_nome).trim(), String(m.medicamento_concentracao).trim(), Number(m.consumo_diario)],
+              "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              [pacienteId, mn, mc, cd, rg, uc, idias],
               (insMedErr: Error | null) => {
                 if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
                 inserted += 1;
@@ -397,9 +441,10 @@ export const updatePaciente = (req: Request, res: Response): void => {
             let inserted = 0;
             const total = medList.length;
             for (const m of medList) {
+              const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
               db.query(
-                "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario) VALUES (?, ?, ?, ?)",
-                [id, String(m.medicamento_nome).trim(), String(m.medicamento_concentracao).trim(), Number(m.consumo_diario)],
+                "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [id, mn, mc, cd, rg, uc, idias],
                 (insMedErr: Error | null) => {
                   if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
                   inserted += 1;
@@ -439,18 +484,40 @@ export const deletePaciente = (req: Request, res: Response): void => {
   });
 };
 
-/** GET /pacientes/impacto-estoque?medicamento_nome=...&medicamento_concentracao=...&consumo_diario=... */
+/**
+ * GET /pacientes/impacto-estoque
+ * Query: medicamento_nome, medicamento_concentracao, regime_consumo (opcional, default diario).
+ * Se diario: consumo_diario. Se por_ciclo: unidades_por_ciclo, intervalo_ciclo_dias.
+ */
 export const getImpactoEstoque = (req: Request, res: Response): void => {
   const medicamento_nome = (req.query.medicamento_nome as string)?.trim();
   const medicamento_concentracao = (req.query.medicamento_concentracao as string)?.trim();
-  const consumo_diario = parseFloat((req.query.consumo_diario as string) ?? "");
   if (!medicamento_nome || !medicamento_concentracao) {
     res.status(400).json({ error: "medicamento_nome e medicamento_concentracao são obrigatórios" });
     return;
   }
-  if (isNaN(consumo_diario) || consumo_diario < 0) {
-    res.status(400).json({ error: "consumo_diario deve ser um número não negativo" });
-    return;
+
+  const regime = parseRegimeConsumo(req.query.regime_consumo);
+  let taxaProposta = 0;
+  if (regime === "diario") {
+    const consumo_diario = parseFloat((req.query.consumo_diario as string) ?? "");
+    if (isNaN(consumo_diario) || consumo_diario <= 0) {
+      res.status(400).json({ error: "consumo_diario deve ser um número maior que zero quando regime_consumo é diario" });
+      return;
+    }
+    taxaProposta = taxaUnidadesPorDia("diario", consumo_diario, null, null);
+  } else {
+    const unidades = parseFloat((req.query.unidades_por_ciclo as string) ?? "");
+    const intervalo = parseInt((req.query.intervalo_ciclo_dias as string) ?? "", 10);
+    if (isNaN(unidades) || unidades <= 0) {
+      res.status(400).json({ error: "unidades_por_ciclo deve ser um número maior que zero quando regime_consumo é por_ciclo" });
+      return;
+    }
+    if (!Number.isInteger(intervalo) || intervalo < 1) {
+      res.status(400).json({ error: "intervalo_ciclo_dias deve ser um inteiro maior ou igual a 1 quando regime_consumo é por_ciclo" });
+      return;
+    }
+    taxaProposta = taxaUnidadesPorDia("por_ciclo", 0, unidades, intervalo);
   }
 
   db.query(
@@ -465,7 +532,7 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
       const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
 
       db.query(
-        "SELECT paciente_id, consumo_diario FROM paciente_medicamentos WHERE medicamento_nome = ? AND medicamento_concentracao = ?",
+        "SELECT paciente_id, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE medicamento_nome = ? AND medicamento_concentracao = ?",
         [medicamento_nome, medicamento_concentracao],
         (errPac: Error | null, pacRows: unknown) => {
           if (errPac) {
@@ -473,10 +540,10 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
             res.status(500).json({ error: "Erro ao calcular impacto" });
             return;
           }
-          const rows = (pacRows as { paciente_id: number; consumo_diario: number }[]) || [];
-          const consumoDiarioAtual = rows.reduce((s, p) => s + Number(p.consumo_diario ?? 0), 0);
+          const rows = (pacRows as MedicamentoPersistRow[]) || [];
+          const consumoDiarioAtual = rows.reduce((s, p) => s + taxaFromPersistRow(p), 0);
           const pacientesVinculados = new Set(rows.map((p) => p.paciente_id)).size;
-          const consumoDiarioComNovo = consumoDiarioAtual + consumo_diario;
+          const consumoDiarioComNovo = consumoDiarioAtual + taxaProposta;
           const diasPorMes = 30;
           const mesesEstoqueAtual =
             consumoDiarioAtual > 0 && estoqueTotal > 0
@@ -508,7 +575,7 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
 /** GET /pacientes/resumo-por-medicamento */
 export const getResumoPorMedicamento = (req: Request, res: Response): void => {
   db.query(
-    "SELECT medicamento_nome, medicamento_concentracao, COUNT(DISTINCT paciente_id) AS qtd_pacientes, SUM(consumo_diario) AS consumo_diario_total FROM paciente_medicamentos GROUP BY medicamento_nome, medicamento_concentracao",
+    "SELECT medicamento_nome, medicamento_concentracao, paciente_id, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos",
     [],
     (errPac: Error | null, pacRows: unknown) => {
       if (errPac) {
@@ -516,8 +583,33 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
         res.status(500).json({ error: "Erro ao buscar resumo" });
         return;
       }
-      const grupos = (pacRows as { medicamento_nome: string; medicamento_concentracao: string; qtd_pacientes: number; consumo_diario_total: number }[]) || [];
-      if (grupos.length === 0) {
+      const rows = (pacRows as MedicamentoPersistRow[]) || [];
+      const grupos = new Map<
+        string,
+        {
+          medicamento_nome: string;
+          medicamento_concentracao: string;
+          pacientes: Set<number>;
+          taxaTotal: number;
+        }
+      >();
+      for (const r of rows) {
+        const key = `${r.medicamento_nome}\0${r.medicamento_concentracao}`;
+        let g = grupos.get(key);
+        if (!g) {
+          g = {
+            medicamento_nome: r.medicamento_nome,
+            medicamento_concentracao: r.medicamento_concentracao,
+            pacientes: new Set(),
+            taxaTotal: 0,
+          };
+          grupos.set(key, g);
+        }
+        g.pacientes.add(r.paciente_id);
+        g.taxaTotal += taxaFromPersistRow(r);
+      }
+      const gruposArr = Array.from(grupos.values());
+      if (gruposArr.length === 0) {
         res.status(200).json([]);
         return;
       }
@@ -530,13 +622,13 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
         mesesEstoque: number | null;
       }> = [];
       let processados = 0;
-      grupos.forEach((g) => {
+      gruposArr.forEach((g) => {
         db.query(
           "SELECT COALESCE(SUM(quantidade), 0) AS total FROM medications WHERE nome = ? AND concentracao = ?",
           [g.medicamento_nome, g.medicamento_concentracao],
           (errEst: Error | null, estRows: unknown) => {
             const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
-            const consumo = Number(g.consumo_diario_total ?? 0);
+            const consumo = g.taxaTotal;
             const mesesEstoque =
               consumo > 0 && estoqueTotal > 0
                 ? Math.floor(estoqueTotal / (consumo * 30))
@@ -546,13 +638,13 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
             resultados.push({
               medicamento_nome: g.medicamento_nome,
               medicamento_concentracao: g.medicamento_concentracao,
-              qtdPacientes: Number(g.qtd_pacientes),
+              qtdPacientes: g.pacientes.size,
               consumoDiarioTotal: consumo,
               estoqueTotal,
               mesesEstoque,
             });
             processados += 1;
-            if (processados === grupos.length) {
+            if (processados === gruposArr.length) {
               resultados.sort((a, b) => a.medicamento_nome.localeCompare(b.medicamento_nome) || a.medicamento_concentracao.localeCompare(b.medicamento_concentracao));
               res.status(200).json(resultados);
             }
