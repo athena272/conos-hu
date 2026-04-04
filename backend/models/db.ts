@@ -103,10 +103,23 @@ const PACIENTE_MEDICAMENTOS_TABLE_SQL = `
     medicamento_nome VARCHAR(255) NOT NULL,
     medicamento_concentracao VARCHAR(100) NOT NULL,
     consumo_diario DECIMAL(10,2) NOT NULL,
+    regime_consumo ENUM('diario', 'por_ciclo') NOT NULL DEFAULT 'diario',
+    unidades_por_ciclo DECIMAL(10,2) NULL,
+    intervalo_ciclo_dias INT NULL,
     KEY idx_pm_paciente (paciente_id),
     KEY idx_pm_medicamento (medicamento_nome, medicamento_concentracao),
     FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
   )
+`;
+
+const CHECK_PM_REGIME_COLUMN =
+  "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'paciente_medicamentos' AND COLUMN_NAME = 'regime_consumo' LIMIT 1";
+
+const ADD_PM_REGIME_COLUMNS = `
+  ALTER TABLE paciente_medicamentos
+    ADD COLUMN regime_consumo ENUM('diario', 'por_ciclo') NOT NULL DEFAULT 'diario',
+    ADD COLUMN unidades_por_ciclo DECIMAL(10,2) NULL,
+    ADD COLUMN intervalo_ciclo_dias INT NULL
 `;
 
 const PACIENTE_RETORNOS_TABLE_SQL = `
@@ -133,6 +146,28 @@ const MIGRATION_6_DROP_COLUMNS = `
   DROP COLUMN medicamento_concentracao,
   DROP COLUMN consumo_diario
 `;
+
+function ensurePacienteMedicamentosRegimeColumns(
+  connection: mysql.PoolConnection,
+  next: (err?: Error | null) => void
+): void {
+  connection.query(CHECK_PM_REGIME_COLUMN, (checkErr, checkRows) => {
+    const rows = checkRows as { ok?: number }[] | undefined;
+    const hasCol = !checkErr && Array.isArray(rows) && rows.length > 0;
+    if (hasCol) {
+      next(null);
+      return;
+    }
+    connection.query(ADD_PM_REGIME_COLUMNS, (alterErr) => {
+      if (alterErr) {
+        console.error("⚠️ Erro ao adicionar colunas regime em paciente_medicamentos:", alterErr.message);
+      } else {
+        console.log("✅ Colunas regime_consumo em paciente_medicamentos adicionadas (migration 9).");
+      }
+      next(alterErr);
+    });
+  });
+}
 
 function ensureUsuariosRoleColumn(
   connection: mysql.PoolConnection,
@@ -190,6 +225,7 @@ db.getConnection((err, connection) => {
         } else {
           console.log("✅ Tabela paciente_medicamentos verificada/criada.");
         }
+        ensurePacienteMedicamentosRegimeColumns(connection, () => {
         connection.query(PACIENTE_RETORNOS_TABLE_SQL, (prErr) => {
           if (prErr) {
             console.error("⚠️ Erro ao criar tabela paciente_retornos (pode já existir):", prErr.message);
@@ -229,6 +265,7 @@ db.getConnection((err, connection) => {
           });
         });
         });
+      });
       });
     });
   });
