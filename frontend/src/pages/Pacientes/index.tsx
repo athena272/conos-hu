@@ -27,7 +27,13 @@ import type {
   ImpactoEstoque,
   MedicamentoDistinto,
   ResumoPorMedicamento,
+  RegimeConsumoMedicamento,
 } from "../../types";
+import {
+  taxaUnidadesPorDiaFromMedicamento,
+  usoMedicamentoResumo,
+  normalizeRegimeConsumo,
+} from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
 import "./styles.css";
@@ -54,9 +60,20 @@ const SORT_OPTIONS = [
   { label: "Prontuário (decrescente)", value: "prontuario_desc" },
 ];
 
+const REGIME_MEDICAMENTO_OPTIONS: {
+  label: string;
+  value: RegimeConsumoMedicamento;
+}[] = [
+  { label: "Consumo diário", value: "diario" },
+  { label: "Por ciclo", value: "por_ciclo" },
+];
+
 interface MedicamentoFormItem {
   medicamento: MedicamentoDistinto | null;
+  regime_consumo: RegimeConsumoMedicamento;
   consumo_diario: string;
+  unidades_por_ciclo: string;
+  intervalo_ciclo_dias: string;
 }
 
 interface FormValues {
@@ -75,7 +92,10 @@ interface FormValues {
 
 const initialMedicamentoItem: MedicamentoFormItem = {
   medicamento: null,
+  regime_consumo: "diario",
   consumo_diario: "",
+  unidades_por_ciclo: "",
+  intervalo_ciclo_dias: "",
 };
 
 const initialFormValues: FormValues = {
@@ -102,13 +122,51 @@ const medicamentoItemSchema = yup.object().shape({
       "Selecione o medicamento",
       (v) => v != null && !!(v as MedicamentoDistinto).nome,
     ),
-  consumo_diario: yup
+  regime_consumo: yup
     .string()
-    .required("Consumo diário é obrigatório")
-    .test("positive", "Consumo diário deve ser maior que zero", (v) => {
-      const n = parseFloat(String(v ?? "").replace(",", "."));
-      return !isNaN(n) && n > 0;
-    }),
+    .oneOf(["diario", "por_ciclo"])
+    .required(),
+  consumo_diario: yup.string().when("regime_consumo", {
+    is: "diario",
+    then: (s) =>
+      s
+        .required("Consumo diário é obrigatório")
+        .test("positive", "Consumo diário deve ser maior que zero", (v) => {
+          const n = parseFloat(String(v ?? "").replace(",", "."));
+          return !isNaN(n) && n > 0;
+        }),
+    otherwise: (s) => s.notRequired(),
+  }),
+  unidades_por_ciclo: yup.string().when("regime_consumo", {
+    is: "por_ciclo",
+    then: (s) =>
+      s
+        .required("Unidades por ciclo é obrigatório")
+        .test(
+          "positive-u",
+          "Unidades por ciclo deve ser maior que zero",
+          (v) => {
+            const n = parseFloat(String(v ?? "").replace(",", "."));
+            return !isNaN(n) && n > 0;
+          },
+        ),
+    otherwise: (s) => s.notRequired(),
+  }),
+  intervalo_ciclo_dias: yup.string().when("regime_consumo", {
+    is: "por_ciclo",
+    then: (s) =>
+      s
+        .required("Intervalo do ciclo (dias) é obrigatório")
+        .test(
+          "int-pos",
+          "Informe um número inteiro de dias ≥ 1",
+          (v) => {
+            const n = parseInt(String(v ?? "").trim(), 10);
+            return !isNaN(n) && n >= 1 && String(n) === String(v?.trim());
+          },
+        ),
+    otherwise: (s) => s.notRequired(),
+  }),
 });
 
 const baseSchema = {
@@ -183,6 +241,42 @@ const schemaEdit = yup.object().shape({
   ...baseSchema,
   data_retorno: schemaDataRetornoOpcional,
 });
+
+function buildImpactoEstoquePath(m: {
+  medicamento_nome: string;
+  medicamento_concentracao: string;
+  regime_consumo?: RegimeConsumoMedicamento;
+  consumo_diario: number;
+  unidades_por_ciclo?: number | null;
+  intervalo_ciclo_dias?: number | null;
+}): string {
+  const q = new URLSearchParams();
+  q.set("medicamento_nome", m.medicamento_nome);
+  q.set("medicamento_concentracao", m.medicamento_concentracao);
+  if (m.regime_consumo === "por_ciclo") {
+    q.set("regime_consumo", "por_ciclo");
+    q.set("unidades_por_ciclo", String(m.unidades_por_ciclo ?? ""));
+    q.set("intervalo_ciclo_dias", String(m.intervalo_ciclo_dias ?? ""));
+  } else {
+    q.set("regime_consumo", "diario");
+    q.set("consumo_diario", String(m.consumo_diario));
+  }
+  return `/pacientes/impacto-estoque?${q.toString()}`;
+}
+
+function resumoMedicamentoNoPayload(m: {
+  medicamento_nome: string;
+  medicamento_concentracao: string;
+  regime_consumo?: RegimeConsumoMedicamento;
+  consumo_diario: number;
+  unidades_por_ciclo?: number | null;
+  intervalo_ciclo_dias?: number | null;
+}): string {
+  if (m.regime_consumo === "por_ciclo") {
+    return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.unidades_por_ciclo} unid. / ${m.intervalo_ciclo_dias} dias)`;
+  }
+  return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_diario}/dia)`;
+}
 
 function formatTipoRetorno(tipo: string | null): string {
   if (!tipo) return "—";
@@ -411,13 +505,33 @@ export default function Pacientes() {
     prontuario: parseInt(String(values.prontuario ?? "").trim(), 10),
     apac: String(values.apac ?? "").trim(),
     diagnostico: String(values.diagnostico ?? "").trim(),
-    medicamentos: values.medicamentos.map((item) => ({
-      medicamento_nome: item.medicamento!.nome,
-      medicamento_concentracao: item.medicamento!.concentracao,
-      consumo_diario: parseFloat(
-        String(item.consumo_diario ?? "").replace(",", "."),
-      ),
-    })),
+    medicamentos: values.medicamentos.map((item) => {
+      if (item.regime_consumo === "por_ciclo") {
+        return {
+          medicamento_nome: item.medicamento!.nome,
+          medicamento_concentracao: item.medicamento!.concentracao,
+          consumo_diario: 0,
+          regime_consumo: "por_ciclo" as const,
+          unidades_por_ciclo: parseFloat(
+            String(item.unidades_por_ciclo ?? "").replace(",", "."),
+          ),
+          intervalo_ciclo_dias: parseInt(
+            String(item.intervalo_ciclo_dias ?? "").trim(),
+            10,
+          ),
+        };
+      }
+      return {
+        medicamento_nome: item.medicamento!.nome,
+        medicamento_concentracao: item.medicamento!.concentracao,
+        consumo_diario: parseFloat(
+          String(item.consumo_diario ?? "").replace(",", "."),
+        ),
+        regime_consumo: "diario" as const,
+        unidades_por_ciclo: null,
+        intervalo_ciclo_dias: null,
+      };
+    }),
     observacoes:
       values.observacoes != null && values.observacoes !== ""
         ? String(values.observacoes).trim() || null
@@ -436,14 +550,22 @@ export default function Pacientes() {
     values: FormValues,
     helpers: FormikHelpers<FormValues>,
   ) => {
-    const hasInvalidMedicamento = values.medicamentos.some(
-      (item) => !item.medicamento || !String(item.consumo_diario ?? "").trim(),
-    );
+    const hasInvalidMedicamento = values.medicamentos.some((item) => {
+      if (!item.medicamento) return true;
+      if (item.regime_consumo === "por_ciclo") {
+        return (
+          !String(item.unidades_por_ciclo ?? "").trim() ||
+          !String(item.intervalo_ciclo_dias ?? "").trim()
+        );
+      }
+      return !String(item.consumo_diario ?? "").trim();
+    });
     if (hasInvalidMedicamento) {
       toast.current?.show({
         severity: "warn",
         summary: "Atenção",
-        detail: "Preencha medicamento e consumo diário em todos os itens.",
+        detail:
+          "Preencha medicamento e uso (consumo diário ou ciclo) em todos os itens.",
         life: 4000,
       });
       helpers.setSubmitting(false);
@@ -502,12 +624,13 @@ export default function Pacientes() {
       medicamento_nome: string;
       medicamento_concentracao: string;
       consumo_diario: number;
+      regime_consumo?: RegimeConsumoMedicamento;
+      unidades_por_ciclo?: number | null;
+      intervalo_ciclo_dias?: number | null;
     }>;
     Promise.all(
       medicamentosPayload.map((m) =>
-        api.get<ImpactoEstoque>(
-          `/pacientes/impacto-estoque?medicamento_nome=${encodeURIComponent(m.medicamento_nome)}&medicamento_concentracao=${encodeURIComponent(m.medicamento_concentracao)}&consumo_diario=${m.consumo_diario}`,
-        ),
+        api.get<ImpactoEstoque>(buildImpactoEstoquePath(m)),
       ),
     )
       .then((responses) => setImpactDataList(responses.map((r) => r.data)))
@@ -589,12 +712,23 @@ export default function Pacientes() {
                 md.nome === m.medicamento_nome &&
                 md.concentracao === m.medicamento_concentracao,
             );
+            const regime = normalizeRegimeConsumo(m);
             return {
               medicamento: found ?? {
                 nome: m.medicamento_nome,
                 concentracao: m.medicamento_concentracao,
               },
-              consumo_diario: String(m.consumo_diario ?? ""),
+              regime_consumo: regime,
+              consumo_diario:
+                regime === "diario" ? String(m.consumo_diario ?? "") : "",
+              unidades_por_ciclo:
+                regime === "por_ciclo" && m.unidades_por_ciclo != null
+                  ? String(m.unidades_por_ciclo)
+                  : "",
+              intervalo_ciclo_dias:
+                regime === "por_ciclo" && m.intervalo_ciclo_dias != null
+                  ? String(m.intervalo_ciclo_dias)
+                  : "",
             };
           });
         })(),
@@ -665,7 +799,7 @@ export default function Pacientes() {
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
                 field="consumoDiarioTotal"
-                header="Consumo diário total"
+                header="Taxa média (unid./dia)"
               />
               <Column
                 header="Estoque dá para (meses)"
@@ -780,7 +914,7 @@ export default function Pacientes() {
                     key={`${m.medicamento_nome}-${m.medicamento_concentracao}-${index}`}
                   >
                     {m.medicamento_nome} {m.medicamento_concentracao} (
-                    {m.consumo_diario}/dia)
+                    {usoMedicamentoResumo(m)})
                   </div>
                 ))}
               </div>
@@ -791,11 +925,19 @@ export default function Pacientes() {
           bodyClassName="pacientes-col-medicamento"
         />
         <Column
-          header="Consumo diário"
+          header="Taxa (unid./dia)"
           body={(r: Paciente) =>
             (r.medicamentos?.length ?? 0) > 1
               ? "Vários"
-              : (r.medicamentos?.[0]?.consumo_diario ?? "—")
+              : r.medicamentos?.[0]
+                ? String(
+                    Number(
+                      taxaUnidadesPorDiaFromMedicamento(
+                        r.medicamentos[0],
+                      ).toFixed(4),
+                    ),
+                  )
+                : "—"
           }
           style={{ minWidth: "9rem" }}
           headerClassName="pacientes-col-header"
@@ -975,14 +1117,38 @@ export default function Pacientes() {
                 </div>
                 <div className="campo-lista-medicamentos">
                   <label className="input-label">
-                    Medicamentos (nome, concentração e consumo diário)
+                    Medicamentos (nome, concentração e regime de uso)
                   </label>
                   <p className="pacientes-field-hint">
                     Selecione pelo nome e concentração. O paciente fica
                     vinculado ao medicamento, não a um lote específico; o
                     estoque considera todos os lotes desse medicamento.
                   </p>
-                  {(values.medicamentos ?? []).map((_, index) => (
+                  {(values.medicamentos ?? []).map((_, index) => {
+                    const itemError = Array.isArray(errors.medicamentos)
+                      ? (errors.medicamentos[index] as
+                          | {
+                              medicamento?: string;
+                              consumo_diario?: string;
+                              unidades_por_ciclo?: string;
+                              intervalo_ciclo_dias?: string;
+                            }
+                          | undefined)
+                      : undefined;
+                    const itemTouched =
+                      Array.isArray(touched.medicamentos) &&
+                      touched.medicamentos[index] &&
+                      typeof touched.medicamentos[index] === "object"
+                        ? (touched.medicamentos[index] as {
+                            medicamento?: boolean;
+                            consumo_diario?: boolean;
+                            unidades_por_ciclo?: boolean;
+                            intervalo_ciclo_dias?: boolean;
+                          })
+                        : undefined;
+                    const regimeAtual =
+                      values.medicamentos[index]?.regime_consumo ?? "diario";
+                    return (
                     <div key={index} className="pacientes-medicamento-row">
                       <Button
                         type="button"
@@ -1031,27 +1197,6 @@ export default function Pacientes() {
                                         o.value.concentracao ===
                                           med.concentracao,
                                     )?.value ?? null);
-
-                              const itemError = Array.isArray(
-                                errors.medicamentos,
-                              )
-                                ? (errors.medicamentos[index] as
-                                    | {
-                                        medicamento?: string;
-                                        consumo_diario?: string;
-                                      }
-                                    | undefined)
-                                : undefined;
-
-                              const itemTouched =
-                                Array.isArray(touched.medicamentos) &&
-                                touched.medicamentos[index] &&
-                                typeof touched.medicamentos[index] === "object"
-                                  ? (touched.medicamentos[index] as {
-                                      medicamento?: boolean;
-                                      consumo_diario?: boolean;
-                                    })
-                                  : undefined;
 
                               const hasMedicamentoError =
                                 !!itemError?.medicamento &&
@@ -1103,66 +1248,152 @@ export default function Pacientes() {
                           />
                         </div>
 
-                        <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo">
-                          <Field name={`medicamentos.${index}.consumo_diario`}>
-                            {({
-                              field,
-                            }: {
-                              field: Record<string, unknown>;
-                            }) => {
-                              const itemError = Array.isArray(
-                                errors.medicamentos,
-                              )
-                                ? (errors.medicamentos[index] as
-                                    | {
-                                        medicamento?: string;
-                                        consumo_diario?: string;
-                                      }
-                                    | undefined)
-                                : undefined;
-
-                              const itemTouched =
-                                Array.isArray(touched.medicamentos) &&
-                                touched.medicamentos[index] &&
-                                typeof touched.medicamentos[index] === "object"
-                                  ? (touched.medicamentos[index] as {
-                                      medicamento?: boolean;
-                                      consumo_diario?: boolean;
-                                    })
-                                  : undefined;
-
-                              const hasConsumoError =
-                                !!itemError?.consumo_diario &&
-                                !!itemTouched?.consumo_diario;
-
-                              return (
-                                <div className="input-container">
-                                  <label
-                                    htmlFor={`consumo-${index}`}
-                                    className="input-label"
-                                  >
-                                    Consumo/dia
-                                  </label>
-                                  <InputText
-                                    id={`consumo-${index}`}
-                                    {...field}
-                                    placeholder="Ex.: 2"
-                                    type="number"
-                                    className={`form-field ${hasConsumoError ? "p-invalid" : ""}`}
-                                  />
-                                </div>
+                        <div className="campo-dropdown pacientes-medicamento-campo">
+                          <label
+                            className="input-label"
+                            htmlFor={`regime-${index}`}
+                          >
+                            Regime de uso
+                          </label>
+                          <Dropdown
+                            inputId={`regime-${index}`}
+                            value={regimeAtual}
+                            options={REGIME_MEDICAMENTO_OPTIONS}
+                            onChange={(e: { value: RegimeConsumoMedicamento }) => {
+                              setFieldValue(
+                                `medicamentos.${index}.regime_consumo`,
+                                e.value,
+                              );
+                              setFieldTouched(
+                                `medicamentos.${index}.regime_consumo`,
+                                true,
                               );
                             }}
-                          </Field>
-                          <ErrorMessage
-                            component="span"
-                            name={`medicamentos.${index}.consumo_diario`}
-                            className="form-error"
+                            onBlur={() =>
+                              setFieldTouched(
+                                `medicamentos.${index}.regime_consumo`,
+                                true,
+                              )
+                            }
+                            placeholder="Selecione"
+                            className="w-full"
                           />
                         </div>
+
+                        {regimeAtual === "diario" ? (
+                          <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo">
+                            <Field name={`medicamentos.${index}.consumo_diario`}>
+                              {({
+                                field,
+                              }: {
+                                field: Record<string, unknown>;
+                              }) => {
+                                const hasConsumoError =
+                                  !!itemError?.consumo_diario &&
+                                  !!itemTouched?.consumo_diario;
+                                return (
+                                  <div className="input-container">
+                                    <label
+                                      htmlFor={`consumo-${index}`}
+                                      className="input-label"
+                                    >
+                                      Consumo/dia
+                                    </label>
+                                    <InputText
+                                      id={`consumo-${index}`}
+                                      {...field}
+                                      placeholder="Ex.: 2"
+                                      type="number"
+                                      className={`form-field ${hasConsumoError ? "p-invalid" : ""}`}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </Field>
+                            <ErrorMessage
+                              component="span"
+                              name={`medicamentos.${index}.consumo_diario`}
+                              className="form-error"
+                            />
+                          </div>
+                        ) : (
+                          <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo pacientes-medicamento-ciclo">
+                            <Field
+                              name={`medicamentos.${index}.unidades_por_ciclo`}
+                            >
+                              {({
+                                field,
+                              }: {
+                                field: Record<string, unknown>;
+                              }) => {
+                                const hasErr =
+                                  !!itemError?.unidades_por_ciclo &&
+                                  !!itemTouched?.unidades_por_ciclo;
+                                return (
+                                  <div className="input-container">
+                                    <label
+                                      htmlFor={`unidades-ciclo-${index}`}
+                                      className="input-label"
+                                    >
+                                      Unidades por ciclo
+                                    </label>
+                                    <InputText
+                                      id={`unidades-ciclo-${index}`}
+                                      {...field}
+                                      placeholder="Ex.: 1"
+                                      type="number"
+                                      className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </Field>
+                            <ErrorMessage
+                              component="span"
+                              name={`medicamentos.${index}.unidades_por_ciclo`}
+                              className="form-error"
+                            />
+                            <Field
+                              name={`medicamentos.${index}.intervalo_ciclo_dias`}
+                            >
+                              {({
+                                field,
+                              }: {
+                                field: Record<string, unknown>;
+                              }) => {
+                                const hasErr =
+                                  !!itemError?.intervalo_ciclo_dias &&
+                                  !!itemTouched?.intervalo_ciclo_dias;
+                                return (
+                                  <div className="input-container">
+                                    <label
+                                      htmlFor={`intervalo-ciclo-${index}`}
+                                      className="input-label"
+                                    >
+                                      Intervalo (dias)
+                                    </label>
+                                    <InputText
+                                      id={`intervalo-ciclo-${index}`}
+                                      {...field}
+                                      placeholder="Ex.: 45"
+                                      type="number"
+                                      className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </Field>
+                            <ErrorMessage
+                              component="span"
+                              name={`medicamentos.${index}.intervalo_ciclo_dias`}
+                              className="form-error"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   <Button
                     type="button"
                     label="Adicionar medicamento"
@@ -1348,12 +1579,12 @@ export default function Pacientes() {
                   medicamento_nome: string;
                   medicamento_concentracao: string;
                   consumo_diario: number;
+                  regime_consumo?: RegimeConsumoMedicamento;
+                  unidades_por_ciclo?: number | null;
+                  intervalo_ciclo_dias?: number | null;
                 }>
               )
-                ?.map(
-                  (m) =>
-                    `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_diario}/dia)`,
-                )
+                ?.map((m) => resumoMedicamentoNoPayload(m))
                 .join(", ") ?? "—"}
             </p>
             <h4>Impacto no estoque</h4>
@@ -1366,6 +1597,9 @@ export default function Pacientes() {
                     medicamento_nome: string;
                     medicamento_concentracao: string;
                     consumo_diario: number;
+                    regime_consumo?: RegimeConsumoMedicamento;
+                    unidades_por_ciclo?: number | null;
+                    intervalo_ciclo_dias?: number | null;
                   }>
                 )?.map((m, idx) => {
                   const impact = impactDataList[idx];
@@ -1375,7 +1609,7 @@ export default function Pacientes() {
                         <strong>
                           {m.medicamento_nome} {m.medicamento_concentracao}
                         </strong>{" "}
-                        (consumo {m.consumo_diario}/dia)
+                        ({resumoMedicamentoNoPayload(m)})
                       </p>
                       {impact ? (
                         <ul className="pacientes-impact-list">
@@ -1388,15 +1622,15 @@ export default function Pacientes() {
                             <strong>{impact.pacientesVinculados}</strong>
                           </li>
                           <li>
-                            Consumo diário atual:{" "}
+                            Taxa média atual (unid./dia):{" "}
                             <strong>
-                              {impact.consumoDiarioAtual.toFixed(2)}
+                              {impact.consumoDiarioAtual.toFixed(4)}
                             </strong>
                           </li>
                           <li>
-                            Com este paciente:{" "}
+                            Com este paciente (unid./dia):{" "}
                             <strong>
-                              {impact.consumoDiarioComNovo.toFixed(2)}
+                              {impact.consumoDiarioComNovo.toFixed(4)}
                             </strong>
                           </li>
                           <li>

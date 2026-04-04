@@ -3,10 +3,15 @@ export type TipoRetorno =
   | "somente_farmacia"
   | "farmacia_enfermagem";
 
+export type RegimeConsumoMedicamento = "diario" | "por_ciclo";
+
 export interface PacienteMedicamento {
   medicamento_nome: string;
   medicamento_concentracao: string;
   consumo_diario: number;
+  regime_consumo?: RegimeConsumoMedicamento;
+  unidades_por_ciclo?: number | null;
+  intervalo_ciclo_dias?: number | null;
 }
 
 export interface Paciente {
