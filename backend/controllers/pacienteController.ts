@@ -4,6 +4,7 @@ import {
   parseRegimeConsumo,
   taxaFromPersistRow,
   taxaUnidadesPorDia,
+  buildResumoTaxaMeta,
   type RegimeConsumo,
 } from "../utils/pacienteMedicamentoRegime";
 
@@ -591,6 +592,7 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
           medicamento_concentracao: string;
           pacientes: Set<number>;
           taxaTotal: number;
+          linhas: MedicamentoPersistRow[];
         }
       >();
       for (const r of rows) {
@@ -602,11 +604,13 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
             medicamento_concentracao: r.medicamento_concentracao,
             pacientes: new Set(),
             taxaTotal: 0,
+            linhas: [],
           };
           grupos.set(key, g);
         }
         g.pacientes.add(r.paciente_id);
         g.taxaTotal += taxaFromPersistRow(r);
+        g.linhas.push(r);
       }
       const gruposArr = Array.from(grupos.values());
       if (gruposArr.length === 0) {
@@ -620,6 +624,9 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
         consumoDiarioTotal: number;
         estoqueTotal: number;
         mesesEstoque: number | null;
+        resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
+        porCicloUnidadesTotal?: number;
+        porCicloIntervaloDias?: number;
       }> = [];
       let processados = 0;
       gruposArr.forEach((g) => {
@@ -635,14 +642,33 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
                 : consumo === 0 && estoqueTotal > 0
                   ? null
                   : 0;
-            resultados.push({
+            const taxaMeta = buildResumoTaxaMeta(g.linhas);
+            const base = {
               medicamento_nome: g.medicamento_nome,
               medicamento_concentracao: g.medicamento_concentracao,
               qtdPacientes: g.pacientes.size,
               consumoDiarioTotal: consumo,
               estoqueTotal,
               mesesEstoque,
-            });
+            };
+            if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
+              resultados.push({
+                ...base,
+                resumoTaxaTipo: "por_ciclo_homogeneo",
+                porCicloUnidadesTotal: taxaMeta.porCicloUnidadesTotal,
+                porCicloIntervaloDias: taxaMeta.porCicloIntervaloDias,
+              });
+            } else if (taxaMeta.resumoTaxaTipo === "diario_apenas") {
+              resultados.push({
+                ...base,
+                resumoTaxaTipo: "diario_apenas",
+              });
+            } else {
+              resultados.push({
+                ...base,
+                resumoTaxaTipo: "agregado",
+              });
+            }
             processados += 1;
             if (processados === gruposArr.length) {
               resultados.sort((a, b) => a.medicamento_nome.localeCompare(b.medicamento_nome) || a.medicamento_concentracao.localeCompare(b.medicamento_concentracao));

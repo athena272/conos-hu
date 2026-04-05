@@ -486,6 +486,41 @@ input.p-inputtext.p-component {
   gap: 0.25rem;
 }
 
+/* Coluna Taxa: regime explícito + linha secundária (equiv. / resumo agregado) */
+.pacientes-taxa-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pacientes-taxa-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pacientes-taxa-linha-principal {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--text-color, #212529);
+}
+
+.pacientes-taxa-linha-secundaria {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-resumo-celula {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pacientes-impact-taxa-nota {
+  margin: 0.5rem 0 0;
+}
+
 .pacientes-table-custom .p-datatable-wrapper {
   overflow-x: auto;
 }

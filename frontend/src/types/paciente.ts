@@ -46,6 +46,8 @@ export interface ImpactoEstoque {
   mesesEstoqueComNovo: number | null;
 }
 
+export type ResumoTaxaTipo = "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
+
 export interface ResumoPorMedicamento {
   medicamento_nome: string;
   medicamento_concentracao: string;
@@ -53,6 +55,9 @@ export interface ResumoPorMedicamento {
   consumoDiarioTotal: number;
   estoqueTotal: number;
   mesesEstoque: number | null;
+  resumoTaxaTipo?: ResumoTaxaTipo;
+  porCicloUnidadesTotal?: number;
+  porCicloIntervaloDias?: number;
 }
 
 export interface MedicamentoDistinto {
