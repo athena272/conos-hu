@@ -517,6 +517,123 @@ input.p-inputtext.p-component {
   gap: 0.2rem;
 }
 
+.pacientes-taxa-resumo-celula--agregado {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.pacientes-taxa-resumo-celula-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pacientes-taxa-detalhe-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--primary-color, #0d6efd);
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pacientes-taxa-detalhe-btn:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+}
+
+.pacientes-taxa-detalhe-btn:focus-visible {
+  outline: 2px solid var(--primary-color, #0d6efd);
+  outline-offset: 2px;
+}
+
+.pacientes-taxa-detalhe-btn .pi {
+  font-size: 1.1rem;
+}
+
+.pacientes-taxa-detalhe-dialog-wrap .p-dialog-content {
+  padding-top: 0.5rem;
+}
+
+.pacientes-taxa-detalhe-intro {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-detalhe-vazio {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-detalhe-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pacientes-taxa-detalhe-item {
+  margin: 0;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--surface-border, #dee2e6);
+}
+
+.pacientes-taxa-detalhe-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pacientes-taxa-detalhe-cabecalho {
+  font-size: 0.9375rem;
+  margin-bottom: 0.35rem;
+}
+
+.pacientes-taxa-detalhe-pront {
+  font-weight: 400;
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-detalhe-regime-linha {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  margin-top: 0.15rem;
+}
+
+.pacientes-taxa-detalhe-regime-linha--prim {
+  color: var(--text-color, #212529);
+}
+
+.pacientes-taxa-detalhe-regime-linha--sec {
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-detalhe-contrib {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.pacientes-taxa-detalhe-total {
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--surface-border, #dee2e6);
+  font-size: 0.9375rem;
+}
+
 .pacientes-impact-taxa-nota {
   margin: 0.5rem 0 0;
 }

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, type ReactNode } from "react";
 import { api } from "../../api/client";
 import { isAdmin } from "../../auth/session";
 import { Formik, Form, FormikHelpers } from "formik";
@@ -34,6 +34,7 @@ import {
   getLinhasTaxaVinculo,
   getTextoResumoTaxaAgregada,
   inferResumoTaxaMetaFromMedicamentos,
+  itensDetalheTaxaAgregada,
   normalizeRegimeConsumo,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
@@ -287,6 +288,70 @@ function formatTipoRetorno(tipo: string | null): string {
   return o?.label ?? tipo;
 }
 
+function TaxaAgregadaDetalheConteudo({
+  row,
+  pacientes,
+}: {
+  row: ResumoPorMedicamento;
+  pacientes: Paciente[];
+}): ReactNode {
+  const itens = itensDetalheTaxaAgregada(
+    row.medicamento_nome,
+    row.medicamento_concentracao,
+    pacientes,
+  );
+  if (itens.length === 0) {
+    return (
+      <p className="pacientes-taxa-detalhe-vazio">
+        Não foi possível listar o detalhe. Atualize a página ou verifique se a
+        lista de pacientes carregou.
+      </p>
+    );
+  }
+  return (
+    <>
+      <ul className="pacientes-taxa-detalhe-lista">
+        {itens.map((item, idx) => (
+          <li
+            key={`${item.prontuario}-${idx}`}
+            className="pacientes-taxa-detalhe-item"
+          >
+            <div className="pacientes-taxa-detalhe-cabecalho">
+              <strong>{item.pacienteNome}</strong>
+              <span className="pacientes-taxa-detalhe-pront">
+                {" "}
+                · Pront. {item.prontuario}
+              </span>
+            </div>
+            {item.linhasRegime.map((linha, j) => (
+              <div
+                key={j}
+                className={
+                  j === 0
+                    ? "pacientes-taxa-detalhe-regime-linha pacientes-taxa-detalhe-regime-linha--prim"
+                    : "pacientes-taxa-detalhe-regime-linha pacientes-taxa-detalhe-regime-linha--sec"
+                }
+              >
+                {linha}
+              </div>
+            ))}
+            <div className="pacientes-taxa-detalhe-contrib">
+              Contribuição na soma:{" "}
+              <strong>
+                {formatarNumeroTaxaPtBr(item.equivUnidDia)} unid./dia
+              </strong>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="pacientes-taxa-detalhe-total">
+        <strong>Total equivalente:</strong>{" "}
+        {formatarNumeroTaxaPtBr(row.consumoDiarioTotal)} unid./dia
+      </p>
+    </>
+  );
+}
+
 export default function Pacientes() {
   const toast = useRef<Toast>(null);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -312,6 +377,9 @@ export default function Pacientes() {
   );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
   const [loadingResumo, setLoadingResumo] = useState(false);
+  const [taxaDetalheRow, setTaxaDetalheRow] = useState<ResumoPorMedicamento | null>(
+    null,
+  );
   const [historicoPaciente, setHistoricoPaciente] = useState<Paciente | null>(
     null,
   );
@@ -865,14 +933,32 @@ export default function Pacientes() {
                   const { principal, secundaria } = getTextoResumoTaxaAgregada(
                     r.consumoDiarioTotal,
                   );
+                  const detalheItens = itensDetalheTaxaAgregada(
+                    r.medicamento_nome,
+                    r.medicamento_concentracao,
+                    pacientes,
+                  );
                   return (
-                    <div className="pacientes-taxa-resumo-celula">
-                      <div className="pacientes-taxa-linha-principal">
-                        {principal}
+                    <div className="pacientes-taxa-resumo-celula pacientes-taxa-resumo-celula--agregado">
+                      <div className="pacientes-taxa-resumo-celula-texto">
+                        <div className="pacientes-taxa-linha-principal">
+                          {principal}
+                        </div>
+                        <div className="pacientes-taxa-linha-secundaria">
+                          {secundaria}
+                        </div>
                       </div>
-                      <div className="pacientes-taxa-linha-secundaria">
-                        {secundaria}
-                      </div>
+                      {detalheItens.length > 0 ? (
+                        <button
+                          type="button"
+                          className="pacientes-taxa-detalhe-btn"
+                          aria-label="Ver como a taxa equivalente foi somada"
+                          title="Ver como a taxa equivalente foi somada"
+                          onClick={() => setTaxaDetalheRow(r)}
+                        >
+                          <i className="pi pi-info-circle" aria-hidden />
+                        </button>
+                      ) : null}
                     </div>
                   );
                 }}
@@ -887,6 +973,32 @@ export default function Pacientes() {
           )}
         </div>
       )}
+
+      <Dialog
+        header={
+          taxaDetalheRow
+            ? `Taxa agregada — ${taxaDetalheRow.medicamento_nome} ${taxaDetalheRow.medicamento_concentracao}`
+            : "Taxa agregada"
+        }
+        visible={taxaDetalheRow !== null}
+        onHide={() => setTaxaDetalheRow(null)}
+        draggable={false}
+        style={{ width: "min(92vw, 26rem)" }}
+        className="pacientes-taxa-detalhe-dialog-wrap"
+      >
+        {taxaDetalheRow ? (
+          <div className="pacientes-taxa-detalhe-dialog">
+            <p className="pacientes-taxa-detalhe-intro">
+              O valor em unid./dia é a soma das taxas equivalentes de cada
+              paciente (consumo diário e/ou regime por ciclo).
+            </p>
+            <TaxaAgregadaDetalheConteudo
+              row={taxaDetalheRow}
+              pacientes={pacientes}
+            />
+          </div>
+        ) : null}
+      </Dialog>
 
       <div className="pacientes-filters-bar">
         <span className="p-input-icon-left pacientes-filter-busca">

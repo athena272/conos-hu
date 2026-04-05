@@ -1,4 +1,8 @@
-import type { PacienteMedicamento, ResumoTaxaTipo } from "../types/paciente";
+import type {
+  Paciente,
+  PacienteMedicamento,
+  ResumoTaxaTipo,
+} from "../types/paciente";
 
 export function normalizeRegimeConsumo(
   m: Pick<PacienteMedicamento, "regime_consumo">,
@@ -126,4 +130,47 @@ export function inferResumoTaxaMetaFromMedicamentos(linhas: PacienteMedicamento[
     return { resumoTaxaTipo: "diario_apenas" };
   }
   return { resumoTaxaTipo: "agregado" };
+}
+
+export type ItemDetalheTaxaResumo = {
+  pacienteNome: string;
+  prontuario: number;
+  equivUnidDia: number;
+  linhasRegime: string[];
+};
+
+/**
+ * Pacientes que usam o mesmo nome+concentração, com texto de regime e taxa equivalente diária (para soma agregada).
+ */
+export function itensDetalheTaxaAgregada(
+  medicamentoNome: string,
+  medicamentoConcentracao: string,
+  pacientes: Paciente[],
+): ItemDetalheTaxaResumo[] {
+  const out: ItemDetalheTaxaResumo[] = [];
+  for (const p of pacientes) {
+    const meds = (p.medicamentos ?? []).filter(
+      (m) =>
+        m.medicamento_nome === medicamentoNome &&
+        m.medicamento_concentracao === medicamentoConcentracao,
+    );
+    for (const m of meds) {
+      const equiv = taxaUnidadesPorDiaFromMedicamento(m);
+      if (!(equiv > 0)) continue;
+      const { principal, secundaria } = getLinhasTaxaVinculo(m);
+      const linhasRegime = secundaria ? [principal, secundaria] : [principal];
+      out.push({
+        pacienteNome: p.nome,
+        prontuario: p.prontuario,
+        equivUnidDia: equiv,
+        linhasRegime,
+      });
+    }
+  }
+  out.sort(
+    (a, b) =>
+      a.pacienteNome.localeCompare(b.pacienteNome, "pt-BR") ||
+      a.prontuario - b.prontuario,
+  );
+  return out;
 }
