@@ -30,12 +30,15 @@ import type {
   RegimeConsumoMedicamento,
 } from "../../types";
 import {
-  taxaUnidadesPorDiaFromMedicamento,
-  usoMedicamentoResumo,
+  formatarNumeroTaxaPtBr,
+  getLinhasTaxaVinculo,
+  getTextoResumoTaxaAgregada,
+  inferResumoTaxaMetaFromMedicamentos,
   normalizeRegimeConsumo,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
+import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import "./styles.css";
 
 const RETORNA_SERVICO_OPTIONS = [
@@ -390,6 +393,24 @@ export default function Pacientes() {
     sortKey,
   ]);
 
+  const resumoPorMedicamentoParaExibir = useMemo(() => {
+    return resumoPorMedicamento.map((row) => {
+      if (row.resumoTaxaTipo != null && row.resumoTaxaTipo !== "") {
+        return row;
+      }
+      const meds = pacientes
+        .flatMap((p) => p.medicamentos ?? [])
+        .filter(
+          (m) =>
+            m.medicamento_nome === row.medicamento_nome &&
+            m.medicamento_concentracao === row.medicamento_concentracao,
+        );
+      const inferred = inferResumoTaxaMetaFromMedicamentos(meds);
+      if (!inferred) return row;
+      return { ...row, ...inferred };
+    });
+  }, [resumoPorMedicamento, pacientes]);
+
   const fetchPacientes = () => {
     api
       .get<Paciente[]>("/pacientes")
@@ -408,7 +429,9 @@ export default function Pacientes() {
     setLoadingResumo(true);
     api
       .get<ResumoPorMedicamento[]>("/pacientes/resumo-por-medicamento")
-      .then((res) => setResumoPorMedicamento(res.data ?? []))
+      .then((res) =>
+        setResumoPorMedicamento(normalizeResumoPorMedicamentoLista(res.data)),
+      )
       .catch(() => setResumoPorMedicamento([]))
       .finally(() => setLoadingResumo(false));
   };
@@ -776,14 +799,14 @@ export default function Pacientes() {
         )}
       </div>
 
-      {resumoPorMedicamento.length > 0 && (
+      {resumoPorMedicamentoParaExibir.length > 0 && (
         <div className="pacientes-resumo-section">
           <h3>Estoque por medicamento (comprometido)</h3>
           {loadingResumo ? (
             <p>Carregando...</p>
           ) : (
             <DataTable
-              value={resumoPorMedicamento}
+              value={resumoPorMedicamentoParaExibir}
               size="small"
               emptyMessage="Nenhum medicamento com pacientes vinculados."
               className="pacientes-resumo-table"
@@ -798,8 +821,61 @@ export default function Pacientes() {
               <Column field="estoqueTotal" header="Estoque total" />
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
-                field="consumoDiarioTotal"
-                header="Taxa média (unid./dia)"
+                header="Taxa"
+                body={(r: ResumoPorMedicamento) => {
+                  if (
+                    r.resumoTaxaTipo === "por_ciclo_homogeneo" &&
+                    r.porCicloUnidadesTotal != null &&
+                    r.porCicloIntervaloDias != null
+                  ) {
+                    const { principal, secundaria } = getLinhasTaxaVinculo({
+                      regime_consumo: "por_ciclo",
+                      consumo_diario: 0,
+                      unidades_por_ciclo: r.porCicloUnidadesTotal,
+                      intervalo_ciclo_dias: r.porCicloIntervaloDias,
+                    });
+                    return (
+                      <div className="pacientes-taxa-resumo-celula">
+                        <div className="pacientes-taxa-linha-principal">
+                          {principal}
+                        </div>
+                        {secundaria ? (
+                          <div className="pacientes-taxa-linha-secundaria">
+                            {secundaria}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  if (r.resumoTaxaTipo === "diario_apenas") {
+                    const { principal } = getLinhasTaxaVinculo({
+                      regime_consumo: "diario",
+                      consumo_diario: r.consumoDiarioTotal,
+                      unidades_por_ciclo: null,
+                      intervalo_ciclo_dias: null,
+                    });
+                    return (
+                      <div className="pacientes-taxa-resumo-celula">
+                        <div className="pacientes-taxa-linha-principal">
+                          {principal}
+                        </div>
+                      </div>
+                    );
+                  }
+                  const { principal, secundaria } = getTextoResumoTaxaAgregada(
+                    r.consumoDiarioTotal,
+                  );
+                  return (
+                    <div className="pacientes-taxa-resumo-celula">
+                      <div className="pacientes-taxa-linha-principal">
+                        {principal}
+                      </div>
+                      <div className="pacientes-taxa-linha-secundaria">
+                        {secundaria}
+                      </div>
+                    </div>
+                  );
+                }}
               />
               <Column
                 header="Estoque dá para (meses)"
@@ -913,8 +989,7 @@ export default function Pacientes() {
                   <div
                     key={`${m.medicamento_nome}-${m.medicamento_concentracao}-${index}`}
                   >
-                    {m.medicamento_nome} {m.medicamento_concentracao} (
-                    {usoMedicamentoResumo(m)})
+                    {m.medicamento_nome} {m.medicamento_concentracao}
                   </div>
                 ))}
               </div>
@@ -925,21 +1000,34 @@ export default function Pacientes() {
           bodyClassName="pacientes-col-medicamento"
         />
         <Column
-          header="Taxa (unid./dia)"
-          body={(r: Paciente) =>
-            (r.medicamentos?.length ?? 0) > 1
-              ? "Vários"
-              : r.medicamentos?.[0]
-                ? String(
-                    Number(
-                      taxaUnidadesPorDiaFromMedicamento(
-                        r.medicamentos[0],
-                      ).toFixed(4),
-                    ),
-                  )
-                : "—"
-          }
-          style={{ minWidth: "9rem" }}
+          header="Taxa"
+          body={(r: Paciente) => {
+            const meds = r.medicamentos ?? [];
+            if (!meds.length) return "—";
+            return (
+              <div className="pacientes-taxa-lista">
+                {meds.map((m, index) => {
+                  const { principal, secundaria } = getLinhasTaxaVinculo(m);
+                  return (
+                    <div
+                      key={`${m.medicamento_nome}-${m.medicamento_concentracao}-taxa-${index}`}
+                      className="pacientes-taxa-item"
+                    >
+                      <div className="pacientes-taxa-linha-principal">
+                        {principal}
+                      </div>
+                      {secundaria ? (
+                        <div className="pacientes-taxa-linha-secundaria">
+                          {secundaria}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }}
+          style={{ minWidth: "14rem" }}
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-consumo"
         />
@@ -1622,44 +1710,56 @@ export default function Pacientes() {
                         ({resumoMedicamentoNoPayload(m)})
                       </p>
                       {impact ? (
-                        <ul className="pacientes-impact-list">
-                          <li>
-                            Estoque total:{" "}
-                            <strong>{impact.estoqueTotal}</strong> unidades
-                          </li>
-                          <li>
-                            Pacientes vinculados:{" "}
-                            <strong>{impact.pacientesVinculados}</strong>
-                          </li>
-                          <li>
-                            Taxa média atual (unid./dia):{" "}
-                            <strong>
-                              {impact.consumoDiarioAtual.toFixed(4)}
-                            </strong>
-                          </li>
-                          <li>
-                            Com este paciente (unid./dia):{" "}
-                            <strong>
-                              {impact.consumoDiarioComNovo.toFixed(4)}
-                            </strong>
-                          </li>
-                          <li>
-                            Estoque dá para:{" "}
-                            <strong>
-                              {impact.mesesEstoqueAtual != null
-                                ? `${impact.mesesEstoqueAtual} meses`
-                                : "—"}
-                            </strong>
-                          </li>
-                          <li>
-                            Com este paciente:{" "}
-                            <strong>
-                              {impact.mesesEstoqueComNovo != null
-                                ? `${impact.mesesEstoqueComNovo} meses`
-                                : "—"}
-                            </strong>
-                          </li>
-                        </ul>
+                        <>
+                          <ul className="pacientes-impact-list">
+                            <li>
+                              Estoque total:{" "}
+                              <strong>{impact.estoqueTotal}</strong> unidades
+                            </li>
+                            <li>
+                              Pacientes vinculados:{" "}
+                              <strong>{impact.pacientesVinculados}</strong>
+                            </li>
+                            <li>
+                              Total equivalente atual:{" "}
+                              <strong>
+                                {formatarNumeroTaxaPtBr(
+                                  impact.consumoDiarioAtual,
+                                )}
+                              </strong>{" "}
+                              unid./dia
+                            </li>
+                            <li>
+                              Com este paciente:{" "}
+                              <strong>
+                                {formatarNumeroTaxaPtBr(
+                                  impact.consumoDiarioComNovo,
+                                )}
+                              </strong>{" "}
+                              unid./dia
+                            </li>
+                            <li>
+                              Estoque dá para:{" "}
+                              <strong>
+                                {impact.mesesEstoqueAtual != null
+                                  ? `${impact.mesesEstoqueAtual} meses`
+                                  : "—"}
+                              </strong>
+                            </li>
+                            <li>
+                              Com este paciente:{" "}
+                              <strong>
+                                {impact.mesesEstoqueComNovo != null
+                                  ? `${impact.mesesEstoqueComNovo} meses`
+                                  : "—"}
+                              </strong>
+                            </li>
+                          </ul>
+                          <p className="pacientes-taxa-linha-secundaria pacientes-impact-taxa-nota">
+                            Valores são soma das taxas equivalentes (consumo
+                            diário e por ciclo já convertidos).
+                          </p>
+                        </>
                       ) : (
                         <p>Não foi possível carregar o impacto.</p>
                       )}
