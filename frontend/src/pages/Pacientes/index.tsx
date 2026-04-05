@@ -1343,6 +1343,11 @@ export default function Pacientes() {
                                       placeholder="Ex.: 1"
                                       type="number"
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                      tooltip="Quantas unidades de estoque (comprimidos, seringas, etc., conforme o cadastro) são dispensadas de uma vez para cobrir até a próxima retirada."
+                                      tooltipOptions={{
+                                        position: "top",
+                                        className: "pacientes-ciclo-tooltip",
+                                      }}
                                     />
                                   </div>
                                 );
@@ -1378,6 +1383,11 @@ export default function Pacientes() {
                                       placeholder="Ex.: 45"
                                       type="number"
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                      tooltip="Quantos dias, em média, entre uma dispensação deste medicamento e a próxima (ex.: até o retorno agendado). Usado para calcular o consumo médio por dia no estoque."
+                                      tooltipOptions={{
+                                        position: "top",
+                                        className: "pacientes-ciclo-tooltip",
+                                      }}
                                     />
                                   </div>
                                 );

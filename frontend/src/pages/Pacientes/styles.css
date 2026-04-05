@@ -512,3 +512,11 @@ input.p-inputtext.p-component {
 .pi-search {
   left: 15px;
 }
+
+/* Campos “por ciclo”: tooltips com texto longo */
+.p-tooltip.pacientes-ciclo-tooltip .p-tooltip-text {
+  max-width: min(22rem, 90vw);
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+}
