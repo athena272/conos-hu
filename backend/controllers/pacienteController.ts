@@ -133,6 +133,24 @@ function attachMgAcumuladoMedicamentos(p: PacienteListItem, mgMap: Map<string, n
   };
 }
 
+function medicamentoNomeConcKey(nome: string, conc: string): string {
+  return `${String(nome).trim()}\0${String(conc).trim()}`;
+}
+
+/** Mg total dispensado por par nome+concentração (retiradas com paciente). */
+function buildMgTotalDispensadoPorMedicamentoMap(
+  rows: Array<{ nome: string; concentracao: string; total_unidades: number | string }>,
+): Map<string, number | null> {
+  const map = new Map<string, number | null>();
+  for (const r of rows) {
+    const k = medicamentoNomeConcKey(r.nome, r.concentracao);
+    const u = Number(r.total_unidades);
+    const mg = mgTotaisFromUnidades(u, r.concentracao);
+    map.set(k, mg);
+  }
+  return map;
+}
+
 function respondListPacientes(
   req: Request,
   res: Response,
@@ -726,67 +744,97 @@ export const getResumoPorMedicamento = (req: Request, res: Response): void => {
         res.status(200).json([]);
         return;
       }
-      const resultados: Array<{
-        medicamento_nome: string;
-        medicamento_concentracao: string;
-        qtdPacientes: number;
-        consumoDiarioTotal: number;
-        estoqueTotal: number;
-        mesesEstoque: number | null;
-        resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
-        porCicloUnidadesTotal?: number;
-        porCicloIntervaloDias?: number;
-      }> = [];
-      let processados = 0;
-      gruposArr.forEach((g) => {
-        db.query(
-          "SELECT COALESCE(SUM(quantidade), 0) AS total FROM medications WHERE nome = ? AND concentracao = ?",
-          [g.medicamento_nome, g.medicamento_concentracao],
-          (errEst: Error | null, estRows: unknown) => {
-            const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
-            const consumo = g.taxaTotal;
-            const mesesEstoque =
-              consumo > 0 && estoqueTotal > 0
-                ? Math.floor(estoqueTotal / (consumo * 30))
-                : consumo === 0 && estoqueTotal > 0
-                  ? null
-                  : 0;
-            const taxaMeta = buildResumoTaxaMeta(g.linhas);
-            const base = {
-              medicamento_nome: g.medicamento_nome,
-              medicamento_concentracao: g.medicamento_concentracao,
-              qtdPacientes: g.pacientes.size,
-              consumoDiarioTotal: consumo,
-              estoqueTotal,
-              mesesEstoque,
-            };
-            if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
-              resultados.push({
-                ...base,
-                resumoTaxaTipo: "por_ciclo_homogeneo",
-                porCicloUnidadesTotal: taxaMeta.porCicloUnidadesTotal,
-                porCicloIntervaloDias: taxaMeta.porCicloIntervaloDias,
-              });
-            } else if (taxaMeta.resumoTaxaTipo === "diario_apenas") {
-              resultados.push({
-                ...base,
-                resumoTaxaTipo: "diario_apenas",
-              });
-            } else {
-              resultados.push({
-                ...base,
-                resumoTaxaTipo: "agregado",
-              });
-            }
-            processados += 1;
-            if (processados === gruposArr.length) {
-              resultados.sort((a, b) => a.medicamento_nome.localeCompare(b.medicamento_nome) || a.medicamento_concentracao.localeCompare(b.medicamento_concentracao));
-              res.status(200).json(resultados);
-            }
+      db.query(
+        `SELECT m.nome, m.concentracao, COALESCE(SUM(rm.quantidade), 0) AS total_unidades
+         FROM retira_medications rm
+         INNER JOIN medications m ON m.id = rm.medication_id
+         WHERE rm.paciente_id IS NOT NULL
+         GROUP BY m.nome, m.concentracao`,
+        [],
+        (errRet: Error | null, retRows: unknown) => {
+          if (errRet) {
+            console.error("Erro ao agregar mg dispensado no resumo:", errRet);
           }
-        );
-      });
-    }
+          const raw =
+            (retRows as Array<{
+              nome: string;
+              concentracao: string;
+              total_unidades: number | string;
+            }>) ?? [];
+          const mgMap = errRet ? new Map<string, number | null>() : buildMgTotalDispensadoPorMedicamentoMap(raw);
+
+          const resultados: Array<{
+            medicamento_nome: string;
+            medicamento_concentracao: string;
+            qtdPacientes: number;
+            consumoDiarioTotal: number;
+            estoqueTotal: number;
+            mesesEstoque: number | null;
+            mgAcumuladoDispensadoTotal: number | null;
+            resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
+            porCicloUnidadesTotal?: number;
+            porCicloIntervaloDias?: number;
+          }> = [];
+          let processados = 0;
+          gruposArr.forEach((g) => {
+            db.query(
+              "SELECT COALESCE(SUM(quantidade), 0) AS total FROM medications WHERE nome = ? AND concentracao = ?",
+              [g.medicamento_nome, g.medicamento_concentracao],
+              (errEst: Error | null, estRows: unknown) => {
+                const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
+                const consumo = g.taxaTotal;
+                const mesesEstoque =
+                  consumo > 0 && estoqueTotal > 0
+                    ? Math.floor(estoqueTotal / (consumo * 30))
+                    : consumo === 0 && estoqueTotal > 0
+                      ? null
+                      : 0;
+                const taxaMeta = buildResumoTaxaMeta(g.linhas);
+                const mgKey = medicamentoNomeConcKey(g.medicamento_nome, g.medicamento_concentracao);
+                const mgVal = mgMap.get(mgKey);
+                const mgAcumuladoDispensadoTotal = mgVal === undefined ? 0 : mgVal;
+                const base = {
+                  medicamento_nome: g.medicamento_nome,
+                  medicamento_concentracao: g.medicamento_concentracao,
+                  qtdPacientes: g.pacientes.size,
+                  consumoDiarioTotal: consumo,
+                  estoqueTotal,
+                  mesesEstoque,
+                  mgAcumuladoDispensadoTotal,
+                };
+                if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
+                  resultados.push({
+                    ...base,
+                    resumoTaxaTipo: "por_ciclo_homogeneo",
+                    porCicloUnidadesTotal: taxaMeta.porCicloUnidadesTotal,
+                    porCicloIntervaloDias: taxaMeta.porCicloIntervaloDias,
+                  });
+                } else if (taxaMeta.resumoTaxaTipo === "diario_apenas") {
+                  resultados.push({
+                    ...base,
+                    resumoTaxaTipo: "diario_apenas",
+                  });
+                } else {
+                  resultados.push({
+                    ...base,
+                    resumoTaxaTipo: "agregado",
+                  });
+                }
+                processados += 1;
+                if (processados === gruposArr.length) {
+                  resultados.sort(
+                    (a, b) =>
+                      a.medicamento_nome.localeCompare(b.medicamento_nome) ||
+                      a.medicamento_concentracao.localeCompare(b.medicamento_concentracao),
+                  );
+                  res.status(200).json(resultados);
+                }
+              },
+            );
+          });
+        },
+      );
+    },
   );
 };
 
