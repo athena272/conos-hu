@@ -32,6 +32,11 @@ function normalizeUm(r: Record<string, unknown>): ResumoPorMedicamento {
   const porU = num(r.porCicloUnidadesTotal ?? r.por_ciclo_unidades_total);
   const porD = num(r.porCicloIntervaloDias ?? r.por_ciclo_intervalo_dias);
   const consumoAlt = num(r.consumo_diario_total);
+  const mgTotal = r.mgAcumuladoDispensadoTotal ?? r.mg_acumulado_dispensado_total;
+  const mgNum =
+    mgTotal === null || mgTotal === undefined
+      ? undefined
+      : Number(mgTotal);
 
   return {
     ...base,
@@ -40,5 +45,10 @@ function normalizeUm(r: Record<string, unknown>): ResumoPorMedicamento {
     ...(tipo ? { resumoTaxaTipo: tipo } : {}),
     ...(porU !== undefined ? { porCicloUnidadesTotal: porU } : {}),
     ...(porD !== undefined ? { porCicloIntervaloDias: porD } : {}),
+    ...(mgNum !== undefined && Number.isFinite(mgNum)
+      ? { mgAcumuladoDispensadoTotal: mgNum }
+      : mgTotal === null
+        ? { mgAcumuladoDispensadoTotal: null }
+        : {}),
   };
 }

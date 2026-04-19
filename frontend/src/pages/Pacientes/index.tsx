@@ -34,8 +34,6 @@ import { PRONTUARIO_REDACT_SENTINEL } from "../../types";
 import {
   formatarNumeroTaxaPtBr,
   formatarMgAcumuladoPtBr,
-  getLinhasTaxaVinculo,
-  getTextoResumoTaxaAgregada,
   inferResumoTaxaMetaFromMedicamentos,
   itensDetalheTaxaAgregada,
   normalizeRegimeConsumo,
@@ -859,7 +857,11 @@ export default function Pacientes() {
         message={submittingConfirm ? "Cadastrando paciente..." : "Salvando..."}
       />
       <Toast ref={toast} position="top-right" />
-      <Tooltip target=".pacientes-ident-redacted" />
+      <Tooltip
+        key={`pac-tooltip-${pacientes.length}-${pacientes[0]?.id ?? 0}`}
+        target=".pacientes-ident-redacted"
+        appendTo={typeof document !== "undefined" ? document.body : undefined}
+      />
       <ConfirmDialog
         visible={admin && !!deletingPaciente}
         onHide={() => !deletingInProgress && setDeletingPaciente(null)}
@@ -908,71 +910,41 @@ export default function Pacientes() {
               <Column field="estoqueTotal" header="Estoque total" />
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
-                header="Taxa"
+                header="Mg acumulados (dispensado)"
                 body={(r: ResumoPorMedicamento) => {
-                  if (
-                    r.resumoTaxaTipo === "por_ciclo_homogeneo" &&
-                    r.porCicloUnidadesTotal != null &&
-                    r.porCicloIntervaloDias != null
-                  ) {
-                    const { principal, secundaria } = getLinhasTaxaVinculo({
-                      regime_consumo: "por_ciclo",
-                      consumo_diario: 0,
-                      unidades_por_ciclo: r.porCicloUnidadesTotal,
-                      intervalo_ciclo_dias: r.porCicloIntervaloDias,
-                    });
-                    return (
-                      <div className="pacientes-taxa-resumo-celula">
-                        <div className="pacientes-taxa-linha-principal">
-                          {principal}
-                        </div>
-                        {secundaria ? (
-                          <div className="pacientes-taxa-linha-secundaria">
-                            {secundaria}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  }
-                  if (r.resumoTaxaTipo === "diario_apenas") {
-                    const { principal } = getLinhasTaxaVinculo({
-                      regime_consumo: "diario",
-                      consumo_diario: r.consumoDiarioTotal,
-                      unidades_por_ciclo: null,
-                      intervalo_ciclo_dias: null,
-                    });
-                    return (
-                      <div className="pacientes-taxa-resumo-celula">
-                        <div className="pacientes-taxa-linha-principal">
-                          {principal}
-                        </div>
-                      </div>
-                    );
-                  }
-                  const { principal, secundaria } = getTextoResumoTaxaAgregada(
-                    r.consumoDiarioTotal,
-                  );
+                  const rawMg = r.mgAcumuladoDispensadoTotal;
                   const detalheItens = itensDetalheTaxaAgregada(
                     r.medicamento_nome,
                     r.medicamento_concentracao,
                     pacientes,
                   );
+                  const linha =
+                    rawMg === null || rawMg === undefined
+                      ? "—"
+                      : formatarMgAcumuladoPtBr(rawMg);
                   return (
                     <div className="pacientes-taxa-resumo-celula pacientes-taxa-resumo-celula--agregado">
                       <div className="pacientes-taxa-resumo-celula-texto">
                         <div className="pacientes-taxa-linha-principal">
-                          {principal}
+                          {linha}
                         </div>
-                        <div className="pacientes-taxa-linha-secundaria">
-                          {secundaria}
-                        </div>
+                        {rawMg === null ? (
+                          <div className="pacientes-taxa-linha-secundaria">
+                            Concentração sem mg no cadastro
+                          </div>
+                        ) : rawMg === undefined ? null : (
+                          <div className="pacientes-taxa-linha-secundaria">
+                            Soma das retiradas vinculadas a pacientes
+                          </div>
+                        )}
                       </div>
-                      {detalheItens.length > 0 ? (
+                      {r.resumoTaxaTipo === "agregado" &&
+                      detalheItens.length > 0 ? (
                         <button
                           type="button"
                           className="pacientes-taxa-detalhe-btn"
-                          aria-label="Ver como a taxa equivalente foi somada"
-                          title="Ver como a taxa equivalente foi somada"
+                          aria-label="Ver consumo planejado equivalente em unid./dia"
+                          title="Ver consumo planejado equivalente em unid./dia"
                           onClick={() => setTaxaDetalheRow(r)}
                         >
                           <i className="pi pi-info-circle" aria-hidden />
@@ -1092,6 +1064,9 @@ export default function Pacientes() {
                   ? "pacientes-ident-redacted pacientes-ident-redacted--blur"
                   : undefined
               }
+              title={
+                r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined
+              }
               data-pr-tooltip={
                 r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined
               }
@@ -1111,6 +1086,9 @@ export default function Pacientes() {
                 r.identificadoresRedatados
                   ? "pacientes-ident-redacted pacientes-ident-redacted--blur"
                   : undefined
+              }
+              title={
+                r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined
               }
               data-pr-tooltip={
                 r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined

@@ -62,6 +62,8 @@ export interface ResumoPorMedicamento {
   consumoDiarioTotal: number;
   estoqueTotal: number;
   mesesEstoque: number | null;
+  /** Total mg dispensado (retiradas com paciente) para este nome+concentração */
+  mgAcumuladoDispensadoTotal?: number | null;
   resumoTaxaTipo?: ResumoTaxaTipo;
   porCicloUnidadesTotal?: number;
   porCicloIntervaloDias?: number;
