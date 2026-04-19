@@ -672,3 +672,10 @@ input.p-inputtext.p-component {
   white-space: normal;
   line-height: 1.35;
 }
+
+/* Identificação redatada (perfil visualização): leve blur + tooltip */
+.pacientes-ident-redacted--blur {
+  filter: blur(5px);
+  user-select: none;
+  cursor: help;
+}
