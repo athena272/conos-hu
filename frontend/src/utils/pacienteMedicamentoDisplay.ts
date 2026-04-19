@@ -43,6 +43,16 @@ export function formatarNumeroTaxaPtBr(value: number): string {
   }).format(value);
 }
 
+/** Mg acumulado dispensado (retiradas vinculadas). null = concentração sem mg no cadastro. */
+export function formatarMgAcumuladoPtBr(mg: number | null | undefined): string {
+  if (mg === null || mg === undefined) return "—";
+  if (!Number.isFinite(mg)) return "—";
+  return `${new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(mg)} mg`;
+}
+
 export type CamposRegimeVinculo = Pick<
   PacienteMedicamento,
   "regime_consumo" | "consumo_diario" | "unidades_por_ciclo" | "intervalo_ciclo_dias"
@@ -133,6 +143,7 @@ export function inferResumoTaxaMetaFromMedicamentos(linhas: PacienteMedicamento[
 }
 
 export type ItemDetalheTaxaResumo = {
+  pacienteId: number;
   pacienteNome: string;
   prontuario: number;
   equivUnidDia: number;
@@ -160,6 +171,7 @@ export function itensDetalheTaxaAgregada(
       const { principal, secundaria } = getLinhasTaxaVinculo(m);
       const linhasRegime = secundaria ? [principal, secundaria] : [principal];
       out.push({
+        pacienteId: p.id,
         pacienteNome: p.nome,
         prontuario: p.prontuario,
         equivUnidDia: equiv,
@@ -170,7 +182,8 @@ export function itensDetalheTaxaAgregada(
   out.sort(
     (a, b) =>
       a.pacienteNome.localeCompare(b.pacienteNome, "pt-BR") ||
-      a.prontuario - b.prontuario,
+      a.prontuario - b.prontuario ||
+      a.pacienteId - b.pacienteId,
   );
   return out;
 }
