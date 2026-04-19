@@ -12,12 +12,19 @@ export interface PacienteMedicamento {
   regime_consumo?: RegimeConsumoMedicamento;
   unidades_por_ciclo?: number | null;
   intervalo_ciclo_dias?: number | null;
+  /** Total mg dispensado acumulado (retiradas vinculadas ao paciente). 0 = nenhuma; null = concentração sem mg parseável */
+  mg_acumulado_dispensado?: number | null;
 }
+
+/** Sentinela de API quando nome/prontuário estão redatados para viewer */
+export const PRONTUARIO_REDACT_SENTINEL = -1;
 
 export interface Paciente {
   id: number;
   nome: string;
   prontuario: number;
+  /** Quando true, nome/prontuário são placeholders (perfil visualização) */
+  identificadoresRedatados?: boolean;
   apac: string;
   diagnostico: string;
   medicamentos: PacienteMedicamento[];

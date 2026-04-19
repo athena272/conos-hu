@@ -5,6 +5,14 @@
   height: 100vh;
 }
 
+.retire-medication-hint {
+  max-width: 42rem;
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0.25rem 0 1rem;
+  line-height: 1.4;
+}
+
 /* Select de lotes com mesma largura dos inputs (form-field usa 75vh) */
 .retire-form .form-group .p-dropdown {
   width: 75vh;

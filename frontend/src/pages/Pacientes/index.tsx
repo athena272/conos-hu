@@ -9,6 +9,7 @@ import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
 import { ConfirmDialog } from "primereact/confirmdialog";
 import { Toast } from "primereact/toast";
+import { Tooltip } from "primereact/tooltip";
 import { Dropdown } from "primereact/dropdown";
 import { Field } from "formik";
 import { InputText } from "primereact/inputtext";
@@ -29,8 +30,10 @@ import type {
   ResumoPorMedicamento,
   RegimeConsumoMedicamento,
 } from "../../types";
+import { PRONTUARIO_REDACT_SENTINEL } from "../../types";
 import {
   formatarNumeroTaxaPtBr,
+  formatarMgAcumuladoPtBr,
   getLinhasTaxaVinculo,
   getTextoResumoTaxaAgregada,
   inferResumoTaxaMetaFromMedicamentos,
@@ -41,6 +44,9 @@ import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
 import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import "./styles.css";
+
+const TOOLTIP_IDENTIFICACAO_REDACT =
+  "Somente usuários administradores do Conos visualizam nome e prontuário completos.";
 
 const RETORNA_SERVICO_OPTIONS = [
   { label: "Sim", value: true },
@@ -313,14 +319,17 @@ function TaxaAgregadaDetalheConteudo({
       <ul className="pacientes-taxa-detalhe-lista">
         {itens.map((item, idx) => (
           <li
-            key={`${item.prontuario}-${idx}`}
+            key={`${item.pacienteId}-${idx}`}
             className="pacientes-taxa-detalhe-item"
           >
             <div className="pacientes-taxa-detalhe-cabecalho">
               <strong>{item.pacienteNome}</strong>
               <span className="pacientes-taxa-detalhe-pront">
                 {" "}
-                · Pront. {item.prontuario}
+                · Pront.{" "}
+                {item.prontuario === PRONTUARIO_REDACT_SENTINEL
+                  ? "—"
+                  : item.prontuario}
               </span>
             </div>
             {item.linhasRegime.map((linha, j) => (
@@ -440,16 +449,25 @@ export default function Pacientes() {
         if (!db) return -1;
         return asc ? da.localeCompare(db) : db.localeCompare(da);
       }
-      if (field === "nome")
+      if (field === "nome") {
+        if (a.identificadoresRedatados && b.identificadoresRedatados) {
+          return asc ? a.id - b.id : b.id - a.id;
+        }
         return asc
           ? a.nome.localeCompare(b.nome)
           : b.nome.localeCompare(a.nome);
+      }
       if (field === "data_liberacao")
         return asc
           ? a.data_liberacao.localeCompare(b.data_liberacao)
           : b.data_liberacao.localeCompare(a.data_liberacao);
-      if (field === "prontuario")
-        return asc ? a.prontuario - b.prontuario : b.prontuario - a.prontuario;
+      if (field === "prontuario") {
+        const ar =
+          a.identificadoresRedatados === true ? a.id : a.prontuario;
+        const br =
+          b.identificadoresRedatados === true ? b.id : b.prontuario;
+        return asc ? ar - br : br - ar;
+      }
       return 0;
     });
   }, [
@@ -841,6 +859,7 @@ export default function Pacientes() {
         message={submittingConfirm ? "Cadastrando paciente..." : "Salvando..."}
       />
       <Toast ref={toast} position="top-right" />
+      <Tooltip target=".pacientes-ident-redacted" />
       <ConfirmDialog
         visible={admin && !!deletingPaciente}
         onHide={() => !deletingInProgress && setDeletingPaciente(null)}
@@ -1062,18 +1081,46 @@ export default function Pacientes() {
         responsiveLayout="scroll"
       >
         <Column
-          field="nome"
           header="Nome"
           style={{ minWidth: "12rem" }}
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-nome"
+          body={(r: Paciente) => (
+            <span
+              className={
+                r.identificadoresRedatados
+                  ? "pacientes-ident-redacted pacientes-ident-redacted--blur"
+                  : undefined
+              }
+              data-pr-tooltip={
+                r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined
+              }
+            >
+              {r.nome}
+            </span>
+          )}
         />
         <Column
-          field="prontuario"
           header="Prontuário"
           style={{ minWidth: "8rem" }}
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-prontuario"
+          body={(r: Paciente) => (
+            <span
+              className={
+                r.identificadoresRedatados
+                  ? "pacientes-ident-redacted pacientes-ident-redacted--blur"
+                  : undefined
+              }
+              data-pr-tooltip={
+                r.identificadoresRedatados ? TOOLTIP_IDENTIFICACAO_REDACT : undefined
+              }
+            >
+              {r.identificadoresRedatados
+                ? "—"
+                : String(r.prontuario)}
+            </span>
+          )}
         />
         <Column
           field="apac"
@@ -1112,25 +1159,33 @@ export default function Pacientes() {
           bodyClassName="pacientes-col-medicamento"
         />
         <Column
-          header="Taxa"
+          header="Mg acumulados (dispensado)"
           body={(r: Paciente) => {
             const meds = r.medicamentos ?? [];
             if (!meds.length) return "—";
             return (
               <div className="pacientes-taxa-lista">
                 {meds.map((m, index) => {
-                  const { principal, secundaria } = getLinhasTaxaVinculo(m);
+                  const mg =
+                    m.mg_acumulado_dispensado === undefined
+                      ? 0
+                      : m.mg_acumulado_dispensado;
+                  const linha =
+                    mg === null
+                      ? "—"
+                      : formatarMgAcumuladoPtBr(mg);
                   return (
                     <div
-                      key={`${m.medicamento_nome}-${m.medicamento_concentracao}-taxa-${index}`}
+                      key={`${m.medicamento_nome}-${m.medicamento_concentracao}-mg-${index}`}
                       className="pacientes-taxa-item"
+                      title="Soma em mg das retiradas vinculadas a este paciente (mesmo nome e concentração). Retiradas sem paciente não entram."
                     >
                       <div className="pacientes-taxa-linha-principal">
-                        {principal}
+                        {linha}
                       </div>
-                      {secundaria ? (
+                      {mg === null ? (
                         <div className="pacientes-taxa-linha-secundaria">
-                          {secundaria}
+                          Concentração sem mg no cadastro
                         </div>
                       ) : null}
                     </div>

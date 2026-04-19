@@ -7,6 +7,9 @@ import {
   buildResumoTaxaMeta,
   type RegimeConsumo,
 } from "../utils/pacienteMedicamentoRegime";
+import { mgTotaisFromUnidades } from "../utils/concentracaoMg";
+import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
+import type { UserRole } from "../types/roles";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
 
@@ -87,6 +90,85 @@ function mapMedicamentoToResponse(r: MedicamentoPersistRow) {
     unidades_por_ciclo: r.unidades_por_ciclo != null ? Number(r.unidades_por_ciclo) : null,
     intervalo_ciclo_dias: r.intervalo_ciclo_dias != null ? Number(r.intervalo_ciclo_dias) : null,
   };
+}
+
+function vinculoMgKey(pacienteId: number, nome: string, conc: string): string {
+  return `${pacienteId}\0${String(nome).trim()}\0${String(conc).trim()}`;
+}
+
+type PacienteListItem = PacienteRowWithProximaRetorno & {
+  medicamentos: ReturnType<typeof mapMedicamentoToResponse>[];
+  lotes: string[];
+};
+
+function buildMgAcumuladoMap(
+  rows: Array<{
+    paciente_id: number;
+    medicamento_nome: string;
+    medicamento_concentracao: string;
+    total_unidades: number | string;
+  }>,
+): Map<string, number | null> {
+  const map = new Map<string, number | null>();
+  for (const r of rows) {
+    const k = vinculoMgKey(r.paciente_id, r.medicamento_nome, r.medicamento_concentracao);
+    const u = Number(r.total_unidades);
+    const mg = mgTotaisFromUnidades(u, r.medicamento_concentracao);
+    map.set(k, mg);
+  }
+  return map;
+}
+
+function attachMgAcumuladoMedicamentos(p: PacienteListItem, mgMap: Map<string, number | null>): PacienteListItem {
+  return {
+    ...p,
+    medicamentos: p.medicamentos.map((m) => {
+      const k = vinculoMgKey(p.id, m.medicamento_nome, m.medicamento_concentracao);
+      const v = mgMap.get(k);
+      return {
+        ...m,
+        mg_acumulado_dispensado: v !== undefined ? v : 0,
+      };
+    }),
+  };
+}
+
+function respondListPacientes(
+  req: Request,
+  res: Response,
+  list: PacienteListItem[],
+  ids: number[],
+  placeholders: string,
+): void {
+  const role = req.user?.role as UserRole | undefined;
+  if (ids.length === 0) {
+    res.status(200).json(list.map((p) => redactPacienteIdentificacao(p, role)));
+    return;
+  }
+  db.query(
+    `SELECT rm.paciente_id, m.nome AS medicamento_nome, m.concentracao AS medicamento_concentracao,
+     COALESCE(SUM(rm.quantidade), 0) AS total_unidades
+     FROM retira_medications rm
+     INNER JOIN medications m ON m.id = rm.medication_id
+     WHERE rm.paciente_id IN (${placeholders})
+     GROUP BY rm.paciente_id, m.nome, m.concentracao`,
+    ids,
+    (errRet: Error | null, retRows: unknown) => {
+      if (errRet) {
+        console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
+      }
+      const raw =
+        (retRows as Array<{
+          paciente_id: number;
+          medicamento_nome: string;
+          medicamento_concentracao: string;
+          total_unidades: number | string;
+        }>) ?? [];
+      const mgMap = errRet ? new Map<string, number | null>() : buildMgAcumuladoMap(raw);
+      const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
+      res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
+    },
+  );
 }
 
 function isValidDateString(s: string): boolean {
@@ -181,13 +263,13 @@ export const listPacientes = (req: Request, res: Response): void => {
               if (!list.includes(row.lote)) list.push(row.lote);
               lotesByPaciente.set(row.paciente_id, list);
             }
-            const out = pacientes.map((p) => ({
+            const out: PacienteListItem[] = pacientes.map((p) => ({
               ...p,
               medicamentos: byPaciente.get(p.id) ?? [],
               proxima_data_retorno: p.proxima_data_retorno ?? null,
               lotes: lotesByPaciente.get(p.id) ?? [],
             }));
-            res.status(200).json(out);
+            respondListPacientes(req, res, out, ids, placeholders);
           }
         );
       }
@@ -224,10 +306,37 @@ export const getPacienteById = (req: Request, res: Response): void => {
           return;
         }
         const list = (medRows as Omit<MedicamentoPersistRow, "paciente_id">[]) || [];
-        res.status(200).json({
+        const base: PacienteListItem = {
           ...paciente,
+          proxima_data_retorno: null,
           medicamentos: list.map((m) => mapMedicamentoToResponse({ ...m, paciente_id: id })),
-        });
+          lotes: [],
+        };
+        const role = req.user?.role as UserRole | undefined;
+        db.query(
+          `SELECT rm.paciente_id, m.nome AS medicamento_nome, m.concentracao AS medicamento_concentracao,
+           COALESCE(SUM(rm.quantidade), 0) AS total_unidades
+           FROM retira_medications rm
+           INNER JOIN medications m ON m.id = rm.medication_id
+           WHERE rm.paciente_id = ?
+           GROUP BY rm.paciente_id, m.nome, m.concentracao`,
+          [id],
+          (errRet: Error | null, retRows: unknown) => {
+            if (errRet) {
+              console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
+            }
+            const raw =
+              (retRows as Array<{
+                paciente_id: number;
+                medicamento_nome: string;
+                medicamento_concentracao: string;
+                total_unidades: number | string;
+              }>) ?? [];
+            const mgMap = errRet ? new Map<string, number | null>() : buildMgAcumuladoMap(raw);
+            const withMg = attachMgAcumuladoMedicamentos(base, mgMap);
+            res.status(200).json(redactPacienteIdentificacao(withMg, role));
+          },
+        );
       }
     );
   });

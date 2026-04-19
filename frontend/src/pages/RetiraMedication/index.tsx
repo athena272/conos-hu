@@ -14,13 +14,14 @@ import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import "./styles.css";
-import type { MedicationWithStatus } from "../../types";
+import type { MedicationWithStatus, Paciente } from "../../types";
 
 interface RetiraMedicationValues {
   name: string;
   concentration: string;
   selectedMedicationId: number | null;
   quantity: number;
+  pacienteId: number | null;
 }
 
 interface AxiosErrorLike {
@@ -37,6 +38,14 @@ function RetiraMedication() {
   const [lots, setLots] = useState<MedicationWithStatus[]>([]);
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
+  const [pacientesOpcoes, setPacientesOpcoes] = useState<Paciente[]>([]);
+
+  useEffect(() => {
+    api
+      .get<Paciente[]>("/pacientes")
+      .then((res) => setPacientesOpcoes(res.data ?? []))
+      .catch(() => setPacientesOpcoes([]));
+  }, []);
 
   useEffect(() => {
     const session = getAuth();
@@ -85,10 +94,13 @@ function RetiraMedication() {
         return;
       }
 
-      const retiradaData = {
+      const retiradaData: Record<string, unknown> = {
         medication_id: medicationId,
         quantidade: parseInt(String(values.quantity), 10),
       };
+      if (values.pacienteId != null && values.pacienteId > 0) {
+        retiradaData.paciente_id = values.pacienteId;
+      }
 
       await api.post("/retira", retiradaData, { timeout: 10000 });
 
@@ -125,6 +137,7 @@ function RetiraMedication() {
     name: yup.string().trim(),
     concentration: yup.string().trim(),
     selectedMedicationId: yup.number().nullable(),
+    pacienteId: yup.number().nullable(),
     quantity: yup
       .number()
       .typeError("A quantidade deve ser um número")
@@ -140,6 +153,10 @@ function RetiraMedication() {
       <div className="container-retire-medication">
         <h2>Retirar Medicamento</h2>
         <p>Preencha os dados abaixo para retirar um medicamento.</p>
+        <p className="retire-medication-hint">
+          Opcional: vincule a retirada a um paciente para acumular o total em mg dispensado na lista de
+          pacientes (somente retiradas com paciente informado entram nesse total).
+        </p>
         <Toast ref={toast} position="top-right" />
 
         <Formik
@@ -148,6 +165,7 @@ function RetiraMedication() {
             concentration: "",
             selectedMedicationId: null as number | null,
             quantity: 0,
+            pacienteId: null as number | null,
           }}
           validationSchema={retireSchema}
           onSubmit={handleRetireMedication}
@@ -254,6 +272,27 @@ function RetiraMedication() {
                 >
                   {loadingLots && loadingMode === "all" ? "Carregando..." : "Ver todos os lotes"}
                 </Button>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="retira-paciente">Paciente (opcional)</label>
+                <Dropdown
+                  inputId="retira-paciente"
+                  value={values.pacienteId}
+                  options={[
+                    { label: "— Não vincular —", value: null },
+                    ...pacientesOpcoes.map((p) => ({
+                      label: `${p.nome} · Pront. ${p.prontuario}`,
+                      value: p.id,
+                    })),
+                  ]}
+                  onChange={(e) => setFieldValue("pacienteId", e.value)}
+                  placeholder="Selecione o paciente"
+                  className="w-full"
+                  disabled={isSubmitting}
+                  filter
+                  showClear
+                />
               </div>
 
               {lots.length > 0 && (
