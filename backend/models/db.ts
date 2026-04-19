@@ -67,6 +67,38 @@ const RETIRA_MEDICATIONS_TABLE_SQL = `
   )
 `;
 
+const CHECK_RETIRA_PACIENTE_ID_COLUMN =
+  "SELECT 1 AS ok FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'retira_medications' AND COLUMN_NAME = 'paciente_id' LIMIT 1";
+
+const ADD_RETIRA_PACIENTE_ID_COLUMN = `
+  ALTER TABLE retira_medications
+    ADD COLUMN paciente_id INT NULL,
+    ADD KEY idx_retira_paciente (paciente_id),
+    ADD CONSTRAINT fk_retira_paciente FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE SET NULL
+`;
+
+function ensureRetiraPacienteIdColumn(
+  connection: mysql.PoolConnection,
+  next: (err?: Error | null) => void
+): void {
+  connection.query(CHECK_RETIRA_PACIENTE_ID_COLUMN, (checkErr, checkRows) => {
+    const rows = checkRows as { ok?: number }[] | undefined;
+    const hasCol = !checkErr && Array.isArray(rows) && rows.length > 0;
+    if (hasCol) {
+      next(null);
+      return;
+    }
+    connection.query(ADD_RETIRA_PACIENTE_ID_COLUMN, (alterErr) => {
+      if (alterErr) {
+        console.error("⚠️ Erro ao adicionar retira_medications.paciente_id:", alterErr.message);
+      } else {
+        console.log("✅ Coluna retira_medications.paciente_id adicionada (migration 10).");
+      }
+      next(alterErr);
+    });
+  });
+}
+
 const MOVIMENTACOES_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS movimentacoes (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -238,7 +270,7 @@ db.getConnection((err, connection) => {
           const rows = checkRows as { ok?: number }[] | undefined;
           const hasOldColumn = !checkErr && Array.isArray(rows) && rows.length > 0;
           if (!hasOldColumn) {
-            connection.release();
+            ensureRetiraPacienteIdColumn(connection, () => connection.release());
             return;
           }
           console.log("🔄 Migration 6: base com schema antigo de pacientes. Aplicando migração...");
@@ -258,7 +290,7 @@ db.getConnection((err, connection) => {
                 } else {
                   console.log("✅ Migration 6 aplicada: colunas de medicamento removidas de pacientes.");
                 }
-                connection.release();
+                ensureRetiraPacienteIdColumn(connection, () => connection.release());
               });
             });
           });
