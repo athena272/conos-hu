@@ -679,3 +679,65 @@ input.p-inputtext.p-component {
   user-select: none;
   cursor: help;
 }
+
+/* Coluna Mg acumulados: rótulo + botão informativo */
+.pacientes-mg-col-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.pacientes-mg-col-header-label {
+  line-height: 1.25;
+}
+
+.pacientes-mg-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary-color, #2563eb);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.pacientes-mg-info-btn:hover {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent);
+}
+
+.pacientes-mg-info-btn:focus-visible {
+  outline: 2px solid var(--primary-color, #2563eb);
+  outline-offset: 2px;
+}
+
+.pacientes-mg-info-btn .pi {
+  font-size: 0.95rem;
+}
+
+.pacientes-mg-info-body p {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+  font-size: 0.9375rem;
+}
+
+.pacientes-mg-info-body p:last-of-type {
+  margin-bottom: 0;
+}
+
+.pacientes-mg-info-nota {
+  color: var(--text-color-secondary, #64748b);
+  font-size: 0.875rem !important;
+}
+
+.pacientes-mg-info-footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}

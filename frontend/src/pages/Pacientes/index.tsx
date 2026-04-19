@@ -44,6 +44,29 @@ import "./styles.css";
 const TOOLTIP_IDENTIFICACAO_REDACT =
   "Somente usuários administradores do Conos visualizam nome e prontuário completos.";
 
+/** Cabeçalho da coluna Mg com botão que abre o diálogo explicativo */
+function MgAcumuladoColunaHeader({ onOpen }: { onOpen: () => void }) {
+  return (
+    <span className="pacientes-mg-col-header">
+      <span className="pacientes-mg-col-header-label">
+        Mg acumulados (dispensado)
+      </span>
+      <button
+        type="button"
+        className="pacientes-mg-info-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        aria-label="Explicar Mg acumulados (dispensado)"
+        title="O que significa esta coluna"
+      >
+        <i className="pi pi-info-circle" aria-hidden />
+      </button>
+    </span>
+  );
+}
+
 const RETORNA_SERVICO_OPTIONS = [
   { label: "Sim", value: true },
   { label: "Não", value: false },
@@ -322,6 +345,7 @@ export default function Pacientes() {
     [],
   );
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [mgAcumuladoInfoVisible, setMgAcumuladoInfoVisible] = useState(false);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
   const [addingRetorno, setAddingRetorno] = useState(false);
@@ -790,6 +814,53 @@ export default function Pacientes() {
         target=".pacientes-ident-redacted"
         appendTo={typeof document !== "undefined" ? document.body : undefined}
       />
+      <Dialog
+        header="Mg acumulados (dispensado)"
+        visible={mgAcumuladoInfoVisible}
+        onHide={() => setMgAcumuladoInfoVisible(false)}
+        draggable={false}
+        dismissableMask
+        style={{ width: "min(92vw, 32rem)" }}
+        className="pacientes-mg-info-dialog"
+      >
+        <div className="pacientes-mg-info-body">
+          <p>
+            O valor em <strong>mg</strong> é o total de{" "}
+            <strong>miligramas já dispensados</strong>, calculado a partir das{" "}
+            <strong>retiradas de estoque</strong> em que foi informado o{" "}
+            <strong>paciente</strong>.
+          </p>
+          <p>
+            Para cada retirada, multiplica-se a <strong>quantidade</strong> de
+            unidades pelo que a <strong>concentração</strong> do medicamento
+            indica em mg por unidade (ex.: &quot;500mg&quot; → 500 mg por
+            comprimido).
+          </p>
+          <p>
+            <strong>Na lista de pacientes:</strong> mostra o total por{" "}
+            <strong>medicamento prescrito</strong> (mesmo nome e concentração
+            do vínculo). Retiradas feitas <strong>sem</strong> paciente não
+            entram neste total.
+          </p>
+          <p>
+            <strong>Em Estoque por medicamento (comprometido):</strong> soma
+            todas as retiradas com paciente para aquele medicamento (nome +
+            concentração), considerando todos os pacientes.
+          </p>
+          <p className="pacientes-mg-info-nota">
+            Se aparecer &quot;—&quot; e a nota sobre concentração, o cadastro não
+            permitiu extrair mg a partir do texto da concentração.
+          </p>
+        </div>
+        <div className="pacientes-mg-info-footer">
+          <Button
+            type="button"
+            label="Fechar"
+            className="p-button-secondary"
+            onClick={() => setMgAcumuladoInfoVisible(false)}
+          />
+        </div>
+      </Dialog>
       <ConfirmDialog
         visible={admin && !!deletingPaciente}
         onHide={() => !deletingInProgress && setDeletingPaciente(null)}
@@ -838,7 +909,11 @@ export default function Pacientes() {
               <Column field="estoqueTotal" header="Estoque total" />
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
-                header="Mg acumulados (dispensado)"
+                header={() => (
+                  <MgAcumuladoColunaHeader
+                    onOpen={() => setMgAcumuladoInfoVisible(true)}
+                  />
+                )}
                 body={(r: ResumoPorMedicamento) => {
                   const rawMg = r.mgAcumuladoDispensadoTotal;
                   const linha =
@@ -1022,7 +1097,11 @@ export default function Pacientes() {
           bodyClassName="pacientes-col-medicamento"
         />
         <Column
-          header="Mg acumulados (dispensado)"
+          header={() => (
+            <MgAcumuladoColunaHeader
+              onOpen={() => setMgAcumuladoInfoVisible(true)}
+            />
+          )}
           body={(r: Paciente) => {
             const meds = r.medicamentos ?? [];
             if (!meds.length) return "—";
