@@ -18,6 +18,7 @@ router.get(
 );
 router.post("/add-quantity", requireAuth, requireAdmin, medicationController.addQuantity);
 router.post("/search", requireAuth, medicationController.searchMedication);
+router.post("/resolve-scan", requireAuth, requireAdmin, medicationController.resolveScan);
 router.get("/:id", requireAuth, medicationController.getMedicationById);
 router.put("/:id", requireAuth, requireAdmin, medicationController.updateMedication);
 router.delete("/:id", requireAuth, requireAdmin, medicationController.deleteMedication);

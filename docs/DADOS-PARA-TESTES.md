@@ -116,3 +116,40 @@ Na tabela abaixo, a coluna **Medicamentos** lista cada vínculo no formato *nome
 - **Data de retorno:** obrigatória quando "O paciente vai retornar para o serviço?" = **Sim**. Formato: YYYY-MM-DD (ex.: 2025-03-01). Várias datas podem ser registradas ao longo do tempo (na criação, na edição ou pelo botão **Histórico**).
 
 APAC e diagnóstico podem ser texto livre; use os exemplos acima ou variações conforme sua necessidade.
+
+---
+
+## 5. Cadastro por código de barras (`/register-medication-barcode`)
+
+**Pré-requisitos:** executar a migração que cria `medication_product_catalog` (opcional — sem ela, só GTIN extraído / parse GS1 preenche o que for possível). Usuário **admin**.
+
+### 5.1 Teste sem leitor físico
+
+1. Acesse **Medicamentos → Registrar (código de barras)** ou abra `/register-medication-barcode`.
+2. Tipo de entrada: **Novo lote** → **Digitar código de barras**.
+3. No campo, digite um código de teste e pressione **Enter** (ou **Aplicar leitura**):
+   - **EAN-13 só dígitos** (ex.: `7891234567890`): deve reconhecer GTIN e preencher apenas o que o backend conseguir (`source: gtin_only` se não houver linha no catálogo).
+   - **String GS1 com parênteses** (ex.: `(01)07891234567890(17)251231(10)LOTE-X`): deve preencher lote e validade quando o parse aceitar a string.
+4. Complete **manualmente** nome, quantidade, classificação e demais campos obrigatórios e **Registrar**.
+
+### 5.2 Teste com leitor USB (HID)
+
+1. Tipo de entrada: **Novo lote** → **Escanear com leitor USB**.
+2. Clique no campo de leitura (foco) e escaneie uma embalagem; o leitor deve enviar **Enter** ao final (configuração típica).
+3. Confira o toast **“Leitura aplicada”** e os campos preenchidos; ajuste o que faltar e registre.
+
+### 5.3 Catálogo interno (opcional)
+
+Para autopreencher nome/concentração/forma a partir do GTIN, insira uma linha em `medication_product_catalog` com `gtin` em **14 dígitos** (zeros à esquerda se necessário), alinhado ao código da embalagem. Exemplo (ajuste os valores):
+
+```sql
+INSERT INTO medication_product_catalog (gtin, nome, concentracao, forma, classificacao)
+VALUES ('07891234567890', 'Paracetamol', '500mg', '1', 'A');
+```
+
+Depois escaneie ou digite o mesmo GTIN e confira se **nome/concentração/forma/classificação** vêm do catálogo.
+
+### 5.4 Homologação (HTTPS / mobile)
+
+- **Câmera** para ler QR/DataMatrix não faz parte do MVP descrito no plano; leitor **laser 1D** não lê DataMatrix.
+- Em produção, use **HTTPS** se no futuro adicionarem leitura por câmera (`getUserMedia`).

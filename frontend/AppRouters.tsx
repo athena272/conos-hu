@@ -10,6 +10,7 @@ import Register from "./src/pages/Register";
 import Home from "./src/pages/Home";
 import NotFound from "./src/pages/NotFound";
 import RegisterMedication from "./src/pages/RegisterMedication";
+import RegisterMedicationByBarcode from "./src/pages/RegisterMedicationByBarcode";
 import RetiraMedication from "./src/pages/RetiraMedication";
 import Simulador from "./src/pages/Simulador";
 import Dashboard from "./src/pages/Dashboard";
@@ -41,6 +42,16 @@ const AppRoutes = () => {
             <PrivateRoute>
               <AdminRoute>
                 <RegisterMedication />
+              </AdminRoute>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/register-medication-barcode"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <RegisterMedicationByBarcode />
               </AdminRoute>
             </PrivateRoute>
           }

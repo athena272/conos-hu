@@ -30,6 +30,11 @@ export default function Menu() {
                 url: "/register-medication",
               },
               {
+                label: "Registrar (código de barras)",
+                icon: "pi pi-qrcode",
+                url: "/register-medication-barcode",
+              },
+              {
                 label: "Retirar",
                 icon: "pi pi-cart-arrow-down",
                 url: "/retira-medication",

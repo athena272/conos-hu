@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import db from "../models/db";
+import { extractGtinFromDigitString, parseGs1Raw } from "../utils/gs1Parse";
 
 interface MedicationRow {
   id: number;
@@ -12,6 +13,94 @@ interface MedicationRow {
   data_validade: string;
   data_cadastro?: string;
 }
+
+interface CatalogRow {
+  gtin: string;
+  nome: string | null;
+  concentracao: string | null;
+  forma: string | null;
+  classificacao: string | null;
+}
+
+/** Resolve leitura de código de barras / GS1 + catálogo opcional (autopreenchimento parcial). */
+export const resolveScan = (req: Request, res: Response): void => {
+  const raw = typeof req.body?.raw === "string" ? req.body.raw : "";
+  if (!raw.trim()) {
+    res.status(200).json({ source: "empty" as const });
+    return;
+  }
+
+  const gs1 = parseGs1Raw(raw);
+  const digitStr = raw.replace(/\D/g, "");
+  let gtin = gs1.gtin ?? extractGtinFromDigitString(digitStr);
+
+  const hasGs1Payload = Boolean(gs1.lote || gs1.data_validade || gs1.serial);
+
+  const applyCatalogAndRespond = (catalog: CatalogRow | null): void => {
+    const payload: {
+      source: "gs1" | "catalog" | "gtin_only" | "empty";
+      gtin?: string;
+      lote?: string;
+      data_validade?: string;
+      nome?: string;
+      concentracao?: string;
+      forma?: string;
+      classificacao?: string;
+    } = { source: "empty" };
+
+    if (gtin) payload.gtin = gtin;
+    if (gs1.lote) payload.lote = gs1.lote;
+    if (gs1.data_validade) payload.data_validade = gs1.data_validade;
+    if (catalog?.nome) payload.nome = catalog.nome ?? undefined;
+    if (catalog?.concentracao) payload.concentracao = catalog.concentracao ?? undefined;
+    if (catalog?.forma) payload.forma = catalog.forma ?? undefined;
+    if (catalog?.classificacao) payload.classificacao = catalog.classificacao ?? undefined;
+
+    const anyData = Boolean(
+      payload.gtin ||
+        payload.lote ||
+        payload.data_validade ||
+        payload.nome ||
+        payload.concentracao ||
+        payload.forma ||
+        payload.classificacao
+    );
+    if (!anyData) {
+      payload.source = "empty";
+      res.status(200).json(payload);
+      return;
+    }
+
+    if (hasGs1Payload) payload.source = "gs1";
+    else if (catalog) payload.source = "catalog";
+    else if (payload.gtin) payload.source = "gtin_only";
+    else payload.source = "empty";
+
+    res.status(200).json(payload);
+  };
+
+  if (!gtin) {
+    applyCatalogAndRespond(null);
+    return;
+  }
+
+  const padded = gtin.padStart(14, "0").slice(-14);
+  gtin = padded;
+
+  db.query(
+    "SELECT * FROM medication_product_catalog WHERE gtin = ? OR gtin = ? LIMIT 1",
+    [padded, padded.replace(/^0+/, "") || "0"],
+    (err: Error | null, results: unknown) => {
+      if (err) {
+        console.error("Erro ao buscar catálogo GTIN:", err);
+        applyCatalogAndRespond(null);
+        return;
+      }
+      const rows = (results as CatalogRow[]) || [];
+      applyCatalogAndRespond(rows[0] ?? null);
+    }
+  );
+};
 
 export const registerMedication = (req: Request, res: Response): void => {
   const {
