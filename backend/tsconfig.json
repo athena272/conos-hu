@@ -16,6 +16,7 @@
   },
   "include": [
     "./app.ts",
+    "./api/**/*.ts",
     "./server/**/*.ts",
     "./controllers/**/*.ts",
     "./routes/**/*.ts",
@@ -23,7 +24,8 @@
     "./middleware/**/*.ts",
     "./services/**/*.ts",
     "./types/**/*.ts",
-    "./test-db-connection.ts"
+    "./test-db-connection.ts",
+    "./scripts/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

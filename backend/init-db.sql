@@ -1,5 +1,5 @@
 -- Opcional / referência: o schema completo e as migrações leves são aplicados na primeira
--- conexão da API (veja backend/models/db.ts). Use este script apenas para bootstrap manual
+-- Bootstrap manual MySQL (a API usa MongoDB; veja MONGODB_URI e scripts de migração).
 -- em um MySQL onde você não vá subir a API de imediato, ou como documentação legada.
 --
 -- Com Docker Compose na raiz do projeto, o banco e o usuário da app já são criados pelas

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
-import db from "../models/db";
+import { coll, getDb } from "../models/mongo";
+import { getNextId } from "../models/sequences";
 import { extractGtinFromDigitString, parseGs1Raw } from "../utils/gs1Parse";
+import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
 
 interface MedicationRow {
   id: number;
@@ -22,8 +24,34 @@ interface CatalogRow {
   classificacao: string | null;
 }
 
+type MedicationDoc = {
+  _id: number;
+  nome: string;
+  lote: string;
+  quantidade: number;
+  classificacao?: string | null;
+  concentracao?: string | null;
+  forma?: string | null;
+  data_validade: string | Date;
+  created_at?: Date | string;
+};
+
+function docToMedicationRow(doc: MedicationDoc): MedicationRow {
+  return {
+    id: doc._id,
+    nome: doc.nome,
+    lote: doc.lote,
+    quantidade: doc.quantidade,
+    classificacao: doc.classificacao ?? undefined,
+    concentracao: doc.concentracao ?? undefined,
+    forma: doc.forma ?? undefined,
+    data_validade: dateOnly(doc.data_validade),
+    data_cadastro: formatMysqlTimestamp(doc.created_at),
+  };
+}
+
 /** Resolve leitura de código de barras / GS1 + catálogo opcional (autopreenchimento parcial). */
-export const resolveScan = (req: Request, res: Response): void => {
+export const resolveScan = async (req: Request, res: Response): Promise<void> => {
   const raw = typeof req.body?.raw === "string" ? req.body.raw : "";
   if (!raw.trim()) {
     res.status(200).json({ source: "empty" as const });
@@ -87,22 +115,30 @@ export const resolveScan = (req: Request, res: Response): void => {
   const padded = gtin.padStart(14, "0").slice(-14);
   gtin = padded;
 
-  db.query(
-    "SELECT * FROM medication_product_catalog WHERE gtin = ? OR gtin = ? LIMIT 1",
-    [padded, padded.replace(/^0+/, "") || "0"],
-    (err: Error | null, results: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar catálogo GTIN:", err);
-        applyCatalogAndRespond(null);
-        return;
-      }
-      const rows = (results as CatalogRow[]) || [];
-      applyCatalogAndRespond(rows[0] ?? null);
+  try {
+    const alt = padded.replace(/^0+/, "") || "0";
+    const doc = await coll<Record<string, unknown> & { gtin?: string }>("medication_product_catalog").findOne({
+      $or: [{ gtin: padded }, { gtin: alt }],
+    });
+    if (!doc) {
+      applyCatalogAndRespond(null);
+      return;
     }
-  );
+    const row: CatalogRow = {
+      gtin: String(doc.gtin),
+      nome: doc.nome != null ? String(doc.nome) : null,
+      concentracao: doc.concentracao != null ? String(doc.concentracao) : null,
+      forma: doc.forma != null ? String(doc.forma) : null,
+      classificacao: doc.classificacao != null ? String(doc.classificacao) : null,
+    };
+    applyCatalogAndRespond(row);
+  } catch (err) {
+    console.error("Erro ao buscar catálogo GTIN:", err);
+    applyCatalogAndRespond(null);
+  }
 };
 
-export const registerMedication = (req: Request, res: Response): void => {
+export const registerMedication = async (req: Request, res: Response): Promise<void> => {
   const {
     nome,
     lote,
@@ -118,123 +154,109 @@ export const registerMedication = (req: Request, res: Response): void => {
     return;
   }
 
-  db.query(
-    "INSERT INTO medications (nome, lote, quantidade, classificacao, concentracao, forma, data_validade) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [nome, lote, quantidade, classificacao, concentracao, forma, data_validade],
-    (err: Error | null, result: unknown) => {
-      if (err) {
-        console.error("Erro ao registrar medicação:", err);
-        res.status(500).json({ error: "Erro ao registrar a medicação" });
-        return;
-      }
-      const medicationId = (result as { insertId?: number })?.insertId;
-      if (medicationId) {
-        db.query(
-          "INSERT INTO movimentacoes (tipo, medication_id, quantidade, usuario_id) VALUES ('entrada', ?, ?, NULL)",
-          [medicationId, quantidade],
-          (movErr: Error | null) => {
-            if (movErr) console.error("Erro ao registrar movimentação de entrada:", movErr);
-          }
-        );
-      }
-      res.status(201).json({ message: "Medicação registrada com sucesso" });
-    }
-  );
-};
-
-export const getMedications = (req: Request, res: Response): void => {
-  db.query("SELECT * FROM medications", [], (err: Error | null, result: unknown) => {
-    if (err) {
-      console.error("Erro ao buscar medicações:", err);
-      res.status(500).json({ error: "Erro ao buscar medicações" });
-      return;
-    }
-
-    const rows = (result as MedicationRow[]) || [];
-    const hoje = new Date();
-
-    const medicationsWithStatus = rows.map((med) => {
-      const validade = new Date(med.data_validade);
-      let status: string;
-
-      if (med.quantidade <= 0) {
-        status = "emFalta";
-      } else if (validade < hoje) {
-        status = "foraValidade";
-      } else if ((validade.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24) <= 90) {
-        status = "proximoVencer";
-      } else {
-        status = "emEstoque";
-      }
-
-      return {
-        ...med,
-        status,
-      };
+  try {
+    const id = await getNextId("medications");
+    const q = parseInt(quantidade, 10);
+    await coll<MedicationDoc>("medications").insertOne({
+      _id: id,
+      nome,
+      lote,
+      quantidade: q,
+      classificacao: classificacao ?? null,
+      concentracao: concentracao ?? "",
+      forma: forma ?? "",
+      data_validade: String(data_validade).slice(0, 10),
+      created_at: new Date(),
     });
+    try {
+      const movId = await getNextId("movimentacoes");
+      await coll<{
+        _id: number;
+        tipo: string;
+        medication_id: number;
+        quantidade: number;
+        usuario_id: number | null;
+        data_movimentacao: Date;
+      }>("movimentacoes").insertOne({
+        _id: movId,
+        tipo: "entrada",
+        medication_id: id,
+        quantidade: q,
+        usuario_id: null,
+        data_movimentacao: new Date(),
+      });
+    } catch (movErr) {
+      console.error("Erro ao registrar movimentação de entrada:", movErr);
+    }
+    res.status(201).json({ message: "Medicação registrada com sucesso" });
+  } catch (err) {
+    console.error("Erro ao registrar medicação:", err);
+    res.status(500).json({ error: "Erro ao registrar a medicação" });
+  }
+};
 
+export const getMedications = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const docs = await coll<MedicationDoc>("medications").find().toArray();
+    const hoje = new Date();
+    const medicationsWithStatus = docs.map((med: MedicationDoc) => {
+      const row = docToMedicationRow(med);
+      const validade = new Date(row.data_validade);
+      let status: string;
+      if (row.quantidade <= 0) status = "emFalta";
+      else if (validade < hoje) status = "foraValidade";
+      else if ((validade.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24) <= 90) status = "proximoVencer";
+      else status = "emEstoque";
+      return { ...row, status };
+    });
     res.status(200).json(medicationsWithStatus);
-  });
+  } catch (err) {
+    console.error("Erro ao buscar medicações:", err);
+    res.status(500).json({ error: "Erro ao buscar medicações" });
+  }
 };
 
-export const getValidade = (req: Request, res: Response): void => {
-  db.query(
-    "SELECT * FROM medications WHERE data_validade < CURDATE()",
-    [],
-    (err: Error | null, result: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar medicações vencidas:", err);
-        res.status(500).json({ error: "Erro ao buscar medicações vencidas" });
-        return;
-      }
-      res.status(200).json((result as MedicationRow[]) || []);
-    }
-  );
+export const getValidade = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const docs = await coll<MedicationDoc>("medications").find({ data_validade: { $lt: today } }).toArray();
+    res.status(200).json(docs.map(docToMedicationRow));
+  } catch (err) {
+    console.error("Erro ao buscar medicações vencidas:", err);
+    res.status(500).json({ error: "Erro ao buscar medicações vencidas" });
+  }
 };
 
-export const getQuantity = (req: Request, res: Response): void => {
-  db.query(
-    "SELECT SUM(quantidade) AS total FROM medications",
-    [],
-    (err: Error | null, result: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar a quantidade de medicações", err);
-        res.status(500).json({ error: "Erro ao buscar a quantidade de medicações" });
-        return;
-      }
-      const rows = (result as { total: number }[]) || [];
-      res.status(200).json({ total: rows[0]?.total || 0 });
-    }
-  );
+export const getQuantity = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const agg = await coll<MedicationDoc>("medications")
+      .aggregate([{ $group: { _id: null, total: { $sum: "$quantidade" } } }])
+      .toArray();
+    const total = agg[0]?.total ?? 0;
+    res.status(200).json({ total: Number(total) });
+  } catch (err) {
+    console.error("Erro ao buscar a quantidade de medicações", err);
+    res.status(500).json({ error: "Erro ao buscar a quantidade de medicações" });
+  }
 };
 
-export const searchMedication = (req: Request, res: Response): void => {
+export const searchMedication = async (req: Request, res: Response): Promise<void> => {
   const { nome, concentracao } = req.body;
-
   if (!nome || !concentracao) {
     res.status(400).json({ error: "Nome e concentração são obrigatórios" });
     return;
   }
-
-  db.query(
-    "SELECT * FROM medications WHERE nome = ? AND concentracao = ? LIMIT 1",
-    [nome, concentracao],
-    (err: Error | null, results: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar medicação:", err);
-        res.status(500).json({ error: "Erro ao buscar medicação" });
-        return;
-      }
-
-      const rows = (results as MedicationRow[]) || [];
-      if (rows.length === 0) {
-        res.status(404).json({ error: "Medicação não encontrada" });
-        return;
-      }
-
-      res.status(200).json(rows[0]);
+  try {
+    const doc = await coll<MedicationDoc>("medications").findOne({ nome, concentracao });
+    if (!doc) {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
     }
-  );
+    res.status(200).json(docToMedicationRow(doc));
+  } catch (err) {
+    console.error("Erro ao buscar medicação:", err);
+    res.status(500).json({ error: "Erro ao buscar medicação" });
+  }
 };
 
 function addStatus(med: MedicationRow): MedicationRow & { status: string } {
@@ -248,129 +270,109 @@ function addStatus(med: MedicationRow): MedicationRow & { status: string } {
   return { ...med, status };
 }
 
-export const getMedicationById = (req: Request, res: Response): void => {
+export const getMedicationById = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-
-  db.query(
-    "SELECT * FROM medications WHERE id = ?",
-    [id],
-    (err: Error | null, results: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar medicação:", err);
-        res.status(500).json({ error: "Erro ao buscar medicação" });
-        return;
-      }
-      const rows = (results as MedicationRow[]) || [];
-      if (rows.length === 0) {
-        res.status(404).json({ error: "Medicação não encontrada" });
-        return;
-      }
-      res.status(200).json(addStatus(rows[0]));
+  try {
+    const doc = await coll<MedicationDoc>("medications").findOne({ _id: id });
+    if (!doc) {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
     }
-  );
+    res.status(200).json(addStatus(docToMedicationRow(doc)));
+  } catch (err) {
+    console.error("Erro ao buscar medicação:", err);
+    res.status(500).json({ error: "Erro ao buscar medicação" });
+  }
 };
 
-/** Lista pares (nome, concentracao) distintos para dropdown de medicamento (ex.: cadastro de paciente) */
-export const getDistinctNomeConcentration = (req: Request, res: Response): void => {
-  db.query(
-    "SELECT DISTINCT nome, concentracao FROM medications ORDER BY nome, concentracao",
-    [],
-    (err: Error | null, results: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar medicamentos distintos:", err);
-        res.status(500).json({ error: "Erro ao buscar medicamentos" });
-        return;
-      }
-      res.status(200).json((results as { nome: string; concentracao: string }[]) || []);
-    }
-  );
+export const getDistinctNomeConcentration = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const rows = await coll<MedicationDoc>("medications").aggregate<{ nome: string; concentracao: string }>([
+        { $group: { _id: { nome: "$nome", concentracao: "$concentracao" } } },
+        { $project: { _id: 0, nome: "$_id.nome", concentracao: "$_id.concentracao" } },
+        { $sort: { nome: 1, concentracao: 1 } },
+      ])
+      .toArray();
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Erro ao buscar medicamentos distintos:", err);
+    res.status(500).json({ error: "Erro ao buscar medicamentos" });
+  }
 };
 
-/** Lista todos os lotes (medicamentos) com mesmo nome e concentração para escolha na retirada */
-export const getLotsByNameConcentration = (req: Request, res: Response): void => {
+export const getLotsByNameConcentration = async (req: Request, res: Response): Promise<void> => {
   const nome = req.query.nome as string;
   const concentracao = req.query.concentracao as string;
-
   if (!nome?.trim() || !concentracao?.trim()) {
     res.status(400).json({ error: "Nome e concentração são obrigatórios" });
     return;
   }
-
-  db.query(
-    "SELECT * FROM medications WHERE nome = ? AND concentracao = ? ORDER BY data_validade ASC",
-    [nome.trim(), concentracao.trim()],
-    (err: Error | null, results: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar lotes:", err);
-        res.status(500).json({ error: "Erro ao buscar lotes" });
-        return;
-      }
-      const rows = (results as MedicationRow[]) || [];
-      res.status(200).json(rows.map(addStatus));
-    }
-  );
+  try {
+    const docs = await coll<MedicationDoc>("medications")
+      .find({ nome: nome.trim(), concentracao: concentracao.trim() })
+      .sort({ data_validade: 1 })
+      .toArray();
+    res.status(200).json(docs.map((d: MedicationDoc) => addStatus(docToMedicationRow(d))));
+  } catch (err) {
+    console.error("Erro ao buscar lotes:", err);
+    res.status(500).json({ error: "Erro ao buscar lotes" });
+  }
 };
 
-export const addQuantity = (req: Request, res: Response): void => {
+export const addQuantity = async (req: Request, res: Response): Promise<void> => {
   const { medication_id, quantidade } = req.body;
   const quantidadeNum = parseInt(quantidade, 10);
-
   if (!medication_id || isNaN(quantidadeNum) || quantidadeNum <= 0) {
     res.status(400).json({ error: "medication_id e quantidade (número positivo) são obrigatórios" });
     return;
   }
-
-  db.query(
-    "SELECT id, quantidade FROM medications WHERE id = ?",
-    [medication_id],
-    (err: Error | null, rows: unknown) => {
-      if (err) {
-        console.error("Erro ao buscar medicação:", err);
-        res.status(500).json({ error: "Erro ao buscar medicação" });
-        return;
-      }
-      const list = (rows as MedicationRow[]) || [];
-      if (list.length === 0) {
-        res.status(404).json({ error: "Medicação não encontrada" });
-        return;
-      }
-
-      db.query(
-        "UPDATE medications SET quantidade = quantidade + ? WHERE id = ?",
-        [quantidadeNum, medication_id],
-        (upErr: Error | null) => {
-          if (upErr) {
-            console.error("Erro ao adicionar quantidade:", upErr);
-            res.status(500).json({ error: "Erro ao adicionar quantidade" });
-            return;
-          }
-          db.query(
-            "INSERT INTO movimentacoes (tipo, medication_id, quantidade, usuario_id) VALUES ('entrada', ?, ?, NULL)",
-            [medication_id, quantidadeNum],
-            (movErr: Error | null) => {
-              if (movErr) console.error("Erro ao registrar movimentação de entrada:", movErr);
-            }
-          );
-          res.status(200).json({ message: "Quantidade adicionada com sucesso" });
-        }
-      );
+  try {
+    const mid = parseInt(String(medication_id), 10);
+    const found = await coll<MedicationDoc>("medications").findOne({ _id: mid });
+    if (!found) {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
     }
-  );
+    await coll<MedicationDoc>("medications").updateOne({ _id: mid }, { $inc: { quantidade: quantidadeNum } });
+    try {
+      const movId = await getNextId("movimentacoes");
+      await coll<{
+        _id: number;
+        tipo: string;
+        medication_id: number;
+        quantidade: number;
+        usuario_id: number | null;
+        data_movimentacao: Date;
+      }>("movimentacoes").insertOne({
+        _id: movId,
+        tipo: "entrada",
+        medication_id: mid,
+        quantidade: quantidadeNum,
+        usuario_id: null,
+        data_movimentacao: new Date(),
+      });
+    } catch (movErr) {
+      console.error("Erro ao registrar movimentação de entrada:", movErr);
+    }
+    res.status(200).json({ message: "Quantidade adicionada com sucesso" });
+  } catch (err) {
+    console.error("Erro ao adicionar quantidade:", err);
+    res.status(500).json({ error: "Erro ao adicionar quantidade" });
+  }
 };
 
-export const updateMedication = (req: Request, res: Response): void => {
+export const updateMedication = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-
   const {
     nome,
     lote,
@@ -380,135 +382,79 @@ export const updateMedication = (req: Request, res: Response): void => {
     forma,
     data_validade,
   } = req.body;
-
   if (!nome || !lote || quantidade === undefined || quantidade === null || !data_validade) {
     res.status(400).json({ error: "nome, lote, quantidade e data_validade são obrigatórios" });
     return;
   }
-
   const quantidadeNum = parseInt(quantidade, 10);
   if (isNaN(quantidadeNum) || quantidadeNum < 0) {
     res.status(400).json({ error: "quantidade deve ser um número não negativo" });
     return;
   }
-
-  db.query(
-    "UPDATE medications SET nome = ?, lote = ?, quantidade = ?, classificacao = ?, concentracao = ?, forma = ?, data_validade = ? WHERE id = ?",
-    [nome, lote, quantidadeNum, classificacao ?? "", concentracao ?? "", forma, data_validade, id],
-    (err: Error | null, result: unknown) => {
-      if (err) {
-        console.error("Erro ao atualizar medicação:", err);
-        res.status(500).json({ error: "Erro ao atualizar medicação" });
-        return;
+  try {
+    const r = await coll<MedicationDoc>("medications").updateOne(
+      { _id: id },
+      {
+        $set: {
+          nome,
+          lote,
+          quantidade: quantidadeNum,
+          classificacao: classificacao ?? "",
+          concentracao: concentracao ?? "",
+          forma: forma ?? "",
+          data_validade: String(data_validade).slice(0, 10),
+        },
       }
-      if ((result as { affectedRows?: number })?.affectedRows === 0) {
-        res.status(404).json({ error: "Medicação não encontrada" });
-        return;
-      }
-      db.query(
-        "SELECT * FROM medications WHERE id = ?",
-        [id],
-        (selErr: Error | null, rows: unknown) => {
-          if (selErr || !(rows as MedicationRow[]).length) {
-            res.status(200).json({ message: "Medicação atualizada com sucesso" });
-            return;
-          }
-          res.status(200).json(addStatus((rows as MedicationRow[])[0]));
-        }
-      );
+    );
+    if (r.matchedCount === 0) {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
     }
-  );
+    const doc = await coll<MedicationDoc>("medications").findOne({ _id: id });
+    if (doc) {
+      res.status(200).json(addStatus(docToMedicationRow(doc)));
+    } else {
+      res.status(200).json({ message: "Medicação atualizada com sucesso" });
+    }
+  } catch (err) {
+    console.error("Erro ao atualizar medicação:", err);
+    res.status(500).json({ error: "Erro ao atualizar medicação" });
+  }
 };
 
-export const deleteMedication = (req: Request, res: Response): void => {
+export const deleteMedication = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-
-  db.getConnection((connErr, connection) => {
-    if (connErr) {
-      console.error("Erro ao obter conexão para exclusão:", connErr);
-      res.status(500).json({ error: "Erro ao excluir medicação" });
+  try {
+    const db = getDb();
+    const exists = await coll<MedicationDoc>("medications").findOne({ _id: id });
+    if (!exists) {
+      res.status(404).json({ error: "Medicação não encontrada" });
       return;
     }
-
-    const rollbackAndRelease = (err?: Error) => {
-      if (err) console.error("Erro ao excluir medicação:", err);
-      connection.rollback(() => {
-        connection.release();
-        res.status(500).json({ error: "Erro ao excluir medicação" });
+    const session = db.client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await coll<{ _id: number }>("movimentacoes").deleteMany({ medication_id: id }, { session });
+        await coll<{ _id: number }>("retira_medications").deleteMany({ medication_id: id }, { session });
+        const del = await coll<MedicationDoc>("medications").deleteOne({ _id: id }, { session });
+        if (del.deletedCount === 0) throw new Error("NOT_FOUND");
       });
-    };
-
-    connection.beginTransaction((txErr) => {
-      if (txErr) {
-        connection.release();
-        console.error("Erro ao iniciar transação:", txErr);
-        res.status(500).json({ error: "Erro ao excluir medicação" });
-        return;
-      }
-
-      connection.query(
-        "SELECT id FROM medications WHERE id = ?",
-        [id],
-        (err: Error | null, rows: unknown) => {
-          if (err) {
-            rollbackAndRelease(err);
-            return;
-          }
-          const list = (rows as { id: number }[]) || [];
-          if (list.length === 0) {
-            connection.rollback(() => {
-              connection.release();
-              res.status(404).json({ error: "Medicação não encontrada" });
-            });
-            return;
-          }
-
-          connection.query(
-            "DELETE FROM movimentacoes WHERE medication_id = ?",
-            [id],
-            (movErr: Error | null) => {
-              if (movErr) {
-                rollbackAndRelease(movErr);
-                return;
-              }
-              connection.query(
-                "DELETE FROM retira_medications WHERE medication_id = ?",
-                [id],
-                (retErr: Error | null) => {
-                  if (retErr) {
-                    rollbackAndRelease(retErr);
-                    return;
-                  }
-                  connection.query(
-                    "DELETE FROM medications WHERE id = ?",
-                    [id],
-                    (medErr: Error | null) => {
-                      if (medErr) {
-                        rollbackAndRelease(medErr);
-                        return;
-                      }
-                      connection.commit((commitErr: Error | null) => {
-                        connection.release();
-                        if (commitErr) {
-                          console.error("Erro ao confirmar exclusão:", commitErr);
-                          res.status(500).json({ error: "Erro ao excluir medicação" });
-                          return;
-                        }
-                        res.status(204).send();
-                      });
-                    }
-                  );
-                }
-              );
-            }
-          );
-        }
-      );
-    });
-  });
+    } finally {
+      await session.endSession();
+    }
+    res.status(204).send();
+  } catch (err) {
+    const e = err as Error;
+    if (e.message === "NOT_FOUND") {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
+    }
+    console.error("Erro ao excluir medicação:", err);
+    res.status(500).json({ error: "Erro ao excluir medicação" });
+  }
 };
