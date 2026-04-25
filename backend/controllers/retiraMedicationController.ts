@@ -1,25 +1,17 @@
 import { Request, Response } from "express";
-import db from "../models/db";
+import { coll, getDb } from "../models/mongo";
+import { getNextId } from "../models/sequences";
 
-interface PoolConnection {
-  query: (
-    sql: string,
-    values: unknown[],
-    callback: (err: Error | null, result?: unknown) => void
-  ) => void;
-  beginTransaction: (callback: (err: Error | null) => void) => void;
-  commit: (callback: (err: Error | null) => void) => void;
-  rollback: (callback: () => void) => void;
-  release: () => void;
-}
+type MedicationStock = { _id: number; quantidade: number };
 
-export const retiraMedication = (req: Request, res: Response): void => {
+export const retiraMedication = async (req: Request, res: Response): Promise<void> => {
   const usuario_id = req.user!.id;
   const { medication_id, quantidade, paciente_id } = req.body;
 
   console.log("📥 Dados recebidos para retirada:", { ...req.body, usuario_id });
 
   const quantidadeNum = parseInt(quantidade, 10);
+  const medicationId = parseInt(String(medication_id), 10);
 
   if (!medication_id || isNaN(quantidadeNum)) {
     console.log("❌ Dados inválidos:", { medication_id, quantidade });
@@ -39,136 +31,93 @@ export const retiraMedication = (req: Request, res: Response): void => {
     pacienteIdSql = pid;
   }
 
-  db.getConnection((err: Error | null, connection: PoolConnection) => {
-    if (err) {
-      console.error("❌ Erro ao obter conexão:", err);
-      res.status(500).json({ error: "Erro interno do servidor" });
-      return;
-    }
-
-    const runTransaction = (): void => {
-      connection.beginTransaction((txErr) => {
-        if (txErr) {
-          connection.release();
-          console.error("❌ Erro ao iniciar transação:", txErr);
-          res.status(500).json({ error: "Erro interno do servidor" });
-          return;
-        }
-
-        console.log("🔍 Verificando estoque para medication_id:", medication_id);
-
-        connection.query(
-          "SELECT quantidade FROM medications WHERE id = ? FOR UPDATE",
-          [medication_id],
-          (selErr: Error | null, result: unknown) => {
-            if (selErr) {
-              connection.rollback(() => connection.release());
-              console.error("❌ Erro ao buscar medicação:", selErr);
-              res.status(500).json({ error: "Erro ao buscar medicação" });
-              return;
-            }
-
-            const rows = (result as { quantidade: number }[]) || [];
-            if (rows.length === 0) {
-              connection.rollback(() => connection.release());
-              console.error("❌ Medicação não encontrada, ID:", medication_id);
-              res.status(404).json({ error: "Medicação não encontrada" });
-              return;
-            }
-
-            const availableQuantity = rows[0].quantidade;
-            console.log(
-              `📊 Estoque disponível: ${availableQuantity}, Quantidade solicitada: ${quantidadeNum}`
-            );
-
-            if (availableQuantity < quantidadeNum) {
-              connection.rollback(() => connection.release());
-              console.log("❌ Quantidade insuficiente em estoque");
-              res.status(400).json({ error: "Quantidade insuficiente em estoque" });
-              return;
-            }
-
-            console.log("📝 Registrando retirada...");
-            connection.query(
-              "INSERT INTO retira_medications (medication_id, usuario_id, quantidade, paciente_id) VALUES (?, ?, ?, ?)",
-              [medication_id, usuario_id, quantidadeNum, pacienteIdSql],
-              (insErr) => {
-                if (insErr) {
-                  connection.rollback(() => connection.release());
-                  console.error("❌ Erro ao registrar retirada:", insErr);
-                  res.status(500).json({ error: "Erro ao registrar retirada" });
-                  return;
-                }
-
-                connection.query(
-                  "INSERT INTO movimentacoes (tipo, medication_id, quantidade, usuario_id) VALUES ('saida', ?, ?, ?)",
-                  [medication_id, quantidadeNum, usuario_id],
-                  (movErr) => {
-                    if (movErr) {
-                      connection.rollback(() => connection.release());
-                      console.error("❌ Erro ao registrar movimentação:", movErr);
-                      res.status(500).json({ error: "Erro ao registrar movimentação" });
-                      return;
-                    }
-
-                    console.log("🔄 Atualizando estoque...");
-                    connection.query(
-                      "UPDATE medications SET quantidade = quantidade - ? WHERE id = ?",
-                      [quantidadeNum, medication_id],
-                      (updErr) => {
-                        if (updErr) {
-                          connection.rollback(() => connection.release());
-                          console.error("❌ Erro ao atualizar estoque:", updErr);
-                          res.status(500).json({ error: "Erro ao atualizar estoque" });
-                          return;
-                        }
-
-                        connection.commit((commitErr) => {
-                          if (commitErr) {
-                            connection.rollback(() => connection.release());
-                            console.error("❌ Erro ao finalizar transação:", commitErr);
-                            res.status(500).json({
-                              error: "Erro ao finalizar transação",
-                            });
-                            return;
-                          }
-                          connection.release();
-                          console.log("✅ Retirada realizada com sucesso");
-                          res.status(200).json({ message: "Retirada realizada com sucesso" });
-                        });
-                      }
-                    );
-                  }
-                );
-              }
-            );
-          }
-        );
-      });
-    };
+  try {
+    const db = getDb();
 
     if (pacienteIdSql != null) {
-      connection.query(
-        "SELECT id FROM pacientes WHERE id = ?",
-        [pacienteIdSql],
-        (chkErr: Error | null, chkResult: unknown) => {
-          if (chkErr) {
-            connection.release();
-            console.error("❌ Erro ao validar paciente:", chkErr);
-            res.status(500).json({ error: "Erro ao validar paciente" });
-            return;
-          }
-          const prow = (chkResult as { id: number }[]) || [];
-          if (prow.length === 0) {
-            connection.release();
-            res.status(400).json({ error: "Paciente não encontrado" });
-            return;
-          }
-          runTransaction();
-        }
-      );
-    } else {
-      runTransaction();
+      const p = await coll<{ _id: number }>("pacientes").findOne({ _id: pacienteIdSql });
+      if (!p) {
+        res.status(400).json({ error: "Paciente não encontrado" });
+        return;
+      }
     }
-  });
+
+    const session = db.client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const medCol = coll<MedicationStock>("medications");
+        const after = await medCol.findOneAndUpdate(
+          { _id: medicationId, quantidade: { $gte: quantidadeNum } },
+          { $inc: { quantidade: -quantidadeNum } },
+          { session, returnDocument: "after" }
+        );
+        if (!after) {
+          const exists = await medCol.findOne({ _id: medicationId }, { session });
+          if (!exists) {
+            throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
+          }
+          throw Object.assign(new Error("INSUFFICIENT"), { code: "INSUFFICIENT" });
+        }
+
+        const retiraId = await getNextId("retira_medications", session);
+        await coll<{
+          _id: number;
+          medication_id: number;
+          usuario_id: number;
+          quantidade: number;
+          data_retirada: Date;
+          paciente_id: number | null;
+        }>("retira_medications").insertOne(
+          {
+            _id: retiraId,
+            medication_id: medicationId,
+            usuario_id,
+            quantidade: quantidadeNum,
+            data_retirada: new Date(),
+            paciente_id: pacienteIdSql,
+          },
+          { session }
+        );
+
+        const movId = await getNextId("movimentacoes", session);
+        await coll<{
+          _id: number;
+          tipo: string;
+          medication_id: number;
+          quantidade: number;
+          usuario_id: number;
+          data_movimentacao: Date;
+        }>("movimentacoes").insertOne(
+          {
+            _id: movId,
+            tipo: "saida",
+            medication_id: medicationId,
+            quantidade: quantidadeNum,
+            usuario_id,
+            data_movimentacao: new Date(),
+          },
+          { session }
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    console.log("✅ Retirada realizada com sucesso");
+    res.status(200).json({ message: "Retirada realizada com sucesso" });
+  } catch (err: unknown) {
+    const e = err as { code?: string };
+    if (e.code === "NOT_FOUND") {
+      console.error("❌ Medicação não encontrada, ID:", medication_id);
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
+    }
+    if (e.code === "INSUFFICIENT") {
+      console.log("❌ Quantidade insuficiente em estoque");
+      res.status(400).json({ error: "Quantidade insuficiente em estoque" });
+      return;
+    }
+    console.error("❌ Erro na retirada:", err);
+    res.status(500).json({ error: "Erro interno do servidor" });
+  }
 };

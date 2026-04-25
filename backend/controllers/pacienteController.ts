@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import db from "../models/db";
+import { coll, getDb } from "../models/mongo";
+import { getNextId } from "../models/sequences";
 import {
   parseRegimeConsumo,
   taxaFromPersistRow,
@@ -10,6 +11,7 @@ import {
 import { mgTotaisFromUnidades } from "../utils/concentracaoMg";
 import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
 import type { UserRole } from "../types/roles";
+import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
 
@@ -59,7 +61,6 @@ function validateMedicamentos(medicamentos: unknown): string | null {
   return null;
 }
 
-/** Valores (sem paciente_id) na ordem do INSERT em paciente_medicamentos. */
 function sqlValuesForMedicamento(m: PacienteMedicamentoItem): [string, string, number, RegimeConsumo, number | null, number | null] {
   const nome = String(m.medicamento_nome).trim();
   const conc = String(m.medicamento_concentracao).trim();
@@ -107,7 +108,7 @@ function buildMgAcumuladoMap(
     medicamento_nome: string;
     medicamento_concentracao: string;
     total_unidades: number | string;
-  }>,
+  }>
 ): Map<string, number | null> {
   const map = new Map<string, number | null>();
   for (const r of rows) {
@@ -137,9 +138,8 @@ function medicamentoNomeConcKey(nome: string, conc: string): string {
   return `${String(nome).trim()}\0${String(conc).trim()}`;
 }
 
-/** Mg total dispensado por par nome+concentração (retiradas com paciente). */
 function buildMgTotalDispensadoPorMedicamentoMap(
-  rows: Array<{ nome: string; concentracao: string; total_unidades: number | string }>,
+  rows: Array<{ nome: string; concentracao: string; total_unidades: number | string }>
 ): Map<string, number | null> {
   const map = new Map<string, number | null>();
   for (const r of rows) {
@@ -151,42 +151,79 @@ function buildMgTotalDispensadoPorMedicamentoMap(
   return map;
 }
 
-function respondListPacientes(
-  req: Request,
-  res: Response,
-  list: PacienteListItem[],
-  ids: number[],
-  placeholders: string,
-): void {
+function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null): PacienteRowWithProximaRetorno {
+  return {
+    id: doc._id as number,
+    nome: String(doc.nome),
+    prontuario: Number(doc.prontuario),
+    apac: String(doc.apac),
+    diagnostico: String(doc.diagnostico),
+    observacoes: doc.observacoes != null ? String(doc.observacoes) : null,
+    telefone: String(doc.telefone ?? ""),
+    data_liberacao: dateOnly(doc.data_liberacao),
+    retorna_servico: Number(doc.retorna_servico) ? 1 : 0,
+    tipo_retorno: doc.tipo_retorno != null ? String(doc.tipo_retorno) : null,
+    proxima_data_retorno: proxima,
+  };
+}
+
+async function aggregateRetiradasMgByPaciente(ids: number[]): Promise<
+  Array<{
+    paciente_id: number;
+    medicamento_nome: string;
+    medicamento_concentracao: string;
+    total_unidades: number;
+  }>
+> {
+  if (ids.length === 0) return [];
+  const rows = await coll<{ _id: number; paciente_id?: number; medication_id: number; quantidade: number }>(
+    "retira_medications"
+  ).aggregate<{
+      paciente_id: number;
+      medicamento_nome: string;
+      medicamento_concentracao: string;
+      total_unidades: number;
+    }>([
+      { $match: { paciente_id: { $in: ids } } },
+      { $lookup: { from: "medications", localField: "medication_id", foreignField: "_id", as: "m" } },
+      { $unwind: "$m" },
+      {
+        $group: {
+          _id: { pid: "$paciente_id", nome: "$m.nome", conc: "$m.concentracao" },
+          total_unidades: { $sum: "$quantidade" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          paciente_id: "$_id.pid",
+          medicamento_nome: "$_id.nome",
+          medicamento_concentracao: "$_id.conc",
+          total_unidades: 1,
+        },
+      },
+    ])
+    .toArray();
+  return rows;
+}
+
+async function respondListPacientes(req: Request, res: Response, list: PacienteListItem[], ids: number[]): Promise<void> {
   const role = req.user?.role as UserRole | undefined;
   if (ids.length === 0) {
     res.status(200).json(list.map((p) => redactPacienteIdentificacao(p, role)));
     return;
   }
-  db.query(
-    `SELECT rm.paciente_id, m.nome AS medicamento_nome, m.concentracao AS medicamento_concentracao,
-     COALESCE(SUM(rm.quantidade), 0) AS total_unidades
-     FROM retira_medications rm
-     INNER JOIN medications m ON m.id = rm.medication_id
-     WHERE rm.paciente_id IN (${placeholders})
-     GROUP BY rm.paciente_id, m.nome, m.concentracao`,
-    ids,
-    (errRet: Error | null, retRows: unknown) => {
-      if (errRet) {
-        console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
-      }
-      const raw =
-        (retRows as Array<{
-          paciente_id: number;
-          medicamento_nome: string;
-          medicamento_concentracao: string;
-          total_unidades: number | string;
-        }>) ?? [];
-      const mgMap = errRet ? new Map<string, number | null>() : buildMgAcumuladoMap(raw);
-      const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
-      res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
-    },
-  );
+  try {
+    const raw = await aggregateRetiradasMgByPaciente(ids);
+    const mgMap = buildMgAcumuladoMap(raw);
+    const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
+    res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
+  } catch (errRet) {
+    console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
+    const mgMap = new Map<string, number | null>();
+    const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
+    res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
+  }
 }
 
 function isValidDateString(s: string): boolean {
@@ -211,7 +248,7 @@ function validateBodyCreateUpdate(body: Record<string, unknown>, _isUpdate: bool
   if (telefone !== undefined && telefone !== null && typeof telefone !== "string") return "telefone deve ser texto quando informado";
   if (!data_liberacao || typeof data_liberacao !== "string" || !data_liberacao.trim()) return "data_liberacao é obrigatória";
   const retorna = Boolean(retorna_servico);
-  if (retorna && (!tipo_retorno || typeof tipo_retorno !== "string" || !TIPOS_RETORNO.includes(tipo_retorno as typeof TIPOS_RETORNO[number]))) {
+  if (retorna && (!tipo_retorno || typeof tipo_retorno !== "string" || !TIPOS_RETORNO.includes(tipo_retorno as (typeof TIPOS_RETORNO)[number]))) {
     return "tipo_retorno deve ser um de: farmacia_medico, somente_farmacia, farmacia_enfermagem quando retorna_servico é true";
   }
   if (retorna) {
@@ -233,134 +270,135 @@ interface PacienteRowWithProximaRetorno extends PacienteRow {
   proxima_data_retorno: string | null;
 }
 
-export const listPacientes = (req: Request, res: Response): void => {
-  const sqlPacientes =
-    "SELECT p.*, (SELECT MIN(pr.data_retorno) FROM paciente_retornos pr WHERE pr.paciente_id = p.id AND pr.data_retorno >= CURDATE()) AS proxima_data_retorno FROM pacientes p ORDER BY p.nome";
-  db.query(sqlPacientes, [], (err: Error | null, results: unknown) => {
-    if (err) {
-      console.error("Erro ao listar pacientes:", err);
-      res.status(500).json({ error: "Erro ao listar pacientes" });
-      return;
+async function proximaRetornoPorPaciente(ids: number[]): Promise<Map<number, string | null>> {
+  const map = new Map<number, string | null>();
+  for (const id of ids) map.set(id, null);
+  if (ids.length === 0) return map;
+  const today = new Date().toISOString().slice(0, 10);
+  const retornos = await coll<{ paciente_id: number; data_retorno: string }>("paciente_retornos")
+    .find({ paciente_id: { $in: ids }, data_retorno: { $gte: today } })
+    .sort({ data_retorno: 1 })
+    .toArray();
+  for (const r of retornos) {
+    const pid = r.paciente_id;
+    if (map.get(pid) === null) {
+      map.set(pid, dateOnly(r.data_retorno));
     }
-    const pacientes = (results as PacienteRowWithProximaRetorno[]) || [];
-    if (pacientes.length === 0) {
+  }
+  return map;
+}
+
+export const listPacientes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const docs = await coll<Record<string, unknown> & { _id: number }>("pacientes").find().sort({ nome: 1 }).toArray();
+    if (docs.length === 0) {
       res.status(200).json([]);
       return;
     }
-    const ids = pacientes.map((p) => p.id);
-    const placeholders = ids.map(() => "?").join(",");
-    db.query(
-      `SELECT paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE paciente_id IN (${placeholders}) ORDER BY paciente_id`,
-      ids,
-      (errMed: Error | null, medRows: unknown) => {
-        if (errMed) {
-          console.error("Erro ao listar medicamentos dos pacientes:", errMed);
-          res.status(500).json({ error: "Erro ao listar pacientes" });
-          return;
-        }
-        const rows = (medRows as MedicamentoPersistRow[]) || [];
-        const byPaciente = new Map<number, ReturnType<typeof mapMedicamentoToResponse>[]>();
-        for (const r of rows) {
-          const list = byPaciente.get(r.paciente_id) ?? [];
-          list.push(mapMedicamentoToResponse(r));
-          byPaciente.set(r.paciente_id, list);
-        }
-        db.query(
-          `SELECT DISTINCT pm.paciente_id, m.lote FROM paciente_medicamentos pm INNER JOIN medications m ON m.nome = pm.medicamento_nome AND m.concentracao = pm.medicamento_concentracao WHERE pm.paciente_id IN (${placeholders})`,
-          ids,
-          (errLotes: Error | null, loteRows: unknown) => {
-            if (errLotes) {
-              console.error("Erro ao listar lotes dos pacientes:", errLotes);
-              res.status(500).json({ error: "Erro ao listar pacientes" });
-              return;
-            }
-            const lotesRaw = (loteRows as { paciente_id: number; lote: string }[]) || [];
-            const lotesByPaciente = new Map<number, string[]>();
-            for (const row of lotesRaw) {
-              const list = lotesByPaciente.get(row.paciente_id) ?? [];
-              if (!list.includes(row.lote)) list.push(row.lote);
-              lotesByPaciente.set(row.paciente_id, list);
-            }
-            const out: PacienteListItem[] = pacientes.map((p) => ({
-              ...p,
-              medicamentos: byPaciente.get(p.id) ?? [],
-              proxima_data_retorno: p.proxima_data_retorno ?? null,
-              lotes: lotesByPaciente.get(p.id) ?? [],
-            }));
-            respondListPacientes(req, res, out, ids, placeholders);
-          }
-        );
-      }
+    type PacienteDoc = Record<string, unknown> & { _id: number };
+    const proxMap = await proximaRetornoPorPaciente((docs as PacienteDoc[]).map((d) => d._id));
+    const pacientes: PacienteRowWithProximaRetorno[] = (docs as PacienteDoc[]).map((d) =>
+      pacienteDocToRow(d, proxMap.get(d._id) ?? null)
     );
-  });
+    const ids = pacientes.map((p) => p.id);
+    const medRows = await coll<MedicamentoPersistRow>("paciente_medicamentos")
+      .find({ paciente_id: { $in: ids } })
+      .sort({ paciente_id: 1 })
+      .toArray();
+    const byPaciente = new Map<number, ReturnType<typeof mapMedicamentoToResponse>[]>();
+    for (const r of medRows) {
+      const list = byPaciente.get(r.paciente_id) ?? [];
+      list.push(mapMedicamentoToResponse(r));
+      byPaciente.set(r.paciente_id, list);
+    }
+
+    const medsForLotes = await coll<MedicamentoPersistRow>("paciente_medicamentos")
+      .find({ paciente_id: { $in: ids } })
+      .toArray();
+    const nomeConcSet = new Set<string>();
+    for (const pm of medsForLotes) {
+      nomeConcSet.add(`${String(pm.medicamento_nome).trim()}\0${String(pm.medicamento_concentracao).trim()}`);
+    }
+    const orConds = [...nomeConcSet].map((k) => {
+      const [nome, conc] = k.split("\0");
+      return { nome, concentracao: conc };
+    });
+    const lotesByPaciente = new Map<number, string[]>();
+    if (orConds.length > 0) {
+      const medMatches = await coll<{ _id: number; nome: string; concentracao: string; lote: string }>("medications")
+        .find({ $or: orConds })
+        .toArray();
+      const loteByNomeConc = new Map<string, Set<string>>();
+      for (const m of medMatches) {
+        const key = medicamentoNomeConcKey(m.nome, m.concentracao);
+        let s = loteByNomeConc.get(key);
+        if (!s) {
+          s = new Set();
+          loteByNomeConc.set(key, s);
+        }
+        s.add(m.lote);
+      }
+      for (const pm of medsForLotes) {
+        const key = medicamentoNomeConcKey(String(pm.medicamento_nome), String(pm.medicamento_concentracao));
+        const lotes = loteByNomeConc.get(key);
+        if (!lotes) continue;
+        const pid = pm.paciente_id as number;
+        const list = lotesByPaciente.get(pid) ?? [];
+        for (const l of lotes) {
+          if (!list.includes(l)) list.push(l);
+        }
+        lotesByPaciente.set(pid, list);
+      }
+    }
+
+    const out: PacienteListItem[] = pacientes.map((p) => ({
+      ...p,
+      medicamentos: byPaciente.get(p.id) ?? [],
+      proxima_data_retorno: p.proxima_data_retorno ?? null,
+      lotes: lotesByPaciente.get(p.id) ?? [],
+    }));
+    await respondListPacientes(req, res, out, ids);
+  } catch (err) {
+    console.error("Erro ao listar pacientes:", err);
+    res.status(500).json({ error: "Erro ao listar pacientes" });
+  }
 };
 
-export const getPacienteById = (req: Request, res: Response): void => {
+export const getPacienteById = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-  db.query("SELECT * FROM pacientes WHERE id = ?", [id], (err: Error | null, results: unknown) => {
-    if (err) {
-      console.error("Erro ao buscar paciente:", err);
-      res.status(500).json({ error: "Erro ao buscar paciente" });
-      return;
-    }
-    const rows = (results as PacienteRow[]) || [];
-    if (rows.length === 0) {
+  try {
+    const doc = await coll<Record<string, unknown> & { _id: number }>("pacientes").findOne({ _id: id });
+    if (!doc) {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
     }
-    const paciente = rows[0];
-    db.query(
-      "SELECT medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE paciente_id = ?",
-      [id],
-      (errMed: Error | null, medRows: unknown) => {
-        if (errMed) {
-          console.error("Erro ao buscar medicamentos do paciente:", errMed);
-          res.status(500).json({ error: "Erro ao buscar paciente" });
-          return;
-        }
-        const list = (medRows as Omit<MedicamentoPersistRow, "paciente_id">[]) || [];
-        const base: PacienteListItem = {
-          ...paciente,
-          proxima_data_retorno: null,
-          medicamentos: list.map((m) => mapMedicamentoToResponse({ ...m, paciente_id: id })),
-          lotes: [],
-        };
-        const role = req.user?.role as UserRole | undefined;
-        db.query(
-          `SELECT rm.paciente_id, m.nome AS medicamento_nome, m.concentracao AS medicamento_concentracao,
-           COALESCE(SUM(rm.quantidade), 0) AS total_unidades
-           FROM retira_medications rm
-           INNER JOIN medications m ON m.id = rm.medication_id
-           WHERE rm.paciente_id = ?
-           GROUP BY rm.paciente_id, m.nome, m.concentracao`,
-          [id],
-          (errRet: Error | null, retRows: unknown) => {
-            if (errRet) {
-              console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
-            }
-            const raw =
-              (retRows as Array<{
-                paciente_id: number;
-                medicamento_nome: string;
-                medicamento_concentracao: string;
-                total_unidades: number | string;
-              }>) ?? [];
-            const mgMap = errRet ? new Map<string, number | null>() : buildMgAcumuladoMap(raw);
-            const withMg = attachMgAcumuladoMedicamentos(base, mgMap);
-            res.status(200).json(redactPacienteIdentificacao(withMg, role));
-          },
-        );
-      }
-    );
-  });
+    const paciente = pacienteDocToRow(doc as Record<string, unknown>, null);
+    const list = await coll<MedicamentoPersistRow>("paciente_medicamentos").find({ paciente_id: id }).toArray();
+    const base: PacienteListItem = {
+      ...paciente,
+      proxima_data_retorno: null,
+      medicamentos: list.map((m: MedicamentoPersistRow) =>
+        mapMedicamentoToResponse({ ...m, paciente_id: id })
+      ),
+      lotes: [],
+    };
+    const role = req.user?.role as UserRole | undefined;
+    const raw = await aggregateRetiradasMgByPaciente([id]);
+    const mgMap = buildMgAcumuladoMap(raw);
+    const withMg = attachMgAcumuladoMedicamentos(base, mgMap);
+    res.status(200).json(redactPacienteIdentificacao(withMg, role));
+  } catch (err) {
+    console.error("Erro ao buscar paciente:", err);
+    res.status(500).json({ error: "Erro ao buscar paciente" });
+  }
 };
 
-export const createPaciente = (req: Request, res: Response): void => {
+export const createPaciente = async (req: Request, res: Response): Promise<void> => {
   const errMsg = validateBodyCreateUpdate(req.body, false);
   if (errMsg) {
     res.status(400).json({ error: errMsg });
@@ -388,88 +426,63 @@ export const createPaciente = (req: Request, res: Response): void => {
       : null;
   const medList = medicamentos as PacienteMedicamentoItem[];
 
-  db.query(
-    "SELECT id FROM pacientes WHERE prontuario = ?",
-    [prontNum],
-    (dupErr: Error | null, dupRows: unknown) => {
-      if (dupErr) {
-        console.error("Erro ao verificar prontuário:", dupErr);
-        res.status(500).json({ error: "Erro ao cadastrar paciente" });
-        return;
-      }
-      if ((dupRows as { id: number }[])?.length) {
-        res.status(400).json({ error: "Já existe um paciente com este prontuário" });
-        return;
-      }
-      db.query(
-        "INSERT INTO pacientes (nome, prontuario, apac, diagnostico, observacoes, telefone, data_liberacao, retorna_servico, tipo_retorno) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          String(nome).trim(),
-          prontNum,
-          String(apac).trim(),
-          String(diagnostico).trim(),
-          observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
-          String(data_liberacao).trim(),
-          retorna ? 1 : 0,
-          tipoRetornoVal,
-        ],
-        (insErr: Error | null, result: unknown) => {
-          if (insErr) {
-            console.error("Erro ao inserir paciente:", insErr);
-            res.status(500).json({ error: "Erro ao cadastrar paciente" });
-            return;
-          }
-          const pacienteId = (result as { insertId?: number })?.insertId;
-          if (pacienteId == null) {
-            res.status(500).json({ error: "Erro ao cadastrar paciente" });
-            return;
-          }
-          const maybeInsertRetorno = (onDone: () => void) => {
-            if (!dataRetornoVal) {
-              onDone();
-              return;
-            }
-            db.query(
-              "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
-              [pacienteId, dataRetornoVal, tipoRetornoVal],
-              (retErr: Error | null) => {
-                if (retErr) console.error("Erro ao inserir data de retorno:", retErr);
-                onDone();
-              }
-            );
-          };
-          const total = medList.length;
-          if (total === 0) {
-            maybeInsertRetorno(() => {
-              res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
-            });
-            return;
-          }
-          let inserted = 0;
-          for (const m of medList) {
-            const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
-            db.query(
-              "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              [pacienteId, mn, mc, cd, rg, uc, idias],
-              (insMedErr: Error | null) => {
-                if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
-                inserted += 1;
-                if (inserted === total) {
-                  maybeInsertRetorno(() => {
-                    res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
-                  });
-                }
-              }
-            );
-          }
-        }
-      );
+  try {
+    const dup = await coll<{ prontuario: number }>("pacientes").findOne({ prontuario: prontNum });
+    if (dup) {
+      res.status(400).json({ error: "Já existe um paciente com este prontuário" });
+      return;
     }
-  );
+    const pacienteId = await getNextId("pacientes");
+    await coll<Record<string, unknown> & { _id: number }>("pacientes").insertOne({
+      _id: pacienteId,
+      nome: String(nome).trim(),
+      prontuario: prontNum,
+      apac: String(apac).trim(),
+      diagnostico: String(diagnostico).trim(),
+      observacoes:
+        observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
+      telefone: telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
+      data_liberacao: String(data_liberacao).trim(),
+      retorna_servico: retorna ? 1 : 0,
+      tipo_retorno: tipoRetornoVal,
+    });
+
+    for (const m of medList) {
+      const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
+      const pmId = await getNextId("paciente_medicamentos");
+      await coll<MedicamentoPersistRow & { _id: number }>("paciente_medicamentos").insertOne({
+        _id: pmId,
+        paciente_id: pacienteId,
+        medicamento_nome: mn,
+        medicamento_concentracao: mc,
+        consumo_diario: cd,
+        regime_consumo: rg,
+        unidades_por_ciclo: uc,
+        intervalo_ciclo_dias: idias,
+      });
+    }
+
+    if (dataRetornoVal) {
+      const rid = await getNextId("paciente_retornos");
+      await coll<{ _id: number; paciente_id: number; data_retorno: string; tipo_retorno: string | null; created_at: Date }>(
+        "paciente_retornos"
+      ).insertOne({
+        _id: rid,
+        paciente_id: pacienteId,
+        data_retorno: dataRetornoVal,
+        tipo_retorno: tipoRetornoVal,
+        created_at: new Date(),
+      });
+    }
+
+    res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
+  } catch (err) {
+    console.error("Erro ao cadastrar paciente:", err);
+    res.status(500).json({ error: "Erro ao cadastrar paciente" });
+  }
 };
 
-export const updatePaciente = (req: Request, res: Response): void => {
+export const updatePaciente = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
@@ -503,121 +516,107 @@ export const updatePaciente = (req: Request, res: Response): void => {
       : null;
   const medList = medicamentos as PacienteMedicamentoItem[];
 
-  db.query(
-    "SELECT id FROM pacientes WHERE prontuario = ? AND id != ?",
-    [prontNum, id],
-    (dupErr: Error | null, dupRows: unknown) => {
-      if (dupErr) {
-        console.error("Erro ao verificar prontuário:", dupErr);
-        res.status(500).json({ error: "Erro ao atualizar paciente" });
-        return;
-      }
-      if ((dupRows as { id: number }[])?.length) {
-        res.status(400).json({ error: "Já existe outro paciente com este prontuário" });
-        return;
-      }
-      db.query(
-        "UPDATE pacientes SET nome = ?, prontuario = ?, apac = ?, diagnostico = ?, observacoes = ?, telefone = ?, data_liberacao = ?, retorna_servico = ?, tipo_retorno = ? WHERE id = ?",
-        [
-          String(nome).trim(),
-          prontNum,
-          String(apac).trim(),
-          String(diagnostico).trim(),
-          observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
-          telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
-          String(data_liberacao).trim(),
-          retorna ? 1 : 0,
-          tipoRetornoVal,
-          id,
-        ],
-        (upErr: Error | null, result: unknown) => {
-          if (upErr) {
-            console.error("Erro ao atualizar paciente:", upErr);
-            res.status(500).json({ error: "Erro ao atualizar paciente" });
-            return;
-          }
-          if ((result as { affectedRows?: number })?.affectedRows === 0) {
-            res.status(404).json({ error: "Paciente não encontrado" });
-            return;
-          }
-          db.query("DELETE FROM paciente_medicamentos WHERE paciente_id = ?", [id], (delErr: Error | null) => {
-            if (delErr) {
-              console.error("Erro ao remover medicamentos do paciente:", delErr);
-              res.status(500).json({ error: "Erro ao atualizar paciente" });
-              return;
-            }
-            const maybeInsertRetorno = (onDone: () => void) => {
-              if (!dataRetornoVal) {
-                onDone();
-                return;
-              }
-              db.query(
-                "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
-                [id, dataRetornoVal, tipoRetornoVal],
-                (retErr: Error | null) => {
-                  if (retErr) console.error("Erro ao inserir data de retorno:", retErr);
-                  onDone();
-                }
-              );
-            };
-            if (medList.length === 0) {
-              maybeInsertRetorno(() => {
-                res.status(200).json({ message: "Paciente atualizado com sucesso" });
-              });
-              return;
-            }
-            let inserted = 0;
-            const total = medList.length;
-            for (const m of medList) {
-              const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
-              db.query(
-                "INSERT INTO paciente_medicamentos (paciente_id, medicamento_nome, medicamento_concentracao, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [id, mn, mc, cd, rg, uc, idias],
-                (insMedErr: Error | null) => {
-                  if (insMedErr) console.error("Erro ao inserir vínculo medicamento:", insMedErr);
-                  inserted += 1;
-                  if (inserted === total) {
-                    maybeInsertRetorno(() => {
-                      res.status(200).json({ message: "Paciente atualizado com sucesso" });
-                    });
-                  }
-                }
-              );
-            }
-          });
-        }
-      );
+  try {
+    const dup = await coll<{ _id: number; prontuario: number }>("pacientes").findOne({ prontuario: prontNum, _id: { $ne: id } });
+    if (dup) {
+      res.status(400).json({ error: "Já existe outro paciente com este prontuário" });
+      return;
     }
-  );
+    const r = await coll<Record<string, unknown> & { _id: number }>("pacientes").updateOne(
+      { _id: id },
+      {
+        $set: {
+          nome: String(nome).trim(),
+          prontuario: prontNum,
+          apac: String(apac).trim(),
+          diagnostico: String(diagnostico).trim(),
+          observacoes:
+            observacoes != null && String(observacoes).trim() !== "" ? String(observacoes).trim() : null,
+          telefone: telefone != null && typeof telefone === "string" ? String(telefone).trim() : "",
+          data_liberacao: String(data_liberacao).trim(),
+          retorna_servico: retorna ? 1 : 0,
+          tipo_retorno: tipoRetornoVal,
+        },
+      }
+    );
+    if (r.matchedCount === 0) {
+      res.status(404).json({ error: "Paciente não encontrado" });
+      return;
+    }
+
+    await coll<MedicamentoPersistRow>("paciente_medicamentos").deleteMany({ paciente_id: id });
+    for (const m of medList) {
+      const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
+      const pmId = await getNextId("paciente_medicamentos");
+      await coll<MedicamentoPersistRow & { _id: number }>("paciente_medicamentos").insertOne({
+        _id: pmId,
+        paciente_id: id,
+        medicamento_nome: mn,
+        medicamento_concentracao: mc,
+        consumo_diario: cd,
+        regime_consumo: rg,
+        unidades_por_ciclo: uc,
+        intervalo_ciclo_dias: idias,
+      });
+    }
+
+    if (dataRetornoVal) {
+      const rid = await getNextId("paciente_retornos");
+      await coll<{ _id: number; paciente_id: number; data_retorno: string; tipo_retorno: string | null; created_at: Date }>(
+        "paciente_retornos"
+      ).insertOne({
+        _id: rid,
+        paciente_id: id,
+        data_retorno: dataRetornoVal,
+        tipo_retorno: tipoRetornoVal,
+        created_at: new Date(),
+      });
+    }
+
+    res.status(200).json({ message: "Paciente atualizado com sucesso" });
+  } catch (err) {
+    console.error("Erro ao atualizar paciente:", err);
+    res.status(500).json({ error: "Erro ao atualizar paciente" });
+  }
 };
 
-export const deletePaciente = (req: Request, res: Response): void => {
+export const deletePaciente = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-  db.query("DELETE FROM pacientes WHERE id = ?", [id], (err: Error | null, result: unknown) => {
-    if (err) {
-      console.error("Erro ao excluir paciente:", err);
-      res.status(500).json({ error: "Erro ao excluir paciente" });
-      return;
+  try {
+    const db = getDb();
+    const session = db.client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await coll<MedicamentoPersistRow>("paciente_medicamentos").deleteMany({ paciente_id: id }, { session });
+        await coll<{ paciente_id: number }>("paciente_retornos").deleteMany({ paciente_id: id }, { session });
+        await coll<{ paciente_id: number | null }>("retira_medications").updateMany(
+          { paciente_id: id },
+          { $set: { paciente_id: null } },
+          { session }
+        );
+        const del = await coll<Record<string, unknown> & { _id: number }>("pacientes").deleteOne({ _id: id }, { session });
+        if (del.deletedCount === 0) throw new Error("NOT_FOUND");
+      });
+    } finally {
+      await session.endSession();
     }
-    if ((result as { affectedRows?: number })?.affectedRows === 0) {
+    res.status(204).send();
+  } catch (err) {
+    if ((err as Error).message === "NOT_FOUND") {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
     }
-    res.status(204).send();
-  });
+    console.error("Erro ao excluir paciente:", err);
+    res.status(500).json({ error: "Erro ao excluir paciente" });
+  }
 };
 
-/**
- * GET /pacientes/impacto-estoque
- * Query: medicamento_nome, medicamento_concentracao, regime_consumo (opcional, default diario).
- * Se diario: consumo_diario. Se por_ciclo: unidades_por_ciclo, intervalo_ciclo_dias.
- */
-export const getImpactoEstoque = (req: Request, res: Response): void => {
+export const getImpactoEstoque = async (req: Request, res: Response): Promise<void> => {
   const medicamento_nome = (req.query.medicamento_nome as string)?.trim();
   const medicamento_concentracao = (req.query.medicamento_concentracao as string)?.trim();
   if (!medicamento_nome || !medicamento_concentracao) {
@@ -648,239 +647,197 @@ export const getImpactoEstoque = (req: Request, res: Response): void => {
     taxaProposta = taxaUnidadesPorDia("por_ciclo", 0, unidades, intervalo);
   }
 
-  db.query(
-    "SELECT COALESCE(SUM(quantidade), 0) AS total FROM medications WHERE nome = ? AND concentracao = ?",
-    [medicamento_nome, medicamento_concentracao],
-    (errEst: Error | null, estRows: unknown) => {
-      if (errEst) {
-        console.error("Erro ao buscar estoque:", errEst);
-        res.status(500).json({ error: "Erro ao calcular impacto" });
-        return;
+  try {
+    const estAgg = await coll<{ _id: number; quantidade: number; nome: string; concentracao: string }>("medications")
+      .aggregate([{ $match: { nome: medicamento_nome, concentracao: medicamento_concentracao } }, { $group: { _id: null, total: { $sum: "$quantidade" } } }])
+      .toArray();
+    const estoqueTotal = Number(estAgg[0]?.total ?? 0);
+
+    const rows = await coll<MedicamentoPersistRow>("paciente_medicamentos")
+      .find({ medicamento_nome, medicamento_concentracao })
+      .toArray();
+    const consumoDiarioAtual = rows.reduce((s: number, p: MedicamentoPersistRow) => s + taxaFromPersistRow(p), 0);
+    const pacientesVinculados = new Set(rows.map((p: MedicamentoPersistRow) => p.paciente_id)).size;
+    const consumoDiarioComNovo = consumoDiarioAtual + taxaProposta;
+    const diasPorMes = 30;
+    const mesesEstoqueAtual =
+      consumoDiarioAtual > 0 && estoqueTotal > 0
+        ? Math.floor(estoqueTotal / (consumoDiarioAtual * diasPorMes))
+        : consumoDiarioAtual === 0 && estoqueTotal > 0
+          ? null
+          : 0;
+    const mesesEstoqueComNovo =
+      consumoDiarioComNovo > 0 && estoqueTotal > 0
+        ? Math.floor(estoqueTotal / (consumoDiarioComNovo * diasPorMes))
+        : consumoDiarioComNovo === 0 && estoqueTotal > 0
+          ? null
+          : 0;
+
+    res.status(200).json({
+      estoqueTotal,
+      pacientesVinculados,
+      consumoDiarioAtual,
+      consumoDiarioComNovo,
+      mesesEstoqueAtual,
+      mesesEstoqueComNovo,
+    });
+  } catch (err) {
+    console.error("Erro ao calcular impacto:", err);
+    res.status(500).json({ error: "Erro ao calcular impacto" });
+  }
+};
+
+export const getResumoPorMedicamento = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const rows = await coll<MedicamentoPersistRow>("paciente_medicamentos").find().toArray();
+    const grupos = new Map<
+      string,
+      {
+        medicamento_nome: string;
+        medicamento_concentracao: string;
+        pacientes: Set<number>;
+        taxaTotal: number;
+        linhas: MedicamentoPersistRow[];
       }
-      const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
-
-      db.query(
-        "SELECT paciente_id, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos WHERE medicamento_nome = ? AND medicamento_concentracao = ?",
-        [medicamento_nome, medicamento_concentracao],
-        (errPac: Error | null, pacRows: unknown) => {
-          if (errPac) {
-            console.error("Erro ao buscar vínculos:", errPac);
-            res.status(500).json({ error: "Erro ao calcular impacto" });
-            return;
-          }
-          const rows = (pacRows as MedicamentoPersistRow[]) || [];
-          const consumoDiarioAtual = rows.reduce((s, p) => s + taxaFromPersistRow(p), 0);
-          const pacientesVinculados = new Set(rows.map((p) => p.paciente_id)).size;
-          const consumoDiarioComNovo = consumoDiarioAtual + taxaProposta;
-          const diasPorMes = 30;
-          const mesesEstoqueAtual =
-            consumoDiarioAtual > 0 && estoqueTotal > 0
-              ? Math.floor(estoqueTotal / (consumoDiarioAtual * diasPorMes))
-              : consumoDiarioAtual === 0 && estoqueTotal > 0
-                ? null
-                : 0;
-          const mesesEstoqueComNovo =
-            consumoDiarioComNovo > 0 && estoqueTotal > 0
-              ? Math.floor(estoqueTotal / (consumoDiarioComNovo * diasPorMes))
-              : consumoDiarioComNovo === 0 && estoqueTotal > 0
-                ? null
-                : 0;
-
-          res.status(200).json({
-            estoqueTotal,
-            pacientesVinculados,
-            consumoDiarioAtual,
-            consumoDiarioComNovo,
-            mesesEstoqueAtual,
-            mesesEstoqueComNovo,
-          });
-        }
-      );
+    >();
+    for (const r of rows) {
+      const key = `${r.medicamento_nome}\0${r.medicamento_concentracao}`;
+      let g = grupos.get(key);
+      if (!g) {
+        g = {
+          medicamento_nome: r.medicamento_nome,
+          medicamento_concentracao: r.medicamento_concentracao,
+          pacientes: new Set(),
+          taxaTotal: 0,
+          linhas: [],
+        };
+        grupos.set(key, g);
+      }
+      g.pacientes.add(r.paciente_id);
+      g.taxaTotal += taxaFromPersistRow(r);
+      g.linhas.push(r);
     }
-  );
-};
+    const gruposArr = Array.from(grupos.values());
+    if (gruposArr.length === 0) {
+      res.status(200).json([]);
+      return;
+    }
 
-/** GET /pacientes/resumo-por-medicamento */
-export const getResumoPorMedicamento = (req: Request, res: Response): void => {
-  db.query(
-    "SELECT medicamento_nome, medicamento_concentracao, paciente_id, consumo_diario, regime_consumo, unidades_por_ciclo, intervalo_ciclo_dias FROM paciente_medicamentos",
-    [],
-    (errPac: Error | null, pacRows: unknown) => {
-      if (errPac) {
-        console.error("Erro ao buscar resumo pacientes:", errPac);
-        res.status(500).json({ error: "Erro ao buscar resumo" });
-        return;
-      }
-      const rows = (pacRows as MedicamentoPersistRow[]) || [];
-      const grupos = new Map<
-        string,
+    const retAgg = await coll<{ medication_id: number; quantidade: number; paciente_id: number | null }>("retira_medications")
+      .aggregate<{ nome: string; concentracao: string; total_unidades: number }>([
+        { $match: { paciente_id: { $ne: null } } },
+        { $lookup: { from: "medications", localField: "medication_id", foreignField: "_id", as: "m" } },
+        { $unwind: "$m" },
         {
-          medicamento_nome: string;
-          medicamento_concentracao: string;
-          pacientes: Set<number>;
-          taxaTotal: number;
-          linhas: MedicamentoPersistRow[];
-        }
-      >();
-      for (const r of rows) {
-        const key = `${r.medicamento_nome}\0${r.medicamento_concentracao}`;
-        let g = grupos.get(key);
-        if (!g) {
-          g = {
-            medicamento_nome: r.medicamento_nome,
-            medicamento_concentracao: r.medicamento_concentracao,
-            pacientes: new Set(),
-            taxaTotal: 0,
-            linhas: [],
-          };
-          grupos.set(key, g);
-        }
-        g.pacientes.add(r.paciente_id);
-        g.taxaTotal += taxaFromPersistRow(r);
-        g.linhas.push(r);
-      }
-      const gruposArr = Array.from(grupos.values());
-      if (gruposArr.length === 0) {
-        res.status(200).json([]);
-        return;
-      }
-      db.query(
-        `SELECT m.nome, m.concentracao, COALESCE(SUM(rm.quantidade), 0) AS total_unidades
-         FROM retira_medications rm
-         INNER JOIN medications m ON m.id = rm.medication_id
-         WHERE rm.paciente_id IS NOT NULL
-         GROUP BY m.nome, m.concentracao`,
-        [],
-        (errRet: Error | null, retRows: unknown) => {
-          if (errRet) {
-            console.error("Erro ao agregar mg dispensado no resumo:", errRet);
-          }
-          const raw =
-            (retRows as Array<{
-              nome: string;
-              concentracao: string;
-              total_unidades: number | string;
-            }>) ?? [];
-          const mgMap = errRet ? new Map<string, number | null>() : buildMgTotalDispensadoPorMedicamentoMap(raw);
-
-          const resultados: Array<{
-            medicamento_nome: string;
-            medicamento_concentracao: string;
-            qtdPacientes: number;
-            consumoDiarioTotal: number;
-            estoqueTotal: number;
-            mesesEstoque: number | null;
-            mgAcumuladoDispensadoTotal: number | null;
-            resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
-            porCicloUnidadesTotal?: number;
-            porCicloIntervaloDias?: number;
-          }> = [];
-          let processados = 0;
-          gruposArr.forEach((g) => {
-            db.query(
-              "SELECT COALESCE(SUM(quantidade), 0) AS total FROM medications WHERE nome = ? AND concentracao = ?",
-              [g.medicamento_nome, g.medicamento_concentracao],
-              (errEst: Error | null, estRows: unknown) => {
-                const estoqueTotal = Number((estRows as { total: number }[])?.[0]?.total ?? 0);
-                const consumo = g.taxaTotal;
-                const mesesEstoque =
-                  consumo > 0 && estoqueTotal > 0
-                    ? Math.floor(estoqueTotal / (consumo * 30))
-                    : consumo === 0 && estoqueTotal > 0
-                      ? null
-                      : 0;
-                const taxaMeta = buildResumoTaxaMeta(g.linhas);
-                const mgKey = medicamentoNomeConcKey(g.medicamento_nome, g.medicamento_concentracao);
-                const mgVal = mgMap.get(mgKey);
-                const mgAcumuladoDispensadoTotal = mgVal === undefined ? 0 : mgVal;
-                const base = {
-                  medicamento_nome: g.medicamento_nome,
-                  medicamento_concentracao: g.medicamento_concentracao,
-                  qtdPacientes: g.pacientes.size,
-                  consumoDiarioTotal: consumo,
-                  estoqueTotal,
-                  mesesEstoque,
-                  mgAcumuladoDispensadoTotal,
-                };
-                if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
-                  resultados.push({
-                    ...base,
-                    resumoTaxaTipo: "por_ciclo_homogeneo",
-                    porCicloUnidadesTotal: taxaMeta.porCicloUnidadesTotal,
-                    porCicloIntervaloDias: taxaMeta.porCicloIntervaloDias,
-                  });
-                } else if (taxaMeta.resumoTaxaTipo === "diario_apenas") {
-                  resultados.push({
-                    ...base,
-                    resumoTaxaTipo: "diario_apenas",
-                  });
-                } else {
-                  resultados.push({
-                    ...base,
-                    resumoTaxaTipo: "agregado",
-                  });
-                }
-                processados += 1;
-                if (processados === gruposArr.length) {
-                  resultados.sort(
-                    (a, b) =>
-                      a.medicamento_nome.localeCompare(b.medicamento_nome) ||
-                      a.medicamento_concentracao.localeCompare(b.medicamento_concentracao),
-                  );
-                  res.status(200).json(resultados);
-                }
-              },
-            );
-          });
+          $group: {
+            _id: { nome: "$m.nome", conc: "$m.concentracao" },
+            total_unidades: { $sum: "$quantidade" },
+          },
         },
-      );
-    },
-  );
+        { $project: { _id: 0, nome: "$_id.nome", concentracao: "$_id.conc", total_unidades: 1 } },
+      ])
+      .toArray();
+    const mgMap = buildMgTotalDispensadoPorMedicamentoMap(retAgg);
+
+    const resultados: Array<{
+      medicamento_nome: string;
+      medicamento_concentracao: string;
+      qtdPacientes: number;
+      consumoDiarioTotal: number;
+      estoqueTotal: number;
+      mesesEstoque: number | null;
+      mgAcumuladoDispensadoTotal: number | null;
+      resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
+      porCicloUnidadesTotal?: number;
+      porCicloIntervaloDias?: number;
+    }> = [];
+
+    for (const g of gruposArr) {
+      const estAgg = await coll<{ quantidade: number; nome: string; concentracao: string }>("medications")
+        .aggregate([{ $match: { nome: g.medicamento_nome, concentracao: g.medicamento_concentracao } }, { $group: { _id: null, total: { $sum: "$quantidade" } } }])
+        .toArray();
+      const estoqueTotal = Number(estAgg[0]?.total ?? 0);
+      const consumo = g.taxaTotal;
+      const mesesEstoque =
+        consumo > 0 && estoqueTotal > 0 ? Math.floor(estoqueTotal / (consumo * 30)) : consumo === 0 && estoqueTotal > 0 ? null : 0;
+      const taxaMeta = buildResumoTaxaMeta(g.linhas);
+      const mgKey = medicamentoNomeConcKey(g.medicamento_nome, g.medicamento_concentracao);
+      const mgVal = mgMap.get(mgKey);
+      const mgAcumuladoDispensadoTotal = mgVal === undefined ? 0 : mgVal;
+      const base = {
+        medicamento_nome: g.medicamento_nome,
+        medicamento_concentracao: g.medicamento_concentracao,
+        qtdPacientes: g.pacientes.size,
+        consumoDiarioTotal: consumo,
+        estoqueTotal,
+        mesesEstoque,
+        mgAcumuladoDispensadoTotal,
+      };
+      if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
+        resultados.push({
+          ...base,
+          resumoTaxaTipo: "por_ciclo_homogeneo",
+          porCicloUnidadesTotal: taxaMeta.porCicloUnidadesTotal,
+          porCicloIntervaloDias: taxaMeta.porCicloIntervaloDias,
+        });
+      } else if (taxaMeta.resumoTaxaTipo === "diario_apenas") {
+        resultados.push({ ...base, resumoTaxaTipo: "diario_apenas" });
+      } else {
+        resultados.push({ ...base, resumoTaxaTipo: "agregado" });
+      }
+    }
+
+    resultados.sort(
+      (a, b) =>
+        a.medicamento_nome.localeCompare(b.medicamento_nome) || a.medicamento_concentracao.localeCompare(b.medicamento_concentracao)
+    );
+    res.status(200).json(resultados);
+  } catch (err) {
+    console.error("Erro ao buscar resumo:", err);
+    res.status(500).json({ error: "Erro ao buscar resumo" });
+  }
 };
 
-/** GET /pacientes/:id/retornos */
-export const getRetornos = (req: Request, res: Response): void => {
+export const getRetornos = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-  db.query("SELECT id FROM pacientes WHERE id = ?", [id], (err: Error | null, rows: unknown) => {
-    if (err) {
-      console.error("Erro ao buscar paciente:", err);
-      res.status(500).json({ error: "Erro ao buscar histórico de retornos" });
-      return;
-    }
-    if ((rows as { id: number }[])?.length === 0) {
+  try {
+    const p = await coll<{ _id: number }>("pacientes").findOne({ _id: id });
+    if (!p) {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
     }
-    db.query(
-      "SELECT id, data_retorno, tipo_retorno, created_at FROM paciente_retornos WHERE paciente_id = ? ORDER BY data_retorno ASC, created_at ASC",
-      [id],
-      (retErr: Error | null, retRows: unknown) => {
-        if (retErr) {
-          console.error("Erro ao listar retornos:", retErr);
-          res.status(500).json({ error: "Erro ao buscar histórico de retornos" });
-          return;
-        }
-        const list = (retRows as { id: number; data_retorno: string; tipo_retorno: string | null; created_at: string }[]) || [];
-        res.status(200).json(
-          list.map((r) => ({
-            id: r.id,
-            data_retorno: r.data_retorno,
-            tipo_retorno: r.tipo_retorno,
-            created_at: r.created_at,
-          }))
-        );
-      }
+    const list = await coll<{ _id: number; data_retorno: string; tipo_retorno: string | null; created_at: Date | string }>(
+      "paciente_retornos"
+    )
+      .find({ paciente_id: id })
+      .sort({ data_retorno: 1, created_at: 1 })
+      .toArray();
+    type RetornoDoc = {
+      _id: number;
+      data_retorno: string;
+      tipo_retorno: string | null;
+      created_at: Date | string;
+    };
+    res.status(200).json(
+      (list as RetornoDoc[]).map((r) => ({
+        id: r._id,
+        data_retorno: dateOnly(r.data_retorno),
+        tipo_retorno: r.tipo_retorno,
+        created_at: formatMysqlTimestamp(r.created_at) ?? "",
+      }))
     );
-  });
+  } catch (err) {
+    console.error("Erro ao listar retornos:", err);
+    res.status(500).json({ error: "Erro ao buscar histórico de retornos" });
+  }
 };
 
-/** POST /pacientes/:id/retornos */
-export const addRetorno = (req: Request, res: Response): void => {
+export const addRetorno = async (req: Request, res: Response): Promise<void> => {
   const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(idParam ?? "", 10);
   if (isNaN(id)) {
@@ -900,28 +857,25 @@ export const addRetorno = (req: Request, res: Response): void => {
     tipo_retorno != null && typeof tipo_retorno === "string" && TIPOS_RETORNO.includes(tipo_retorno as (typeof TIPOS_RETORNO)[number])
       ? tipo_retorno.trim()
       : null;
-  db.query("SELECT id FROM pacientes WHERE id = ?", [id], (err: Error | null, rows: unknown) => {
-    if (err) {
-      console.error("Erro ao buscar paciente:", err);
-      res.status(500).json({ error: "Erro ao adicionar data de retorno" });
-      return;
-    }
-    if ((rows as { id: number }[])?.length === 0) {
+  try {
+    const p = await coll<{ _id: number }>("pacientes").findOne({ _id: id });
+    if (!p) {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
     }
-    db.query(
-      "INSERT INTO paciente_retornos (paciente_id, data_retorno, tipo_retorno) VALUES (?, ?, ?)",
-      [id, data_retorno.trim(), tipoVal],
-      (insErr: Error | null, result: unknown) => {
-        if (insErr) {
-          console.error("Erro ao inserir data de retorno:", insErr);
-          res.status(500).json({ error: "Erro ao adicionar data de retorno" });
-          return;
-        }
-        const insertId = (result as { insertId?: number })?.insertId;
-        res.status(201).json({ message: "Data de retorno adicionada", id: insertId });
-      }
-    );
-  });
+    const insertId = await getNextId("paciente_retornos");
+    await coll<{ _id: number; paciente_id: number; data_retorno: string; tipo_retorno: string | null; created_at: Date }>(
+      "paciente_retornos"
+    ).insertOne({
+      _id: insertId,
+      paciente_id: id,
+      data_retorno: data_retorno.trim(),
+      tipo_retorno: tipoVal,
+      created_at: new Date(),
+    });
+    res.status(201).json({ message: "Data de retorno adicionada", id: insertId });
+  } catch (err) {
+    console.error("Erro ao inserir data de retorno:", err);
+    res.status(500).json({ error: "Erro ao adicionar data de retorno" });
+  }
 };
