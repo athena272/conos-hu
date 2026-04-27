@@ -125,6 +125,7 @@ function RegisterMedicationByBarcode() {
     }),
   });
 
+  /** Preenche só o que a API devolve (GS1 completo ou match no catálogo). GTIN sozinho não traz nome/lote. */
   const applyResolveToForm = (
     data: ResolveScanResponse,
     setFieldValue: (f: string, v: unknown) => void
@@ -136,6 +137,17 @@ function RegisterMedicationByBarcode() {
     if (data.data_validade) setFieldValue("expiryDate", data.data_validade);
     const formaOpt = mapFormaToOption(data.forma);
     if (formaOpt) setFieldValue("pharmaceuticalForm", formaOpt);
+  };
+
+  const countResolvedFields = (data: ResolveScanResponse): number => {
+    let n = 0;
+    if (data.nome) n++;
+    if (data.lote) n++;
+    if (data.concentracao) n++;
+    if (data.classificacao) n++;
+    if (data.data_validade) n++;
+    if (mapFormaToOption(data.forma)) n++;
+    return n;
   };
 
   const runResolveScan = async (
@@ -159,6 +171,7 @@ function RegisterMedicationByBarcode() {
       const data = res.data;
       setLastResolve(data);
       applyResolveToForm(data, setFieldValue);
+      const filled = countResolvedFields(data);
 
       if (data.source === "empty") {
         toast.current?.show({
@@ -168,11 +181,29 @@ function RegisterMedicationByBarcode() {
             "Não foi possível extrair dados do código. Preencha os campos manualmente.",
           life: 5000,
         });
+      } else if (data.source === "gtin_only") {
+        toast.current?.show({
+          severity: "info",
+          summary: "Só o código GTIN",
+          detail:
+            "O código identifica apenas o GTIN (sem GS1 com lote/validade e sem registro no catálogo interno). Preencha nome, lote, quantidade e demais campos manualmente.",
+          life: 7000,
+        });
+      } else if (filled === 0) {
+        toast.current?.show({
+          severity: "info",
+          summary: "Leitura",
+          detail: "Nenhum campo automático disponível para este código. Complete o formulário manualmente.",
+          life: 5000,
+        });
       } else {
         toast.current?.show({
           severity: "success",
           summary: "Leitura aplicada",
-          detail: "Os campos foram preenchidos quando possível. Complete o que faltar.",
+          detail:
+            filled >= 4
+              ? "Vários campos foram preenchidos. Confira e complete o que faltar."
+              : "Alguns campos foram preenchidos. Complete o restante manualmente.",
           life: 4000,
         });
       }
@@ -435,7 +466,11 @@ function RegisterMedicationByBarcode() {
                         {lastResolve?.gtin && (
                           <p className="helper-text" style={{ marginTop: "0.75rem" }}>
                             GTIN reconhecido: <strong>{lastResolve.gtin}</strong> (origem:{" "}
-                            {lastResolve.source})
+                            {lastResolve.source}
+                            {lastResolve.source === "gtin_only"
+                              ? " — não há dados automáticos de nome/lote; preencha abaixo ou cadastre o produto na coleção de catálogo no sistema."
+                              : ""}
+                            )
                           </p>
                         )}
                       </>
