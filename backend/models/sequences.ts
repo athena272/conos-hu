@@ -7,7 +7,7 @@ export async function getNextId(name: string, session?: ClientSession): Promise<
   const col = coll<CounterDoc>("counters");
   const doc = await col.findOneAndUpdate(
     { _id: name },
-    [{ $set: { seq: { $ifNull: ["$seq", 0] } } }, { $inc: { seq: 1 } }],
+    { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after", session }
   );
   if (!doc || typeof doc.seq !== "number") {

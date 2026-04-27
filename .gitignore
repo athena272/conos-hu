@@ -1,2 +1,4 @@
 .env
 dump_conos.sql
+
+.vercel
