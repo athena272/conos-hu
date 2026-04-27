@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import app from "../app";
-import { coll, connectMongo } from "../models/mongo";
+import { coll, connectMongo, disconnectMongo } from "../models/mongo";
 import { getNextId } from "../models/sequences";
 
 const hasMongoUri = Boolean(process.env.MONGODB_URI?.trim());
@@ -183,7 +183,13 @@ run("admin can create medication and paciente", async (t) => {
 });
 
 test.after(async () => {
-  if (!hasMongoUri || !mongoReady || createdEmails.length === 0) return;
-  await coll<{ email: string }>("usuarios").deleteMany({ email: { $in: createdEmails } });
+  if (!hasMongoUri || !mongoReady) {
+    await disconnectMongo();
+    return;
+  }
+  if (createdEmails.length > 0) {
+    await coll<{ email: string }>("usuarios").deleteMany({ email: { $in: createdEmails } });
+  }
+  await disconnectMongo();
 });
 

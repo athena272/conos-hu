@@ -24,6 +24,15 @@ export function getDb(): Db {
   return database;
 }
 
+/** Fecha o cliente e libera o processo (útil em testes e scripts). */
+export async function disconnectMongo(): Promise<void> {
+  if (client) {
+    await client.close();
+    client = null;
+    database = null;
+  }
+}
+
 /** Coleções com `_id` numérico (ou esquema custom) — contorna o default `ObjectId` dos tipos do driver. */
 export function coll<T extends object>(name: string): Collection<T> {
   return getDb().collection(name) as unknown as Collection<T>;
