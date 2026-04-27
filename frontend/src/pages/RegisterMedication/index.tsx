@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import LabelInput from "../../components/LabelInput";
 import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
@@ -40,12 +40,16 @@ function RegisterMedication() {
     { name: "Outros", code: 4 },
   ];
 
-  useEffect(() => {
-    api
+  const refreshMedications = useCallback(() => {
+    return api
       .get<MedicationWithStatus[]>("/medications")
       .then((res) => setMedications(res.data ?? []))
       .catch(() => setMedications([]));
   }, []);
+
+  useEffect(() => {
+    void refreshMedications();
+  }, [refreshMedications]);
 
   const newLoteSchema = yup.object().shape({
     entryType: yup.string().oneOf(["new", "existing"]).required(),
@@ -134,6 +138,7 @@ function RegisterMedication() {
             life: 3000,
           });
           resetForm();
+          void refreshMedications();
         })
         .catch((error: unknown) => {
           toast.current?.show({
@@ -184,6 +189,7 @@ function RegisterMedication() {
           life: 3000,
         });
         resetForm();
+        void refreshMedications();
       })
       .catch((error: unknown) => {
         toast.current?.show({

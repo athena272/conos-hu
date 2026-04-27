@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import LabelInput from "../../components/LabelInput";
 import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
@@ -64,12 +64,16 @@ function RegisterMedicationByBarcode() {
   const [lastResolve, setLastResolve] = useState<ResolveScanResponse | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    api
+  const refreshMedications = useCallback(() => {
+    return api
       .get<MedicationWithStatus[]>("/medications")
       .then((res) => setMedications(res.data ?? []))
       .catch(() => setMedications([]));
   }, []);
+
+  useEffect(() => {
+    void refreshMedications();
+  }, [refreshMedications]);
 
   useEffect(() => {
     if (captureMode === "usb") {
@@ -260,6 +264,7 @@ function RegisterMedicationByBarcode() {
           setCaptureMode(null);
           setScanBuffer("");
           setLastResolve(null);
+          void refreshMedications();
         })
         .catch((error: unknown) => {
           toast.current?.show({
@@ -313,6 +318,7 @@ function RegisterMedicationByBarcode() {
         setCaptureMode(null);
         setScanBuffer("");
         setLastResolve(null);
+        void refreshMedications();
       })
       .catch((error: unknown) => {
         toast.current?.show({
