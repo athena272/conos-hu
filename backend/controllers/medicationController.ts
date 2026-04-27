@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
-import { extractGtinFromDigitString, parseGs1Raw } from "../utils/gs1Parse";
+import { extractGtinFromDigitString, normalizeGtinDigits, parseGs1Raw } from "../utils/gs1Parse";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
 
 interface MedicationRow {
@@ -34,7 +34,17 @@ type MedicationDoc = {
   forma?: string | null;
   data_validade: string | Date;
   created_at?: Date | string;
+  /** GTIN-14 (ou EAN normalizado) opcional — usado em resolve-scan e futuras integrações */
+  gtin?: string | null;
 };
+
+function parseOptionalGtinFromBody(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim().replace(/\D/g, "");
+  if (s.length === 0) return null;
+  const norm = normalizeGtinDigits(s);
+  return norm ?? null;
+}
 
 function docToMedicationRow(doc: MedicationDoc): MedicationRow {
   return {
@@ -64,9 +74,11 @@ export const resolveScan = async (req: Request, res: Response): Promise<void> =>
 
   const hasGs1Payload = Boolean(gs1.lote || gs1.data_validade || gs1.serial);
 
-  const applyCatalogAndRespond = (catalog: CatalogRow | null): void => {
+  type CatalogMatch = "none" | "product_catalog" | "stock";
+
+  const applyCatalogAndRespond = (catalog: CatalogRow | null, match: CatalogMatch): void => {
     const payload: {
-      source: "gs1" | "catalog" | "gtin_only" | "empty";
+      source: "gs1" | "catalog" | "stock_match" | "gtin_only" | "empty";
       gtin?: string;
       lote?: string;
       data_validade?: string;
@@ -100,7 +112,8 @@ export const resolveScan = async (req: Request, res: Response): Promise<void> =>
     }
 
     if (hasGs1Payload) payload.source = "gs1";
-    else if (catalog) payload.source = "catalog";
+    else if (match === "product_catalog" && catalog) payload.source = "catalog";
+    else if (match === "stock" && catalog) payload.source = "stock_match";
     else if (payload.gtin) payload.source = "gtin_only";
     else payload.source = "empty";
 
@@ -108,7 +121,7 @@ export const resolveScan = async (req: Request, res: Response): Promise<void> =>
   };
 
   if (!gtin) {
-    applyCatalogAndRespond(null);
+    applyCatalogAndRespond(null, "none");
     return;
   }
 
@@ -120,21 +133,41 @@ export const resolveScan = async (req: Request, res: Response): Promise<void> =>
     const doc = await coll<Record<string, unknown> & { gtin?: string }>("medication_product_catalog").findOne({
       $or: [{ gtin: padded }, { gtin: alt }],
     });
-    if (!doc) {
-      applyCatalogAndRespond(null);
+    if (doc) {
+      const row: CatalogRow = {
+        gtin: String(doc.gtin),
+        nome: doc.nome != null ? String(doc.nome) : null,
+        concentracao: doc.concentracao != null ? String(doc.concentracao) : null,
+        forma: doc.forma != null ? String(doc.forma) : null,
+        classificacao: doc.classificacao != null ? String(doc.classificacao) : null,
+      };
+      applyCatalogAndRespond(row, "product_catalog");
       return;
     }
-    const row: CatalogRow = {
-      gtin: String(doc.gtin),
-      nome: doc.nome != null ? String(doc.nome) : null,
-      concentracao: doc.concentracao != null ? String(doc.concentracao) : null,
-      forma: doc.forma != null ? String(doc.forma) : null,
-      classificacao: doc.classificacao != null ? String(doc.classificacao) : null,
-    };
-    applyCatalogAndRespond(row);
+
+    const medArr = await coll<MedicationDoc>("medications")
+      .find({ $or: [{ gtin: padded }, { gtin: alt }] })
+      .sort({ created_at: -1 })
+      .limit(1)
+      .toArray();
+    const medDoc = medArr[0];
+
+    if (medDoc) {
+      const row: CatalogRow = {
+        gtin: padded,
+        nome: medDoc.nome,
+        concentracao: medDoc.concentracao != null ? String(medDoc.concentracao) : null,
+        forma: medDoc.forma != null ? String(medDoc.forma) : null,
+        classificacao: medDoc.classificacao != null ? String(medDoc.classificacao) : null,
+      };
+      applyCatalogAndRespond(row, "stock");
+      return;
+    }
+
+    applyCatalogAndRespond(null, "none");
   } catch (err) {
     console.error("Erro ao buscar catálogo GTIN:", err);
-    applyCatalogAndRespond(null);
+    applyCatalogAndRespond(null, "none");
   }
 };
 
@@ -147,12 +180,15 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
     concentracao,
     forma,
     data_validade,
+    gtin: gtinBody,
   } = req.body;
 
   if (!nome || !lote || !quantidade || !data_validade) {
     res.status(400).json({ error: "Todos os campos são obrigatórios" });
     return;
   }
+
+  const gtinNorm = parseOptionalGtinFromBody(gtinBody);
 
   try {
     const id = await getNextId("medications");
@@ -167,6 +203,7 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
       forma: forma ?? "",
       data_validade: String(data_validade).slice(0, 10),
       created_at: new Date(),
+      ...(gtinNorm ? { gtin: gtinNorm } : {}),
     });
     try {
       const movId = await getNextId("movimentacoes");
@@ -373,15 +410,7 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-  const {
-    nome,
-    lote,
-    quantidade,
-    classificacao,
-    concentracao,
-    forma,
-    data_validade,
-  } = req.body;
+  const { nome, lote, quantidade, classificacao, concentracao, forma, data_validade } = req.body;
   if (!nome || !lote || quantidade === undefined || quantidade === null || !data_validade) {
     res.status(400).json({ error: "nome, lote, quantidade e data_validade são obrigatórios" });
     return;
@@ -392,18 +421,28 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
     return;
   }
   try {
+    const setDoc: Record<string, unknown> = {
+      nome,
+      lote,
+      quantidade: quantidadeNum,
+      classificacao: classificacao ?? "",
+      concentracao: concentracao ?? "",
+      forma: forma ?? "",
+      data_validade: String(data_validade).slice(0, 10),
+    };
+    if (Object.prototype.hasOwnProperty.call(req.body as object, "gtin")) {
+      const rawGtin = (req.body as { gtin?: unknown }).gtin;
+      if (rawGtin === null || (typeof rawGtin === "string" && rawGtin.trim() === "")) {
+        setDoc.gtin = null;
+      } else {
+        const g = parseOptionalGtinFromBody(rawGtin);
+        if (g) setDoc.gtin = g;
+      }
+    }
     const r = await coll<MedicationDoc>("medications").updateOne(
       { _id: id },
       {
-        $set: {
-          nome,
-          lote,
-          quantidade: quantidadeNum,
-          classificacao: classificacao ?? "",
-          concentracao: concentracao ?? "",
-          forma: forma ?? "",
-          data_validade: String(data_validade).slice(0, 10),
-        },
+        $set: setDoc,
       }
     );
     if (r.matchedCount === 0) {

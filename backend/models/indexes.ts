@@ -4,6 +4,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("usuarios").createIndex({ email: 1 }, { unique: true });
   await db.collection("medications").createIndex({ nome: 1, concentracao: 1 });
   await db.collection("medications").createIndex({ data_validade: 1 });
+  await db.collection("medications").createIndex({ gtin: 1 }, { sparse: true });
   await db.collection("pacientes").createIndex({ prontuario: 1 }, { unique: true });
   await db.collection("paciente_medicamentos").createIndex({ paciente_id: 1 });
   await db.collection("paciente_medicamentos").createIndex({

@@ -20,7 +20,7 @@ type EntryType = "new" | "existing";
 type CaptureMode = "usb" | "type";
 
 interface ResolveScanResponse {
-  source: "gs1" | "catalog" | "gtin_only" | "empty";
+  source: "gs1" | "catalog" | "stock_match" | "gtin_only" | "empty";
   gtin?: string;
   lote?: string;
   data_validade?: string;
@@ -190,7 +190,7 @@ function RegisterMedicationByBarcode() {
           severity: "info",
           summary: "Só o código GTIN",
           detail:
-            "O código identifica apenas o GTIN (sem GS1 com lote/validade e sem registro no catálogo interno). Preencha nome, lote, quantidade e demais campos manualmente.",
+            "O código identifica apenas o GTIN (sem GS1 com lote/validade, sem catálogo de produtos e sem lote anterior com este código no sistema). Preencha nome, lote, quantidade e demais campos manualmente.",
           life: 7000,
         });
       } else if (filled === 0) {
@@ -306,6 +306,7 @@ function RegisterMedicationByBarcode() {
         concentracao: values.concentration,
         forma: values.pharmaceuticalForm?.code,
         data_validade: values.expiryDate,
+        ...(lastResolve?.gtin ? { gtin: lastResolve.gtin } : {}),
       })
       .then(() => {
         toast.current?.show({
@@ -474,8 +475,10 @@ function RegisterMedicationByBarcode() {
                             GTIN reconhecido: <strong>{lastResolve.gtin}</strong> (origem:{" "}
                             {lastResolve.source}
                             {lastResolve.source === "gtin_only"
-                              ? " — não há dados automáticos de nome/lote; preencha abaixo ou cadastre o produto na coleção de catálogo no sistema."
-                              : ""}
+                              ? " — não há dados automáticos de nome/lote; preencha abaixo, importe o catálogo de produtos ou cadastre um lote anterior com este GTIN."
+                              : lastResolve.source === "stock_match"
+                                ? " — dados sugeridos a partir de um lote já cadastrado com o mesmo GTIN."
+                                : ""}
                             )
                           </p>
                         )}
