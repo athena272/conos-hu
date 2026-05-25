@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { api } from "../../api/client";
 import { isAdmin } from "../../auth/session";
 import { Formik, Form, FormikHelpers } from "formik";
@@ -21,6 +21,8 @@ import LabelInput from "../../components/LabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
 import type {
   Paciente,
@@ -341,13 +343,61 @@ function formatTipoRetorno(tipo: string | null): string {
 
 export default function Pacientes() {
   const toast = useRef<Toast>(null);
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [medicamentosDistintos, setMedicamentosDistintos] = useState<
-    MedicamentoDistinto[]
-  >([]);
-  const [resumoPorMedicamento, setResumoPorMedicamento] = useState<
-    ResumoPorMedicamento[]
-  >([]);
+
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
+  }, []);
+
+  const fetchPacientesList = useCallback(async () => {
+    const res = await api.get<Paciente[]>("/pacientes");
+    return normalizePacienteLista(res.data);
+  }, []);
+
+  const fetchMedicamentosDistintosList = useCallback(async () => {
+    const res = await api.get<MedicamentoDistinto[]>(
+      "/medications/distinct-nome-concentration",
+    );
+    return res.data ?? [];
+  }, []);
+
+  const fetchResumoList = useCallback(async () => {
+    const res = await api.get<ResumoPorMedicamento[]>(
+      "/pacientes/resumo-por-medicamento",
+    );
+    return normalizeResumoPorMedicamentoLista(res.data);
+  }, []);
+
+  const {
+    data: pacientes,
+    loading: loadingPacientes,
+    error: pacientesError,
+    reload: reloadPacientes,
+  } = useApiQuery(fetchPacientesList, [], {
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
+
+  const {
+    data: medicamentosDistintos,
+    loading: loadingMedicamentosDistintos,
+  } = useApiQuery(fetchMedicamentosDistintosList, [], {
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
+
+  const {
+    data: resumoPorMedicamento,
+    loading: loadingResumo,
+    reload: reloadResumo,
+  } = useApiQuery(fetchResumoList, [], {
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
   const [formVisible, setFormVisible] = useState(false);
   const [editingPaciente, setEditingPaciente] = useState<Paciente | null>(null);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
@@ -363,14 +413,28 @@ export default function Pacientes() {
     null,
   );
   const [deletingInProgress, setDeletingInProgress] = useState(false);
-  const [loadingResumo, setLoadingResumo] = useState(false);
   const [historicoPaciente, setHistoricoPaciente] = useState<Paciente | null>(
     null,
   );
-  const [historicoRetornos, setHistoricoRetornos] = useState<PacienteRetorno[]>(
-    [],
-  );
-  const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+  const fetchHistoricoRetornos = useCallback(async () => {
+    if (!historicoPaciente) return [];
+    const res = await api.get<PacienteRetorno[]>(
+      `/pacientes/${historicoPaciente.id}/retornos`,
+    );
+    return res.data ?? [];
+  }, [historicoPaciente?.id]);
+
+  const {
+    data: historicoRetornos,
+    loading: loadingHistorico,
+    reload: reloadHistorico,
+  } = useApiQuery(fetchHistoricoRetornos, [historicoPaciente?.id], {
+    enabled: !!historicoPaciente,
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
+
   const [previsaoMgInfoVisible, setPrevisaoMgInfoVisible] = useState(false);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
@@ -498,51 +562,12 @@ export default function Pacientes() {
     });
   }, [resumoPorMedicamento, pacientes]);
 
-  const fetchPacientes = () => {
-    api
-      .get<Paciente[]>("/pacientes")
-      .then((res) => setPacientes(normalizePacienteLista(res.data)))
-      .catch(() => setPacientes([]));
-  };
-
-  const fetchMedicamentosDistintos = () => {
-    api
-      .get<MedicamentoDistinto[]>("/medications/distinct-nome-concentration")
-      .then((res) => setMedicamentosDistintos(res.data ?? []))
-      .catch(() => setMedicamentosDistintos([]));
-  };
-
-  const fetchResumoPorMedicamento = () => {
-    setLoadingResumo(true);
-    api
-      .get<ResumoPorMedicamento[]>("/pacientes/resumo-por-medicamento")
-      .then((res) =>
-        setResumoPorMedicamento(normalizeResumoPorMedicamentoLista(res.data)),
-      )
-      .catch(() => setResumoPorMedicamento([]))
-      .finally(() => setLoadingResumo(false));
-  };
-
-  useEffect(() => {
-    fetchPacientes();
-    fetchMedicamentosDistintos();
-    fetchResumoPorMedicamento();
-  }, []);
-
   useEffect(() => {
     if (!historicoPaciente) {
-      setHistoricoRetornos([]);
       setShowAddRetornoForm(false);
       setNovaDataRetorno("");
       setNovoTipoRetorno("");
-      return;
     }
-    setLoadingHistorico(true);
-    api
-      .get<PacienteRetorno[]>(`/pacientes/${historicoPaciente.id}/retornos`)
-      .then((res) => setHistoricoRetornos(res.data ?? []))
-      .catch(() => setHistoricoRetornos([]))
-      .finally(() => setLoadingHistorico(false));
   }, [historicoPaciente]);
 
   const medicamentoDropdownOptions = medicamentosDistintos.map((m) => ({
@@ -586,11 +611,8 @@ export default function Pacientes() {
         setNovaDataRetorno("");
         setNovoTipoRetorno("");
         setShowAddRetornoForm(false);
-        return api.get<PacienteRetorno[]>(
-          `/pacientes/${historicoPaciente.id}/retornos`,
-        );
+        return reloadHistorico({ silent: true });
       })
-      .then((res) => setHistoricoRetornos(res.data ?? []))
       .catch((err: unknown) => {
         toast.current?.show({
           severity: "error",
@@ -723,8 +745,8 @@ export default function Pacientes() {
             detail: "Paciente atualizado com sucesso.",
             life: 3000,
           });
-          fetchPacientes();
-          fetchResumoPorMedicamento();
+          void reloadPacientes({ silent: true });
+          void reloadResumo({ silent: true });
         })
         .catch((err: unknown) => {
           toast.current?.show({
@@ -777,8 +799,8 @@ export default function Pacientes() {
           life: 3000,
         });
         closeForm();
-        fetchPacientes();
-        fetchResumoPorMedicamento();
+        void reloadPacientes({ silent: true });
+        void reloadResumo({ silent: true });
       })
       .catch((err: unknown) => {
         toast.current?.show({
@@ -809,8 +831,8 @@ export default function Pacientes() {
         life: 3000,
       });
       setDeletingPaciente(null);
-      fetchPacientes();
-      fetchResumoPorMedicamento();
+      void reloadPacientes({ silent: true });
+      void reloadResumo({ silent: true });
     } catch (err: unknown) {
       toast.current?.show({
         severity: "error",
@@ -951,18 +973,21 @@ export default function Pacientes() {
         )}
       </div>
 
-      {resumoPorMedicamentoParaExibir.length > 0 && (
+      {(loadingResumo || resumoPorMedicamentoParaExibir.length > 0) && (
         <div className="pacientes-resumo-section">
           <h3>Estoque por medicamento (comprometido)</h3>
-          {loadingResumo ? (
-            <p>Carregando...</p>
-          ) : (
-            <DataTable
-              value={resumoPorMedicamentoParaExibir}
-              size="small"
-              emptyMessage="Nenhum medicamento com pacientes vinculados."
-              className="pacientes-resumo-table"
-            >
+          <DataTable
+            value={resumoPorMedicamentoParaExibir}
+            loading={loadingResumo}
+            size="small"
+            emptyMessage={getDataTableEmptyMessage({
+              loading: loadingResumo,
+              error: null,
+              emptyLabel: "Nenhum medicamento com pacientes vinculados.",
+              loadingLabel: "Carregando resumo...",
+            })}
+            className="pacientes-resumo-table"
+          >
               <Column
                 field="medicamento_nome"
                 header="Medicamento"
@@ -989,7 +1014,6 @@ export default function Pacientes() {
                 )}
               />
             </DataTable>
-          )}
         </div>
       )}
 
@@ -1046,9 +1070,15 @@ export default function Pacientes() {
 
       <DataTable
         value={filteredAndSortedPacientes}
+        loading={loadingPacientes}
         paginator
         rows={10}
-        emptyMessage="Nenhum paciente cadastrado."
+        emptyMessage={getDataTableEmptyMessage({
+          loading: loadingPacientes,
+          error: pacientesError,
+          emptyLabel: "Nenhum paciente cadastrado.",
+          loadingLabel: "Carregando pacientes...",
+        })}
         className="pacientes-table pacientes-table-custom"
         stripedRows
         rowHover
@@ -1435,6 +1465,12 @@ export default function Pacientes() {
                                     id={`medicamento-${index}`}
                                     value={dropdownValue}
                                     options={medicamentoDropdownOptions}
+                                    disabled={loadingMedicamentosDistintos}
+                                    placeholder={
+                                      loadingMedicamentosDistintos
+                                        ? "Carregando medicamentos..."
+                                        : "Selecione o medicamento"
+                                    }
                                     optionLabel="label"
                                     optionValue="value"
                                     onChange={(e: {
@@ -1455,7 +1491,6 @@ export default function Pacientes() {
                                         true,
                                       )
                                     }
-                                    placeholder="Selecione nome e concentração"
                                     className={`w-full ${hasMedicamentoError ? "p-invalid" : ""}`}
                                   />
                                 </div>
@@ -2003,8 +2038,14 @@ export default function Pacientes() {
             ) : (
               <DataTable
                 value={historicoRetornos}
+                loading={loadingHistorico}
                 size="small"
-                emptyMessage="Nenhuma data de retorno"
+                emptyMessage={getDataTableEmptyMessage({
+                  loading: loadingHistorico,
+                  error: null,
+                  emptyLabel: "Nenhuma data de retorno",
+                  loadingLabel: "Carregando histórico...",
+                })}
                 className="pacientes-table pacientes-table-custom"
                 style={{ marginBottom: "1rem" }}
               >
