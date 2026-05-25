@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import Button from "../../components/ButtonSubmit";
@@ -6,7 +6,7 @@ import FullScreenLoader from "../../components/FullScreenLoader";
 import { Dropdown } from "primereact/dropdown";
 import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
-import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { formatDateBR } from "../../utils/dateUtils";
 import type { MedicationWithStatus } from "../../types";
 import "./styles.css";
@@ -17,8 +17,6 @@ function formatOutputDate(date: Date): string {
 
 export default function Simulador() {
   const toast = useRef<Toast>(null);
-  const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
-  const [loadingMedications, setLoadingMedications] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [numeroPacientes, setNumeroPacientes] = useState<string>("");
   const [consumoDiarioPorPaciente, setConsumoDiarioPorPaciente] = useState<string>("");
@@ -29,22 +27,28 @@ export default function Simulador() {
     emFalta?: boolean;
   } | null>(null);
 
-  useEffect(() => {
-    setLoadingMedications(true);
-    api
-      .get<MedicationWithStatus[]>("/medications")
-      .then((res) => setMedications(res.data ?? []))
-      .catch((err) => {
-        setMedications([]);
-        toast.current?.show({
-          severity: "error",
-          summary: "Erro",
-          detail: normalizeErrorMessage(err),
-          life: 5000,
-        });
-      })
-      .finally(() => setLoadingMedications(false));
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
   }, []);
+
+  const fetchMedicationsList = useCallback(async () => {
+    const res = await api.get<MedicationWithStatus[]>("/medications");
+    return res.data ?? [];
+  }, []);
+
+  const { data: medications, loading: loadingMedications } = useApiQuery(
+    fetchMedicationsList,
+    [],
+    {
+      initialData: [],
+      onError: (message) => showFetchError(message),
+    },
+  );
 
   const selectedMedication = medications.find((m) => m.id === selectedId);
 

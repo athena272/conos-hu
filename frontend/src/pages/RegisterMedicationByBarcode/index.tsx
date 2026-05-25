@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import LabelInput from "../../components/LabelInput";
 import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
@@ -58,22 +59,33 @@ function mapFormaToOption(forma: string | undefined): DropdownOption | null {
 
 function RegisterMedicationByBarcode() {
   const toast = useRef<Toast>(null);
-  const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
   const [captureMode, setCaptureMode] = useState<CaptureMode | null>(null);
   const [scanBuffer, setScanBuffer] = useState("");
   const [lastResolve, setLastResolve] = useState<ResolveScanResponse | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
-  const refreshMedications = useCallback(() => {
-    return api
-      .get<MedicationWithStatus[]>("/medications")
-      .then((res) => setMedications(res.data ?? []))
-      .catch(() => setMedications([]));
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
   }, []);
 
-  useEffect(() => {
-    void refreshMedications();
-  }, [refreshMedications]);
+  const fetchMedicationsList = useCallback(async () => {
+    const res = await api.get<MedicationWithStatus[]>("/medications");
+    return res.data ?? [];
+  }, []);
+
+  const {
+    data: medications,
+    loading: loadingMedications,
+    reload: reloadMedications,
+  } = useApiQuery(fetchMedicationsList, [], {
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
 
   useEffect(() => {
     if (captureMode === "usb") {
@@ -264,7 +276,7 @@ function RegisterMedicationByBarcode() {
           setCaptureMode(null);
           setScanBuffer("");
           setLastResolve(null);
-          void refreshMedications();
+          void reloadMedications({ silent: true });
         })
         .catch((error: unknown) => {
           toast.current?.show({
@@ -498,7 +510,12 @@ function RegisterMedicationByBarcode() {
                           value: m.id,
                         }))}
                         onChange={(e) => setFieldValue("existingMedicationId", e.value)}
-                        placeholder="Selecione o medicamento"
+                        placeholder={
+                          loadingMedications
+                            ? "Carregando medicamentos..."
+                            : "Selecione o medicamento"
+                        }
+                        disabled={loadingMedications}
                         className="w-full"
                       />
                     </div>

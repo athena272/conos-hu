@@ -1,0 +1,15 @@
+.inline-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2.5rem 1rem;
+  min-height: 12rem;
+}
+
+.inline-loader__message {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-color-secondary, #6c757d);
+}
