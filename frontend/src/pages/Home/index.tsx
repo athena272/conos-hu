@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { FilterMatchMode } from "primereact/api";
 import { DataTable } from "primereact/datatable";
@@ -13,7 +13,9 @@ import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
 import { isAdmin } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import React from "react";
 
 import Header from "../../components/Header";
@@ -38,7 +40,30 @@ function toFormaValue(forma: string | number | undefined): number {
 export default function Home() {
   const location = useLocation();
   const toast = useRef<Toast>(null);
-  const [medications, setMedications] = useState<MedicationWithStatus[]>([]);
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
+  }, []);
+
+  const fetchMedicationsList = useCallback(async () => {
+    const response = await api.get<MedicationWithStatus[]>("/medications");
+    return response.data ?? [];
+  }, []);
+
+  const {
+    data: medications,
+    loading: loadingMedications,
+    error: medicationsError,
+    reload: reloadMedications,
+  } = useApiQuery(fetchMedicationsList, [location.pathname], {
+    enabled: location.pathname === "/home",
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
   const [filters, setFilters] = useState({
     global: {
       value: null as string | null,
@@ -73,18 +98,6 @@ export default function Home() {
     { label: "Fora da Validade", value: "foraValidade" },
     { label: "Próximo a Vencer", value: "proximoVencer" },
   ]);
-
-  const fetchMedications = () => {
-    api
-      .get<MedicationWithStatus[]>("/medications")
-      .then((response) => {
-        setMedications(response.data ?? []);
-      });
-  };
-
-  useEffect(() => {
-    if (location.pathname === "/home") fetchMedications();
-  }, [location.pathname]);
 
   const getStatusTag = (status: string) => {
     const statusColors: Record<string, { label: string; color: string }> = {
@@ -174,7 +187,7 @@ export default function Home() {
         life: 3000,
       });
       closeEdit();
-      fetchMedications();
+      void reloadMedications({ silent: true });
     } catch (error: unknown) {
       toast.current?.show({
         severity: "error",
@@ -199,7 +212,7 @@ export default function Home() {
         life: 3000,
       });
       setDeletingMedication(null);
-      fetchMedications();
+      void reloadMedications({ silent: true });
     } catch (error: unknown) {
       toast.current?.show({
         severity: "error",
@@ -256,13 +269,19 @@ export default function Home() {
       </div>
       <DataTable
         value={medications}
+        loading={loadingMedications}
         paginator
         rows={10}
         filters={filters}
         filterDisplay="row"
         globalFilterFields={["nome", "lote", "status"]}
         header={header}
-        emptyMessage="Nenhum medicamento encontrado."
+        emptyMessage={getDataTableEmptyMessage({
+          loading: loadingMedications,
+          error: medicationsError,
+          emptyLabel: "Nenhum medicamento encontrado.",
+          loadingLabel: "Carregando medicamentos...",
+        })}
       >
         <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
         <Column field="lote" header="Lote" style={{ minWidth: "10rem" }} />
