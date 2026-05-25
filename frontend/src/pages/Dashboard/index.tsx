@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useRef, useCallback, useMemo } from "react";
+import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import StatusCard from "../../components/StatusCard";
 import ChartCard from "../../components/ChartCard";
+import InlineLoader from "../../components/InlineLoader";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -26,7 +29,7 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
 );
 
 const categoryColorsTitle = {
@@ -43,82 +46,99 @@ interface MedicationStats {
   foraValidade: number;
 }
 
-const Dashboard = () => {
-  const [medicationStats, setMedicationStats] = useState<MedicationStats>({
-    emEstoque: 0,
-    emFalta: 0,
-    proximoVencer: 0,
-    foraValidade: 0,
+interface DashboardData {
+  medicationStats: MedicationStats;
+  medicationLoteStats: Record<string, number>;
+}
+
+const EMPTY_STATS: MedicationStats = {
+  emEstoque: 0,
+  emFalta: 0,
+  proximoVencer: 0,
+  foraValidade: 0,
+};
+
+function buildDashboardData(
+  medications: MedicationWithStatus[],
+): DashboardData {
+  const statusCounts: MedicationStats = { ...EMPTY_STATS };
+  const loteCounts: Record<string, number> = {};
+
+  medications.forEach((med) => {
+    if (med.status === "emFalta") {
+      statusCounts.emFalta += 1;
+    } else {
+      statusCounts[med.status as keyof MedicationStats] +=
+        med.quantidade || 0;
+    }
+    loteCounts[med.lote] = (loteCounts[med.lote] || 0) + med.quantidade;
   });
 
-  const [medicationLoteStats, setMedicationLoteStats] = useState<
-    Record<string, number>
-  >({});
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = async () => {
-    try {
-      const { data: medications } = await api.get<MedicationWithStatus[]>("/medications");
-
-      const statusCounts: MedicationStats = {
-        emEstoque: 0,
-        emFalta: 0,
-        proximoVencer: 0,
-        foraValidade: 0,
-      };
-
-      const loteCounts: Record<string, number> = {};
-
-      medications.forEach((med) => {
-        if (med.status === "emFalta") {
-          statusCounts.emFalta += 1;
-        } else {
-          statusCounts[med.status as keyof MedicationStats] +=
-            med.quantidade || 0;
-        }
-
-        loteCounts[med.lote] = (loteCounts[med.lote] || 0) + med.quantidade;
-      });
-
-      setMedicationStats(statusCounts);
-      setMedicationLoteStats(loteCounts);
-      setLoading(false);
-    } catch (error) {
-      console.error("Erro ao buscar os dados:", error);
-      setLoading(false);
-    }
+  return {
+    medicationStats: statusCounts,
+    medicationLoteStats: loteCounts,
   };
+}
 
-  useEffect(() => {
-    fetchData();
+const Dashboard = () => {
+  const toast = useRef<Toast>(null);
+
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
   }, []);
 
-  const chartData = {
-    labels: ["Em Estoque", "Em Falta", "Próximo a Vencer", "Fora da Validade"],
-    datasets: [
-      {
-        label: "Quantidade por Status",
-        data: Object.values(medicationStats),
-        backgroundColor: Object.values(categoryColorsTitle),
-      },
-    ],
-  };
+  const fetchDashboard = useCallback(async () => {
+    const { data: medications } =
+      await api.get<MedicationWithStatus[]>("/medications");
+    return buildDashboardData(medications);
+  }, []);
 
-  const loteChartData = {
-    labels: Object.keys(medicationLoteStats),
-    datasets: [
-      {
-        label: "Quantidade por Lote",
-        data: Object.values(medicationLoteStats),
-        backgroundColor: "#A9A9A9",
-      },
-    ],
-  };
+  const { data, loading } = useApiQuery(fetchDashboard, [], {
+    initialData: {
+      medicationStats: EMPTY_STATS,
+      medicationLoteStats: {},
+    },
+    onError: (message) => showFetchError(message),
+  });
 
-  if (loading) return <div>Carregando...</div>;
+  const { medicationStats, medicationLoteStats } = data;
+
+  const chartData = useMemo(
+    () => ({
+      labels: ["Em Estoque", "Em Falta", "Próximo a Vencer", "Fora da Validade"],
+      datasets: [
+        {
+          label: "Quantidade por Status",
+          data: Object.values(medicationStats),
+          backgroundColor: Object.values(categoryColorsTitle),
+        },
+      ],
+    }),
+    [medicationStats],
+  );
+
+  const loteChartData = useMemo(
+    () => ({
+      labels: Object.keys(medicationLoteStats),
+      datasets: [
+        {
+          label: "Quantidade por Lote",
+          data: Object.values(medicationLoteStats),
+          backgroundColor: "#A9A9A9",
+        },
+      ],
+    }),
+    [medicationLoteStats],
+  );
 
   return (
     <div>
+      <Toast ref={toast} position="top-right" />
       <Header />
       <Menu />
       <div className="dashboard-container">
@@ -126,39 +146,45 @@ const Dashboard = () => {
           <h2>Painel de Controle</h2>
         </div>
 
-        <div className="status-container">
-          <StatusCard
-            title="Em Estoque"
-            value={medicationStats.emEstoque}
-            backgroundColor={categoryColorsTitle.emEstoque}
-          />
-          <StatusCard
-            title="Em Falta"
-            value={medicationStats.emFalta}
-            backgroundColor={categoryColorsTitle.emFalta}
-          />
-          <StatusCard
-            title="Próximo a Vencer"
-            value={medicationStats.proximoVencer}
-            backgroundColor={categoryColorsTitle.proximoVencer}
-          />
-          <StatusCard
-            title="Fora da Validade"
-            value={medicationStats.foraValidade}
-            backgroundColor={categoryColorsTitle.foraValidade}
-          />
-        </div>
+        {loading ? (
+          <InlineLoader message="Carregando painel..." />
+        ) : (
+          <>
+            <div className="status-container">
+              <StatusCard
+                title="Em Estoque"
+                value={medicationStats.emEstoque}
+                backgroundColor={categoryColorsTitle.emEstoque}
+              />
+              <StatusCard
+                title="Em Falta"
+                value={medicationStats.emFalta}
+                backgroundColor={categoryColorsTitle.emFalta}
+              />
+              <StatusCard
+                title="Próximo a Vencer"
+                value={medicationStats.proximoVencer}
+                backgroundColor={categoryColorsTitle.proximoVencer}
+              />
+              <StatusCard
+                title="Fora da Validade"
+                value={medicationStats.foraValidade}
+                backgroundColor={categoryColorsTitle.foraValidade}
+              />
+            </div>
 
-        <div className="chart-container">
-          <ChartCard
-            title="Quantidade por Status"
-            chart={<Bar data={chartData} />}
-          />
-          <ChartCard
-            title="Medicamentos por Lote"
-            chart={<Bar data={loteChartData} />}
-          />
-        </div>
+            <div className="chart-container">
+              <ChartCard
+                title="Quantidade por Status"
+                chart={<Bar data={chartData} />}
+              />
+              <ChartCard
+                title="Medicamentos por Lote"
+                chart={<Bar data={loteChartData} />}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
