@@ -5,7 +5,7 @@ import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import StatusCard from "../../components/StatusCard";
 import ChartCard from "../../components/ChartCard";
-import InlineLoader from "../../components/InlineLoader";
+import FullScreenLoader from "../../components/FullScreenLoader";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { Bar } from "react-chartjs-2";
 import {
@@ -139,6 +139,7 @@ const Dashboard = () => {
   return (
     <div>
       <Toast ref={toast} position="top-right" />
+      <FullScreenLoader active={loading} message="Carregando..." />
       <Header />
       <Menu />
       <div className="dashboard-container">
@@ -146,9 +147,7 @@ const Dashboard = () => {
           <h2>Painel de Controle</h2>
         </div>
 
-        {loading ? (
-          <InlineLoader message="Carregando painel..." />
-        ) : (
+        {!loading && (
           <>
             <div className="status-container">
               <StatusCard

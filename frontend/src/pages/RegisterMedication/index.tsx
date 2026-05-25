@@ -241,8 +241,14 @@ function RegisterMedication() {
           {({ values, setFieldValue, isSubmitting }) => (
             <>
               <FullScreenLoader
-                active={isSubmitting}
-                message={values.entryType === "existing" ? "Adicionando quantidade..." : "Salvando..."}
+                active={isSubmitting || loadingMedications}
+                message={
+                  isSubmitting
+                    ? values.entryType === "existing"
+                      ? "Adicionando quantidade..."
+                      : "Salvando..."
+                    : "Carregando..."
+                }
               />
               <Form className="register-form">
               <div className="form-group">

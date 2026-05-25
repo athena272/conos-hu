@@ -113,7 +113,7 @@ export default function Simulador() {
         <p>Simule em quantos dias o estoque acaba com base no número de pacientes e no consumo diário por paciente.</p>
         <Toast ref={toast} position="top-right" />
 
-        <FullScreenLoader active={loadingMedications} message="Carregando medicamentos..." />
+        <FullScreenLoader active={loadingMedications} message="Carregando..." />
         {!loadingMedications && (
           <div className="simulador-form">
             <div className="form-group">

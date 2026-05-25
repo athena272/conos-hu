@@ -8,7 +8,10 @@ interface FullScreenLoaderProps {
   message?: string;
 }
 
-function FullScreenLoader({ active, message }: FullScreenLoaderProps) {
+function FullScreenLoader({
+  active,
+  message = "Carregando...",
+}: FullScreenLoaderProps) {
   if (!active) return null;
 
   return (
@@ -17,16 +20,14 @@ function FullScreenLoader({ active, message }: FullScreenLoaderProps) {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label={message ?? "Carregando"}
+      aria-label={message}
     >
       <div className="full-screen-loader__content">
         <ProgressSpinner
           style={{ width: "56px", height: "56px" }}
           strokeWidth="3"
         />
-        {message && (
-          <p className="full-screen-loader__message">{message}</p>
-        )}
+        <p className="full-screen-loader__message">{message}</p>
       </div>
     </div>
   );

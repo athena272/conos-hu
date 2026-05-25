@@ -895,11 +895,25 @@ export default function Pacientes() {
 
   const admin = isAdmin();
 
+  const isPageDataLoading =
+    loadingPacientes || loadingResumo || loadingMedicamentosDistintos;
+  const isHistoricoLoading = !!historicoPaciente && loadingHistorico;
+  const fullscreenLoaderActive =
+    formSubmitting ||
+    submittingConfirm ||
+    isPageDataLoading ||
+    isHistoricoLoading;
+  const fullscreenLoaderMessage = submittingConfirm
+    ? "Cadastrando paciente..."
+    : formSubmitting
+      ? "Salvando..."
+      : "Carregando...";
+
   return (
     <div className="pacientes-container">
       <FullScreenLoader
-        active={formSubmitting || submittingConfirm}
-        message={submittingConfirm ? "Cadastrando paciente..." : "Salvando..."}
+        active={fullscreenLoaderActive}
+        message={fullscreenLoaderMessage}
       />
       <Toast ref={toast} position="top-right" />
       <Tooltip
@@ -978,13 +992,11 @@ export default function Pacientes() {
           <h3>Estoque por medicamento (comprometido)</h3>
           <DataTable
             value={resumoPorMedicamentoParaExibir}
-            loading={loadingResumo}
             size="small"
             emptyMessage={getDataTableEmptyMessage({
-              loading: loadingResumo,
+              loading: false,
               error: null,
               emptyLabel: "Nenhum medicamento com pacientes vinculados.",
-              loadingLabel: "Carregando resumo...",
             })}
             className="pacientes-resumo-table"
           >
@@ -1070,14 +1082,12 @@ export default function Pacientes() {
 
       <DataTable
         value={filteredAndSortedPacientes}
-        loading={loadingPacientes}
         paginator
         rows={10}
         emptyMessage={getDataTableEmptyMessage({
-          loading: loadingPacientes,
+          loading: false,
           error: pacientesError,
           emptyLabel: "Nenhum paciente cadastrado.",
-          loadingLabel: "Carregando pacientes...",
         })}
         className="pacientes-table pacientes-table-custom"
         stripedRows
@@ -2027,9 +2037,7 @@ export default function Pacientes() {
           <Button label="Fechar" onClick={() => setHistoricoPaciente(null)} />
         }
       >
-        {loadingHistorico ? (
-          <p>Carregando...</p>
-        ) : (
+        {!loadingHistorico && (
           <>
             {historicoRetornos.length === 0 && !showAddRetornoForm ? (
               <p className="pacientes-field-hint">
@@ -2038,13 +2046,11 @@ export default function Pacientes() {
             ) : (
               <DataTable
                 value={historicoRetornos}
-                loading={loadingHistorico}
                 size="small"
                 emptyMessage={getDataTableEmptyMessage({
-                  loading: loadingHistorico,
+                  loading: false,
                   error: null,
                   emptyLabel: "Nenhuma data de retorno",
-                  loadingLabel: "Carregando histórico...",
                 })}
                 className="pacientes-table pacientes-table-custom"
                 style={{ marginBottom: "1rem" }}

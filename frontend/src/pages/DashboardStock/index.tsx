@@ -4,7 +4,7 @@ import { TabView, TabPanel } from "primereact/tabview";
 import { api } from "../../api/client";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
-import InlineLoader from "../../components/InlineLoader";
+import FullScreenLoader from "../../components/FullScreenLoader";
 import CardKanban from "../../components/CardKanban";
 import CardKanbanMedication from "../../components/CardKanbanMedication";
 import { aggregateByMedication } from "../../utils/stockAggregation";
@@ -42,6 +42,7 @@ function DashboardStock() {
   return (
     <div>
       <Toast ref={toast} position="top-right" />
+      <FullScreenLoader active={loading} message="Carregando..." />
       <Header />
       <Menu />
       <div className="container-stock">
@@ -49,9 +50,7 @@ function DashboardStock() {
           <h2>Painel de Estoque</h2>
         </div>
 
-        {loading ? (
-          <InlineLoader message="Carregando estoque..." />
-        ) : (
+        {!loading && (
           <TabView>
             <TabPanel header="Por Lote">
               <CardKanban medications={medications} />

@@ -188,7 +188,16 @@ function RetiraMedication() {
         >
           {({ isSubmitting, values, setFieldValue }) => (
             <>
-              <FullScreenLoader active={isSubmitting} message="Processando retirada..." />
+              <FullScreenLoader
+                active={
+                  isSubmitting || loadingPacientesOpcoes || loadingLots
+                }
+                message={
+                  isSubmitting
+                    ? "Processando retirada..."
+                    : "Carregando..."
+                }
+              />
               <Form className="retire-form">
               <div className="form-group">
                 <LabelInput
