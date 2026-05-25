@@ -10,6 +10,7 @@ import {
 
 test("parseRegimeConsumo defaults safely to diario", () => {
   assert.equal(parseRegimeConsumo("por_ciclo"), "por_ciclo");
+  assert.equal(parseRegimeConsumo("por_miligrama"), "por_miligrama");
   assert.equal(parseRegimeConsumo("diario"), "diario");
   assert.equal(parseRegimeConsumo("outro"), "diario");
 });

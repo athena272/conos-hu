@@ -1,4 +1,6 @@
-export type RegimeConsumo = "diario" | "por_ciclo";
+import { parseMgPorUnidadeFromConcentracao } from "./concentracaoMg";
+
+export type RegimeConsumo = "diario" | "por_ciclo" | "por_miligrama";
 
 function rawRegimeToString(raw: unknown): string {
   if (raw == null) return "";
@@ -10,6 +12,7 @@ function rawRegimeToString(raw: unknown): string {
 export function parseRegimeConsumo(raw: unknown): RegimeConsumo {
   const s = rawRegimeToString(raw).toLowerCase();
   if (s === "por_ciclo") return "por_ciclo";
+  if (s === "por_miligrama") return "por_miligrama";
   if (s === "diario") return "diario";
   return "diario";
 }
@@ -40,10 +43,19 @@ export interface PacienteMedicamentoPersistRow {
   consumo_diario: number;
   unidades_por_ciclo: number | null;
   intervalo_ciclo_dias: number | null;
+  consumo_mg_diario?: number | null;
+  medicamento_concentracao?: string;
 }
 
 export function taxaFromPersistRow(row: PacienteMedicamentoPersistRow): number {
   const regime = parseRegimeConsumo(row.regime_consumo);
+  if (regime === "por_miligrama") {
+    const mg = Number(row.consumo_mg_diario);
+    const conc = String(row.medicamento_concentracao ?? "");
+    const mgPorUnidade = parseMgPorUnidadeFromConcentracao(conc);
+    if (!Number.isFinite(mg) || mg <= 0 || mgPorUnidade == null) return 0;
+    return mg / mgPorUnidade;
+  }
   return taxaUnidadesPorDia(regime, Number(row.consumo_diario), row.unidades_por_ciclo, row.intervalo_ciclo_dias);
 }
 
