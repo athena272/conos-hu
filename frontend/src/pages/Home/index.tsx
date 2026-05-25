@@ -20,6 +20,7 @@ import React from "react";
 
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
+import FullScreenLoader from "../../components/FullScreenLoader";
 
 import "./styles.scss";
 import type { MedicationWithStatus } from "../../types";
@@ -262,6 +263,10 @@ export default function Home() {
         accept={handleConfirmDelete}
         reject={() => setDeletingMedication(null)}
       />
+      <FullScreenLoader
+        active={loadingMedications}
+        message="Carregando..."
+      />
       <Header />
       <Menu />
       <div className="title-home">
@@ -269,7 +274,6 @@ export default function Home() {
       </div>
       <DataTable
         value={medications}
-        loading={loadingMedications}
         paginator
         rows={10}
         filters={filters}
@@ -277,10 +281,9 @@ export default function Home() {
         globalFilterFields={["nome", "lote", "status"]}
         header={header}
         emptyMessage={getDataTableEmptyMessage({
-          loading: loadingMedications,
+          loading: false,
           error: medicationsError,
           emptyLabel: "Nenhum medicamento encontrado.",
-          loadingLabel: "Carregando medicamentos...",
         })}
       >
         <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />

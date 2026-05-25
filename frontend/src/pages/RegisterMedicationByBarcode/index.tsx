@@ -374,9 +374,13 @@ function RegisterMedicationByBarcode() {
           {({ values, setFieldValue, isSubmitting }) => (
             <>
               <FullScreenLoader
-                active={isSubmitting}
+                active={isSubmitting || loadingMedications}
                 message={
-                  values.entryType === "existing" ? "Adicionando quantidade..." : "Salvando..."
+                  isSubmitting
+                    ? values.entryType === "existing"
+                      ? "Adicionando quantidade..."
+                      : "Salvando..."
+                    : "Carregando..."
                 }
               />
               <Form className="register-form">
