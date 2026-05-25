@@ -1,9 +1,8 @@
--- Opcional / referência: o schema completo e as migrações leves são aplicados na primeira
--- Bootstrap manual MySQL (a API usa MongoDB; veja MONGODB_URI e scripts de migração).
--- em um MySQL onde você não vá subir a API de imediato, ou como documentação legada.
+-- LEGADO MySQL — referência histórica apenas.
+-- A API usa MongoDB (MONGODB_URI). Schema e índices: backend/models/mongo.ts e indexes.ts.
 --
--- Com Docker Compose na raiz do projeto, o banco e o usuário da app já são criados pelas
--- variáveis MYSQL_*; não é necessário executar este arquivo para o fluxo local com Docker.
+-- Desenvolvimento local: Docker Compose na raiz sobe mongo:8.0.23 (database conos na URI).
+-- Não execute este arquivo no fluxo normal com MongoDB.
 
 -- Criar database se não existir
 CREATE DATABASE IF NOT EXISTS conos;

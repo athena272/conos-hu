@@ -32,25 +32,29 @@ import type {
 } from "../../types";
 import {
   formatarNumeroTaxaPtBr,
-  formatarMgAcumuladoPtBr,
+  formatarMgPtBr,
   inferResumoTaxaMetaFromMedicamentos,
   normalizeRegimeConsumo,
+  normalizePacienteLista,
+  agregarPrevisaoMgMedicamentos,
+  previsaoMgTemValor,
+  mesesEstoqueFromMgFrontend,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
 import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
+import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
+import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
 import "./styles.css";
 
 const TOOLTIP_IDENTIFICACAO_REDACT =
   "Somente usuários administradores do Conos visualizam nome e prontuário completos.";
 
-/** Cabeçalho da coluna Mg com botão que abre o diálogo explicativo */
-function MgAcumuladoColunaHeader({ onOpen }: { onOpen: () => void }) {
+/** Cabeçalho da coluna Previsão (mg) com botão que abre o diálogo explicativo */
+function PrevisaoMgColunaHeader({ onOpen }: { onOpen: () => void }) {
   return (
     <span className="pacientes-mg-col-header">
-      <span className="pacientes-mg-col-header-label">
-        Mg acumulados (dispensado)
-      </span>
+      <span className="pacientes-mg-col-header-label">Previsão (mg)</span>
       <button
         type="button"
         className="pacientes-mg-info-btn"
@@ -58,7 +62,7 @@ function MgAcumuladoColunaHeader({ onOpen }: { onOpen: () => void }) {
           e.stopPropagation();
           onOpen();
         }}
-        aria-label="Explicar Mg acumulados (dispensado)"
+        aria-label="Explicar previsão em mg"
         title="O que significa esta coluna"
       >
         <i className="pi pi-info-circle" aria-hidden />
@@ -95,6 +99,7 @@ const REGIME_MEDICAMENTO_OPTIONS: {
 }[] = [
   { label: "Consumo diário", value: "diario" },
   { label: "Por ciclo", value: "por_ciclo" },
+  { label: "Consumo por miligrama", value: "por_miligrama" },
 ];
 
 interface MedicamentoFormItem {
@@ -103,6 +108,7 @@ interface MedicamentoFormItem {
   consumo_diario: string;
   unidades_por_ciclo: string;
   intervalo_ciclo_dias: string;
+  consumo_mg_diario: string;
 }
 
 interface FormValues {
@@ -125,6 +131,7 @@ const initialMedicamentoItem: MedicamentoFormItem = {
   consumo_diario: "",
   unidades_por_ciclo: "",
   intervalo_ciclo_dias: "",
+  consumo_mg_diario: "",
 };
 
 const initialFormValues: FormValues = {
@@ -153,7 +160,7 @@ const medicamentoItemSchema = yup.object().shape({
     ),
   regime_consumo: yup
     .string()
-    .oneOf(["diario", "por_ciclo"])
+    .oneOf(["diario", "por_ciclo", "por_miligrama"])
     .required(),
   consumo_diario: yup.string().when("regime_consumo", {
     is: "diario",
@@ -194,6 +201,17 @@ const medicamentoItemSchema = yup.object().shape({
             return !isNaN(n) && n >= 1 && String(n) === String(v?.trim());
           },
         ),
+    otherwise: (s) => s.notRequired(),
+  }),
+  consumo_mg_diario: yup.string().when("regime_consumo", {
+    is: "por_miligrama",
+    then: (s) =>
+      s
+        .required("Consumo em mg/dia é obrigatório")
+        .test("positive-mg", "Consumo em mg/dia deve ser maior que zero", (v) => {
+          const n = parseFloat(String(v ?? "").replace(",", "."));
+          return !isNaN(n) && n > 0;
+        }),
     otherwise: (s) => s.notRequired(),
   }),
 });
@@ -278,6 +296,7 @@ function buildImpactoEstoquePath(m: {
   consumo_diario: number;
   unidades_por_ciclo?: number | null;
   intervalo_ciclo_dias?: number | null;
+  consumo_mg_diario?: number | null;
 }): string {
   const q = new URLSearchParams();
   q.set("medicamento_nome", m.medicamento_nome);
@@ -286,6 +305,9 @@ function buildImpactoEstoquePath(m: {
     q.set("regime_consumo", "por_ciclo");
     q.set("unidades_por_ciclo", String(m.unidades_por_ciclo ?? ""));
     q.set("intervalo_ciclo_dias", String(m.intervalo_ciclo_dias ?? ""));
+  } else if (m.regime_consumo === "por_miligrama") {
+    q.set("regime_consumo", "por_miligrama");
+    q.set("consumo_mg_diario", String(m.consumo_mg_diario ?? ""));
   } else {
     q.set("regime_consumo", "diario");
     q.set("consumo_diario", String(m.consumo_diario));
@@ -300,9 +322,13 @@ function resumoMedicamentoNoPayload(m: {
   consumo_diario: number;
   unidades_por_ciclo?: number | null;
   intervalo_ciclo_dias?: number | null;
+  consumo_mg_diario?: number | null;
 }): string {
   if (m.regime_consumo === "por_ciclo") {
     return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.unidades_por_ciclo} unid. / ${m.intervalo_ciclo_dias} dias)`;
+  }
+  if (m.regime_consumo === "por_miligrama") {
+    return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_mg_diario} mg/dia)`;
   }
   return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_diario}/dia)`;
 }
@@ -345,7 +371,7 @@ export default function Pacientes() {
     [],
   );
   const [loadingHistorico, setLoadingHistorico] = useState(false);
-  const [mgAcumuladoInfoVisible, setMgAcumuladoInfoVisible] = useState(false);
+  const [previsaoMgInfoVisible, setPrevisaoMgInfoVisible] = useState(false);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
   const [addingRetorno, setAddingRetorno] = useState(false);
@@ -431,9 +457,6 @@ export default function Pacientes() {
 
   const resumoPorMedicamentoParaExibir = useMemo(() => {
     return resumoPorMedicamento.map((row) => {
-      if (row.resumoTaxaTipo != null && row.resumoTaxaTipo !== "") {
-        return row;
-      }
       const meds = pacientes
         .flatMap((p) => p.medicamentos ?? [])
         .filter(
@@ -441,16 +464,44 @@ export default function Pacientes() {
             m.medicamento_nome === row.medicamento_nome &&
             m.medicamento_concentracao === row.medicamento_concentracao,
         );
-      const inferred = inferResumoTaxaMetaFromMedicamentos(meds);
-      if (!inferred) return row;
-      return { ...row, ...inferred };
+
+      let enriched = row;
+      if (row.resumoTaxaTipo == null || row.resumoTaxaTipo === "") {
+        const inferred = inferResumoTaxaMetaFromMedicamentos(meds);
+        if (inferred) enriched = { ...enriched, ...inferred };
+      }
+
+      const previsaoMgTotal =
+        enriched.previsaoMgTotal && previsaoMgTemValor(enriched.previsaoMgTotal)
+          ? enriched.previsaoMgTotal
+          : meds.length > 0
+            ? agregarPrevisaoMgMedicamentos(meds)
+            : enriched.previsaoMgTotal;
+
+      const mgDia = previsaoMgTotal?.mg_dia_previsto ?? null;
+      const mesesEstoqueMg =
+        enriched.mesesEstoqueMg != null
+          ? enriched.mesesEstoqueMg
+          : mesesEstoqueFromMgFrontend(
+              enriched.estoqueTotal,
+              mgDia,
+              row.medicamento_concentracao,
+            );
+
+      return {
+        ...enriched,
+        ...(previsaoMgTotal && previsaoMgTemValor(previsaoMgTotal)
+          ? { previsaoMgTotal }
+          : {}),
+        ...(mesesEstoqueMg !== undefined ? { mesesEstoqueMg } : {}),
+      };
     });
   }, [resumoPorMedicamento, pacientes]);
 
   const fetchPacientes = () => {
     api
       .get<Paciente[]>("/pacientes")
-      .then((res) => setPacientes(res.data ?? []))
+      .then((res) => setPacientes(normalizePacienteLista(res.data)))
       .catch(() => setPacientes([]));
   };
 
@@ -580,6 +631,19 @@ export default function Pacientes() {
           ),
         };
       }
+      if (item.regime_consumo === "por_miligrama") {
+        return {
+          medicamento_nome: item.medicamento!.nome,
+          medicamento_concentracao: item.medicamento!.concentracao,
+          consumo_diario: 0,
+          regime_consumo: "por_miligrama" as const,
+          unidades_por_ciclo: null,
+          intervalo_ciclo_dias: null,
+          consumo_mg_diario: parseFloat(
+            String(item.consumo_mg_diario ?? "").replace(",", "."),
+          ),
+        };
+      }
       return {
         medicamento_nome: item.medicamento!.nome,
         medicamento_concentracao: item.medicamento!.concentracao,
@@ -616,6 +680,9 @@ export default function Pacientes() {
           !String(item.unidades_por_ciclo ?? "").trim() ||
           !String(item.intervalo_ciclo_dias ?? "").trim()
         );
+      }
+      if (item.regime_consumo === "por_miligrama") {
+        return !String(item.consumo_mg_diario ?? "").trim();
       }
       return !String(item.consumo_diario ?? "").trim();
     });
@@ -788,6 +855,10 @@ export default function Pacientes() {
                 regime === "por_ciclo" && m.intervalo_ciclo_dias != null
                   ? String(m.intervalo_ciclo_dias)
                   : "",
+              consumo_mg_diario:
+                regime === "por_miligrama" && m.consumo_mg_diario != null
+                  ? String(m.consumo_mg_diario)
+                  : "",
             };
           });
         })(),
@@ -815,9 +886,9 @@ export default function Pacientes() {
         appendTo={typeof document !== "undefined" ? document.body : undefined}
       />
       <Dialog
-        header="Mg acumulados (dispensado)"
-        visible={mgAcumuladoInfoVisible}
-        onHide={() => setMgAcumuladoInfoVisible(false)}
+        header="Previsão (mg)"
+        visible={previsaoMgInfoVisible}
+        onHide={() => setPrevisaoMgInfoVisible(false)}
         draggable={false}
         dismissableMask
         style={{ width: "min(92vw, 32rem)" }}
@@ -825,31 +896,24 @@ export default function Pacientes() {
       >
         <div className="pacientes-mg-info-body">
           <p>
-            O valor em <strong>mg</strong> é o total de{" "}
-            <strong>miligramas já dispensados</strong>, calculado a partir das{" "}
-            <strong>retiradas de estoque</strong> em que foi informado o{" "}
-            <strong>paciente</strong>.
+            Os valores são <strong>previsões de consumo</strong> calculadas a
+            partir do <strong>vínculo paciente–medicamento</strong>.{" "}
+            <strong>Não dependem</strong> de retiradas ou dispensação.
           </p>
           <p>
-            Para cada retirada, multiplica-se a <strong>quantidade</strong> de
-            unidades pelo que a <strong>concentração</strong> do medicamento
-            indica em mg por unidade (ex.: &quot;500mg&quot; → 500 mg por
-            comprimido).
-          </p>
-          <p>
-            <strong>Na lista de pacientes:</strong> mostra o total por{" "}
-            <strong>medicamento prescrito</strong> (mesmo nome e concentração
-            do vínculo). Retiradas feitas <strong>sem</strong> paciente não
-            entram neste total.
-          </p>
-          <p>
-            <strong>Em Estoque por medicamento (comprometido):</strong> soma
-            todas as retiradas com paciente para aquele medicamento (nome +
-            concentração), considerando todos os pacientes.
+            <strong>Mg/dia:</strong> taxa diária prevista.{" "}
+            <strong>Mg/mês:</strong> projeção em 30 dias (mg/dia × 30).{" "}
+            <strong>Contextual:</strong> mg/ciclo no regime por ciclo; mg/dia nos
+            demais.
           </p>
           <p className="pacientes-mg-info-nota">
-            Se aparecer &quot;—&quot; e a nota sobre concentração, o cadastro não
-            permitiu extrair mg a partir do texto da concentração.
+            Se aparecer &quot;—&quot;, a concentração não permitiu extrair mg
+            (exceto no regime &quot;Consumo por miligrama&quot;).
+          </p>
+          <p className="pacientes-mg-info-nota">
+            Em <strong>Estoque dá para (meses)</strong>, a primeira linha usa
+            consumo em <strong>unidades/dia</strong>; a segunda, em{" "}
+            <strong>mg/dia</strong> (requer previsão em mg).
           </p>
         </div>
         <div className="pacientes-mg-info-footer">
@@ -857,7 +921,7 @@ export default function Pacientes() {
             type="button"
             label="Fechar"
             className="p-button-secondary"
-            onClick={() => setMgAcumuladoInfoVisible(false)}
+            onClick={() => setPrevisaoMgInfoVisible(false)}
           />
         </div>
       </Dialog>
@@ -910,41 +974,19 @@ export default function Pacientes() {
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
                 header={() => (
-                  <MgAcumuladoColunaHeader
-                    onOpen={() => setMgAcumuladoInfoVisible(true)}
+                  <PrevisaoMgColunaHeader
+                    onOpen={() => setPrevisaoMgInfoVisible(true)}
                   />
                 )}
-                body={(r: ResumoPorMedicamento) => {
-                  const rawMg = r.mgAcumuladoDispensadoTotal;
-                  const linha =
-                    rawMg === null || rawMg === undefined
-                      ? "—"
-                      : formatarMgAcumuladoPtBr(rawMg);
-                  return (
-                    <div className="pacientes-taxa-resumo-celula">
-                      <div className="pacientes-taxa-resumo-celula-texto">
-                        <div className="pacientes-taxa-linha-principal">
-                          {linha}
-                        </div>
-                        {rawMg === null ? (
-                          <div className="pacientes-taxa-linha-secundaria">
-                            Concentração sem mg no cadastro
-                          </div>
-                        ) : rawMg === undefined ? null : (
-                          <div className="pacientes-taxa-linha-secundaria">
-                            Soma das retiradas vinculadas a pacientes
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }}
+                body={(r: ResumoPorMedicamento) => (
+                  <CelulaPrevisaoMgResumo row={r} pacientes={pacientes} />
+                )}
               />
               <Column
                 header="Estoque dá para (meses)"
-                body={(r: ResumoPorMedicamento) =>
-                  r.mesesEstoque != null ? `${r.mesesEstoque}` : "—"
-                }
+                body={(r: ResumoPorMedicamento) => (
+                  <CelulaMesesEstoqueResumo row={r} pacientes={pacientes} />
+                )}
               />
             </DataTable>
           )}
@@ -1098,8 +1140,8 @@ export default function Pacientes() {
         />
         <Column
           header={() => (
-            <MgAcumuladoColunaHeader
-              onOpen={() => setMgAcumuladoInfoVisible(true)}
+            <PrevisaoMgColunaHeader
+              onOpen={() => setPrevisaoMgInfoVisible(true)}
             />
           )}
           body={(r: Paciente) => {
@@ -1107,32 +1149,14 @@ export default function Pacientes() {
             if (!meds.length) return "—";
             return (
               <div className="pacientes-taxa-lista">
-                {meds.map((m, index) => {
-                  const mg =
-                    m.mg_acumulado_dispensado === undefined
-                      ? 0
-                      : m.mg_acumulado_dispensado;
-                  const linha =
-                    mg === null
-                      ? "—"
-                      : formatarMgAcumuladoPtBr(mg);
-                  return (
-                    <div
-                      key={`${m.medicamento_nome}-${m.medicamento_concentracao}-mg-${index}`}
-                      className="pacientes-taxa-item"
-                      title="Soma em mg das retiradas vinculadas a este paciente (mesmo nome e concentração). Retiradas sem paciente não entram."
-                    >
-                      <div className="pacientes-taxa-linha-principal">
-                        {linha}
-                      </div>
-                      {mg === null ? (
-                        <div className="pacientes-taxa-linha-secundaria">
-                          Concentração sem mg no cadastro
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {meds.map((m, index) => (
+                  <CelulaPrevisaoMg
+                    key={`${m.medicamento_nome}-${m.medicamento_concentracao}-mg-${index}`}
+                    previsao={m.previsao_mg}
+                    medicamento={m}
+                    mostrarAuditoria
+                  />
+                ))}
               </div>
             );
           }}
@@ -1513,6 +1537,42 @@ export default function Pacientes() {
                               className="form-error"
                             />
                           </div>
+                        ) : regimeAtual === "por_miligrama" ? (
+                          <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo">
+                            <Field name={`medicamentos.${index}.consumo_mg_diario`}>
+                              {({
+                                field,
+                              }: {
+                                field: Record<string, unknown>;
+                              }) => {
+                                const hasErr =
+                                  !!itemError?.consumo_mg_diario &&
+                                  !!itemTouched?.consumo_mg_diario;
+                                return (
+                                  <div className="input-container">
+                                    <label
+                                      htmlFor={`consumo-mg-${index}`}
+                                      className="input-label"
+                                    >
+                                      Consumo (mg/dia)
+                                    </label>
+                                    <InputText
+                                      id={`consumo-mg-${index}`}
+                                      {...field}
+                                      placeholder="Ex.: 750"
+                                      type="number"
+                                      className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </Field>
+                            <ErrorMessage
+                              component="span"
+                              name={`medicamentos.${index}.consumo_mg_diario`}
+                              className="form-error"
+                            />
+                          </div>
                         ) : (
                           <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo pacientes-medicamento-ciclo">
                             <Field
@@ -1848,21 +1908,57 @@ export default function Pacientes() {
                               unid./dia
                             </li>
                             <li>
-                              Estoque dá para:{" "}
+                              Estoque dá para (unid.):{" "}
                               <strong>
                                 {impact.mesesEstoqueAtual != null
                                   ? `${impact.mesesEstoqueAtual} meses`
                                   : "—"}
                               </strong>
-                            </li>
-                            <li>
-                              Com este paciente:{" "}
+                              {" → "}
                               <strong>
                                 {impact.mesesEstoqueComNovo != null
                                   ? `${impact.mesesEstoqueComNovo} meses`
                                   : "—"}
                               </strong>
                             </li>
+                            {impact.consumoMgDiarioComNovo != null ? (
+                              <>
+                                <li>
+                                  Consumo previsto (mg/dia):{" "}
+                                  <strong>
+                                    {formatarMgPtBr(impact.consumoMgDiarioAtual ?? 0)}
+                                    /dia
+                                  </strong>
+                                  {" → "}
+                                  <strong>
+                                    {formatarMgPtBr(impact.consumoMgDiarioComNovo)}
+                                    /dia
+                                  </strong>
+                                </li>
+                                {impact.consumoMgMesComNovo != null ? (
+                                  <li>
+                                    Projeção mensal (mg):{" "}
+                                    <strong>
+                                      {formatarMgPtBr(impact.consumoMgMesComNovo)}
+                                    </strong>
+                                  </li>
+                                ) : null}
+                                <li>
+                                  Estoque dá para (mg):{" "}
+                                  <strong>
+                                    {impact.mesesEstoqueMgAtual != null
+                                      ? `${impact.mesesEstoqueMgAtual} meses`
+                                      : "—"}
+                                  </strong>
+                                  {" → "}
+                                  <strong>
+                                    {impact.mesesEstoqueMgComNovo != null
+                                      ? `${impact.mesesEstoqueMgComNovo} meses`
+                                      : "—"}
+                                  </strong>
+                                </li>
+                              </>
+                            ) : null}
                           </ul>
                           <p className="pacientes-taxa-linha-secundaria pacientes-impact-taxa-nota">
                             Valores são soma das taxas equivalentes (consumo

@@ -1,4 +1,8 @@
 import type { ResumoPorMedicamento, ResumoTaxaTipo } from "../types/paciente";
+import {
+  normalizePrevisaoMgFromApi,
+  previsaoMgTemValor,
+} from "./pacienteMedicamentoDisplay";
 
 const TIPOS_VALIDOS: ResumoTaxaTipo[] = [
   "por_ciclo_homogeneo",
@@ -18,6 +22,13 @@ function num(raw: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function numOrNull(raw: unknown): number | null | undefined {
+  if (raw === null) return null;
+  if (raw === undefined || raw === "") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /**
  * Aceita resposta da API em camelCase ou snake_case (proxies / versões antigas).
  */
@@ -32,23 +43,22 @@ function normalizeUm(r: Record<string, unknown>): ResumoPorMedicamento {
   const porU = num(r.porCicloUnidadesTotal ?? r.por_ciclo_unidades_total);
   const porD = num(r.porCicloIntervaloDias ?? r.por_ciclo_intervalo_dias);
   const consumoAlt = num(r.consumo_diario_total);
-  const mgTotal = r.mgAcumuladoDispensadoTotal ?? r.mg_acumulado_dispensado_total;
-  const mgNum =
-    mgTotal === null || mgTotal === undefined
-      ? undefined
-      : Number(mgTotal);
+  const mesesMg = numOrNull(r.mesesEstoqueMg ?? r.meses_estoque_mg);
+  const previsaoMgTotal =
+    normalizePrevisaoMgFromApi(r.previsaoMgTotal) ??
+    normalizePrevisaoMgFromApi(r.previsao_mg_total);
+  const previsaoValida =
+    previsaoMgTotal && previsaoMgTemValor(previsaoMgTotal) ? previsaoMgTotal : undefined;
+  const { previsaoMgTotal: _omitPrevisao, ...baseSemPrevisao } = base;
 
   return {
-    ...base,
+    ...baseSemPrevisao,
     consumoDiarioTotal:
       base.consumoDiarioTotal ?? consumoAlt ?? 0,
     ...(tipo ? { resumoTaxaTipo: tipo } : {}),
     ...(porU !== undefined ? { porCicloUnidadesTotal: porU } : {}),
     ...(porD !== undefined ? { porCicloIntervaloDias: porD } : {}),
-    ...(mgNum !== undefined && Number.isFinite(mgNum)
-      ? { mgAcumuladoDispensadoTotal: mgNum }
-      : mgTotal === null
-        ? { mgAcumuladoDispensadoTotal: null }
-        : {}),
+    ...(mesesMg !== undefined ? { mesesEstoqueMg: mesesMg } : {}),
+    ...(previsaoValida ? { previsaoMgTotal: previsaoValida } : {}),
   };
 }

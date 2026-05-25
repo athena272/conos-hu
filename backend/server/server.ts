@@ -1,3 +1,4 @@
+import "../load-env";
 import app from "../app";
 import { connectMongo } from "../models/mongo";
 import { getJwtSecret } from "../services/authToken";

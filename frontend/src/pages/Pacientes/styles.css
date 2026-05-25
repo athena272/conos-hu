@@ -31,6 +31,52 @@
 
 .pacientes-resumo-table {
   margin-top: 0.5rem;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--surface-border, #e2e8f0);
+}
+
+.pacientes-resumo-table .p-datatable-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.pacientes-resumo-table .p-datatable-thead > tr > th:not(:last-child),
+.pacientes-resumo-table .p-datatable-tbody > tr > td:not(:last-child) {
+  border-right: 1px solid var(--surface-border, #e2e8f0);
+}
+
+.pacientes-resumo-table .p-datatable-thead > tr > th {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--surface-border, #e2e8f0);
+  white-space: nowrap;
+}
+
+.pacientes-resumo-table .p-datatable-tbody > tr > td {
+  padding: 0.65rem 0.75rem;
+  vertical-align: top;
+  border-bottom: 1px solid #eef2f7;
+  color: #334155;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.pacientes-resumo-table .p-datatable-tbody > tr:nth-child(even) {
+  background: #fcfcfd;
+}
+
+.pacientes-resumo-table .p-datatable-tbody > tr:hover {
+  background: #f8fbff !important;
+}
+
+.pacientes-resumo-table .p-datatable-tbody > tr:last-child > td {
+  border-bottom: none;
 }
 
 .pacientes-filters-bar {
@@ -511,6 +557,12 @@ input.p-inputtext.p-component {
   color: var(--text-color-secondary, #6c757d);
 }
 
+.pacientes-taxa-linha-hint {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary, #94a3b8);
+  font-weight: 400;
+}
+
 .pacientes-taxa-resumo-celula {
   display: flex;
   flex-direction: column;
@@ -740,4 +792,69 @@ input.p-inputtext.p-component {
   margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+}
+
+/* Célula Previsão (mg) na tabela de pacientes: conteúdo + botão auditoria */
+.pacientes-previsao-mg-celula {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  justify-content: space-between;
+}
+
+.pacientes-previsao-mg-conteudo {
+  flex: 1;
+  min-width: 0;
+}
+
+.pacientes-previsao-audit-btn {
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.pacientes-previsao-audit-dialog .p-dialog-content {
+  padding-top: 0.5rem;
+}
+
+.pacientes-previsao-audit-intro {
+  margin: 0 0 1rem;
+  line-height: 1.45;
+  font-size: 0.9375rem;
+}
+
+.pacientes-previsao-audit-lista {
+  margin: 0;
+  padding: 0;
+}
+
+.pacientes-previsao-audit-item {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--surface-border, #dee2e6);
+}
+
+.pacientes-previsao-audit-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.pacientes-previsao-audit-item dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-color-secondary, #6c757d);
+  margin: 0 0 0.2rem;
+}
+
+.pacientes-previsao-audit-item dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--text-color, #212529);
+}
+
+.pacientes-previsao-audit-indisponivel {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6c757d);
 }

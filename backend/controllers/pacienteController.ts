@@ -8,7 +8,13 @@ import {
   buildResumoTaxaMeta,
   type RegimeConsumo,
 } from "../utils/pacienteMedicamentoRegime";
-import { mgTotaisFromUnidades } from "../utils/concentracaoMg";
+import {
+  buildPrevisaoMgFromRow,
+  agregarPrevisaoMg,
+  mesesEstoqueFromMg,
+  taxaMgPorDiaFromRow,
+  type PrevisaoMg,
+} from "../utils/previsaoMg";
 import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
 import type { UserRole } from "../types/roles";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
@@ -35,6 +41,7 @@ interface PacienteMedicamentoItem {
   regime_consumo?: RegimeConsumo;
   unidades_por_ciclo?: number | null;
   intervalo_ciclo_dias?: number | null;
+  consumo_mg_diario?: number | null;
 }
 
 function validateMedicamentos(medicamentos: unknown): string | null {
@@ -51,6 +58,9 @@ function validateMedicamentos(medicamentos: unknown): string | null {
     if (regime === "diario") {
       const consumo = Number(rec.consumo_diario);
       if (isNaN(consumo) || consumo <= 0) return `Medicamento ${i + 1}: consumo diário deve ser maior que zero`;
+    } else if (regime === "por_miligrama") {
+      const mg = Number(rec.consumo_mg_diario);
+      if (isNaN(mg) || mg <= 0) return `Medicamento ${i + 1}: consumo em mg/dia deve ser maior que zero`;
     } else {
       const unidades = Number(rec.unidades_por_ciclo);
       const intervalo = Number(rec.intervalo_ciclo_dias);
@@ -61,14 +71,51 @@ function validateMedicamentos(medicamentos: unknown): string | null {
   return null;
 }
 
-function sqlValuesForMedicamento(m: PacienteMedicamentoItem): [string, string, number, RegimeConsumo, number | null, number | null] {
+type MedicamentoPersistValues = {
+  nome: string;
+  conc: string;
+  consumo_diario: number;
+  regime: RegimeConsumo;
+  unidades_por_ciclo: number | null;
+  intervalo_ciclo_dias: number | null;
+  consumo_mg_diario: number | null;
+};
+
+function valuesForMedicamento(m: PacienteMedicamentoItem): MedicamentoPersistValues {
   const nome = String(m.medicamento_nome).trim();
   const conc = String(m.medicamento_concentracao).trim();
   const regime = parseRegimeConsumo(m.regime_consumo);
   if (regime === "por_ciclo") {
-    return [nome, conc, 0, "por_ciclo", Number(m.unidades_por_ciclo), Number(m.intervalo_ciclo_dias)];
+    return {
+      nome,
+      conc,
+      consumo_diario: 0,
+      regime: "por_ciclo",
+      unidades_por_ciclo: Number(m.unidades_por_ciclo),
+      intervalo_ciclo_dias: Number(m.intervalo_ciclo_dias),
+      consumo_mg_diario: null,
+    };
   }
-  return [nome, conc, Number(m.consumo_diario), "diario", null, null];
+  if (regime === "por_miligrama") {
+    return {
+      nome,
+      conc,
+      consumo_diario: 0,
+      regime: "por_miligrama",
+      unidades_por_ciclo: null,
+      intervalo_ciclo_dias: null,
+      consumo_mg_diario: Number(m.consumo_mg_diario),
+    };
+  }
+  return {
+    nome,
+    conc,
+    consumo_diario: Number(m.consumo_diario),
+    regime: "diario",
+    unidades_por_ciclo: null,
+    intervalo_ciclo_dias: null,
+    consumo_mg_diario: null,
+  };
 }
 
 type MedicamentoPersistRow = {
@@ -79,76 +126,30 @@ type MedicamentoPersistRow = {
   regime_consumo: string | null;
   unidades_por_ciclo: number | null;
   intervalo_ciclo_dias: number | null;
+  consumo_mg_diario?: number | null;
 };
 
 function mapMedicamentoToResponse(r: MedicamentoPersistRow) {
   const regime = parseRegimeConsumo(r.regime_consumo);
-  return {
+  const base = {
     medicamento_nome: r.medicamento_nome,
     medicamento_concentracao: r.medicamento_concentracao,
     consumo_diario: Number(r.consumo_diario),
     regime_consumo: regime,
     unidades_por_ciclo: r.unidades_por_ciclo != null ? Number(r.unidades_por_ciclo) : null,
     intervalo_ciclo_dias: r.intervalo_ciclo_dias != null ? Number(r.intervalo_ciclo_dias) : null,
+    consumo_mg_diario: r.consumo_mg_diario != null ? Number(r.consumo_mg_diario) : null,
   };
+  const previsao_mg = buildPrevisaoMgFromRow({
+    ...r,
+    medicamento_concentracao: r.medicamento_concentracao,
+  });
+  return { ...base, previsao_mg };
 }
 
-function vinculoMgKey(pacienteId: number, nome: string, conc: string): string {
-  return `${pacienteId}\0${String(nome).trim()}\0${String(conc).trim()}`;
-}
-
-type PacienteListItem = PacienteRowWithProximaRetorno & {
-  medicamentos: ReturnType<typeof mapMedicamentoToResponse>[];
-  lotes: string[];
-};
-
-function buildMgAcumuladoMap(
-  rows: Array<{
-    paciente_id: number;
-    medicamento_nome: string;
-    medicamento_concentracao: string;
-    total_unidades: number | string;
-  }>
-): Map<string, number | null> {
-  const map = new Map<string, number | null>();
-  for (const r of rows) {
-    const k = vinculoMgKey(r.paciente_id, r.medicamento_nome, r.medicamento_concentracao);
-    const u = Number(r.total_unidades);
-    const mg = mgTotaisFromUnidades(u, r.medicamento_concentracao);
-    map.set(k, mg);
-  }
-  return map;
-}
-
-function attachMgAcumuladoMedicamentos(p: PacienteListItem, mgMap: Map<string, number | null>): PacienteListItem {
-  return {
-    ...p,
-    medicamentos: p.medicamentos.map((m) => {
-      const k = vinculoMgKey(p.id, m.medicamento_nome, m.medicamento_concentracao);
-      const v = mgMap.get(k);
-      return {
-        ...m,
-        mg_acumulado_dispensado: v !== undefined ? v : 0,
-      };
-    }),
-  };
-}
-
-function medicamentoNomeConcKey(nome: string, conc: string): string {
-  return `${String(nome).trim()}\0${String(conc).trim()}`;
-}
-
-function buildMgTotalDispensadoPorMedicamentoMap(
-  rows: Array<{ nome: string; concentracao: string; total_unidades: number | string }>
-): Map<string, number | null> {
-  const map = new Map<string, number | null>();
-  for (const r of rows) {
-    const k = medicamentoNomeConcKey(r.nome, r.concentracao);
-    const u = Number(r.total_unidades);
-    const mg = mgTotaisFromUnidades(u, r.concentracao);
-    map.set(k, mg);
-  }
-  return map;
+async function respondListPacientes(req: Request, res: Response, list: PacienteListItem[]): Promise<void> {
+  const role = req.user?.role as UserRole | undefined;
+  res.status(200).json(list.map((p) => redactPacienteIdentificacao(p, role)));
 }
 
 function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null): PacienteRowWithProximaRetorno {
@@ -167,64 +168,14 @@ function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null):
   };
 }
 
-async function aggregateRetiradasMgByPaciente(ids: number[]): Promise<
-  Array<{
-    paciente_id: number;
-    medicamento_nome: string;
-    medicamento_concentracao: string;
-    total_unidades: number;
-  }>
-> {
-  if (ids.length === 0) return [];
-  const rows = await coll<{ _id: number; paciente_id?: number; medication_id: number; quantidade: number }>(
-    "retira_medications"
-  ).aggregate<{
-      paciente_id: number;
-      medicamento_nome: string;
-      medicamento_concentracao: string;
-      total_unidades: number;
-    }>([
-      { $match: { paciente_id: { $in: ids } } },
-      { $lookup: { from: "medications", localField: "medication_id", foreignField: "_id", as: "m" } },
-      { $unwind: "$m" },
-      {
-        $group: {
-          _id: { pid: "$paciente_id", nome: "$m.nome", conc: "$m.concentracao" },
-          total_unidades: { $sum: "$quantidade" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          paciente_id: "$_id.pid",
-          medicamento_nome: "$_id.nome",
-          medicamento_concentracao: "$_id.conc",
-          total_unidades: 1,
-        },
-      },
-    ])
-    .toArray();
-  return rows;
+function medicamentoNomeConcKey(nome: string, conc: string): string {
+  return `${String(nome).trim()}\0${String(conc).trim()}`;
 }
 
-async function respondListPacientes(req: Request, res: Response, list: PacienteListItem[], ids: number[]): Promise<void> {
-  const role = req.user?.role as UserRole | undefined;
-  if (ids.length === 0) {
-    res.status(200).json(list.map((p) => redactPacienteIdentificacao(p, role)));
-    return;
-  }
-  try {
-    const raw = await aggregateRetiradasMgByPaciente(ids);
-    const mgMap = buildMgAcumuladoMap(raw);
-    const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
-    res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
-  } catch (errRet) {
-    console.error("Erro ao agregar mg acumulado (retiradas):", errRet);
-    const mgMap = new Map<string, number | null>();
-    const withMg = list.map((p) => attachMgAcumuladoMedicamentos(p, mgMap));
-    res.status(200).json(withMg.map((p) => redactPacienteIdentificacao(p, role)));
-  }
-}
+type PacienteListItem = PacienteRowWithProximaRetorno & {
+  medicamentos: ReturnType<typeof mapMedicamentoToResponse>[];
+  lotes: string[];
+};
 
 function isValidDateString(s: string): boolean {
   if (!s || typeof s !== "string" || s.trim().length === 0) return false;
@@ -357,7 +308,7 @@ export const listPacientes = async (req: Request, res: Response): Promise<void> 
       proxima_data_retorno: p.proxima_data_retorno ?? null,
       lotes: lotesByPaciente.get(p.id) ?? [],
     }));
-    await respondListPacientes(req, res, out, ids);
+    await respondListPacientes(req, res, out);
   } catch (err) {
     console.error("Erro ao listar pacientes:", err);
     res.status(500).json({ error: "Erro ao listar pacientes" });
@@ -388,10 +339,7 @@ export const getPacienteById = async (req: Request, res: Response): Promise<void
       lotes: [],
     };
     const role = req.user?.role as UserRole | undefined;
-    const raw = await aggregateRetiradasMgByPaciente([id]);
-    const mgMap = buildMgAcumuladoMap(raw);
-    const withMg = attachMgAcumuladoMedicamentos(base, mgMap);
-    res.status(200).json(redactPacienteIdentificacao(withMg, role));
+    res.status(200).json(redactPacienteIdentificacao(base, role));
   } catch (err) {
     console.error("Erro ao buscar paciente:", err);
     res.status(500).json({ error: "Erro ao buscar paciente" });
@@ -448,17 +396,18 @@ export const createPaciente = async (req: Request, res: Response): Promise<void>
     });
 
     for (const m of medList) {
-      const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
+      const v = valuesForMedicamento(m);
       const pmId = await getNextId("paciente_medicamentos");
       await coll<MedicamentoPersistRow & { _id: number }>("paciente_medicamentos").insertOne({
         _id: pmId,
         paciente_id: pacienteId,
-        medicamento_nome: mn,
-        medicamento_concentracao: mc,
-        consumo_diario: cd,
-        regime_consumo: rg,
-        unidades_por_ciclo: uc,
-        intervalo_ciclo_dias: idias,
+        medicamento_nome: v.nome,
+        medicamento_concentracao: v.conc,
+        consumo_diario: v.consumo_diario,
+        regime_consumo: v.regime,
+        unidades_por_ciclo: v.unidades_por_ciclo,
+        intervalo_ciclo_dias: v.intervalo_ciclo_dias,
+        consumo_mg_diario: v.consumo_mg_diario,
       });
     }
 
@@ -546,17 +495,18 @@ export const updatePaciente = async (req: Request, res: Response): Promise<void>
 
     await coll<MedicamentoPersistRow>("paciente_medicamentos").deleteMany({ paciente_id: id });
     for (const m of medList) {
-      const [mn, mc, cd, rg, uc, idias] = sqlValuesForMedicamento(m);
+      const v = valuesForMedicamento(m);
       const pmId = await getNextId("paciente_medicamentos");
       await coll<MedicamentoPersistRow & { _id: number }>("paciente_medicamentos").insertOne({
         _id: pmId,
         paciente_id: id,
-        medicamento_nome: mn,
-        medicamento_concentracao: mc,
-        consumo_diario: cd,
-        regime_consumo: rg,
-        unidades_por_ciclo: uc,
-        intervalo_ciclo_dias: idias,
+        medicamento_nome: v.nome,
+        medicamento_concentracao: v.conc,
+        consumo_diario: v.consumo_diario,
+        regime_consumo: v.regime,
+        unidades_por_ciclo: v.unidades_por_ciclo,
+        intervalo_ciclo_dias: v.intervalo_ciclo_dias,
+        consumo_mg_diario: v.consumo_mg_diario,
       });
     }
 
@@ -626,6 +576,8 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
 
   const regime = parseRegimeConsumo(req.query.regime_consumo);
   let taxaProposta = 0;
+  let taxaMgProposta: number | null = null;
+
   if (regime === "diario") {
     const consumo_diario = parseFloat((req.query.consumo_diario as string) ?? "");
     if (isNaN(consumo_diario) || consumo_diario <= 0) {
@@ -633,6 +585,13 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
       return;
     }
     taxaProposta = taxaUnidadesPorDia("diario", consumo_diario, null, null);
+  } else if (regime === "por_miligrama") {
+    const consumo_mg = parseFloat((req.query.consumo_mg_diario as string) ?? "");
+    if (isNaN(consumo_mg) || consumo_mg <= 0) {
+      res.status(400).json({ error: "consumo_mg_diario deve ser um número maior que zero quando regime_consumo é por_miligrama" });
+      return;
+    }
+    taxaMgProposta = consumo_mg;
   } else {
     const unidades = parseFloat((req.query.unidades_por_ciclo as string) ?? "");
     const intervalo = parseInt((req.query.intervalo_ciclo_dias as string) ?? "", 10);
@@ -658,7 +617,33 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
       .toArray();
     const consumoDiarioAtual = rows.reduce((s: number, p: MedicamentoPersistRow) => s + taxaFromPersistRow(p), 0);
     const pacientesVinculados = new Set(rows.map((p: MedicamentoPersistRow) => p.paciente_id)).size;
+
+    if (regime === "por_miligrama") {
+      taxaProposta = taxaFromPersistRow({
+        regime_consumo: "por_miligrama",
+        consumo_diario: 0,
+        unidades_por_ciclo: null,
+        intervalo_ciclo_dias: null,
+        consumo_mg_diario: taxaMgProposta,
+        medicamento_concentracao: medicamento_concentracao,
+      });
+    } else if (taxaMgProposta == null) {
+      taxaMgProposta = taxaMgPorDiaFromRow({
+        regime_consumo: regime,
+        consumo_diario: regime === "diario" ? parseFloat((req.query.consumo_diario as string) ?? "") : 0,
+        unidades_por_ciclo: regime === "por_ciclo" ? parseFloat((req.query.unidades_por_ciclo as string) ?? "") : null,
+        intervalo_ciclo_dias: regime === "por_ciclo" ? parseInt((req.query.intervalo_ciclo_dias as string) ?? "", 10) : null,
+        medicamento_concentracao: medicamento_concentracao,
+      });
+    }
+
+    let consumoMgDiarioAtual = 0;
+    for (const p of rows) {
+      const mg = taxaMgPorDiaFromRow({ ...p, medicamento_concentracao: p.medicamento_concentracao });
+      if (mg != null) consumoMgDiarioAtual += mg;
+    }
     const consumoDiarioComNovo = consumoDiarioAtual + taxaProposta;
+    const consumoMgDiarioComNovo = consumoMgDiarioAtual + (taxaMgProposta ?? 0);
     const diasPorMes = 30;
     const mesesEstoqueAtual =
       consumoDiarioAtual > 0 && estoqueTotal > 0
@@ -672,6 +657,12 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
         : consumoDiarioComNovo === 0 && estoqueTotal > 0
           ? null
           : 0;
+    const mesesEstoqueMgAtual = mesesEstoqueFromMg(estoqueTotal, consumoMgDiarioAtual > 0 ? consumoMgDiarioAtual : null, medicamento_concentracao);
+    const mesesEstoqueMgComNovo = mesesEstoqueFromMg(
+      estoqueTotal,
+      consumoMgDiarioComNovo > 0 ? consumoMgDiarioComNovo : null,
+      medicamento_concentracao
+    );
 
     res.status(200).json({
       estoqueTotal,
@@ -680,6 +671,11 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
       consumoDiarioComNovo,
       mesesEstoqueAtual,
       mesesEstoqueComNovo,
+      consumoMgDiarioAtual,
+      consumoMgDiarioComNovo,
+      consumoMgMesComNovo: consumoMgDiarioComNovo > 0 ? consumoMgDiarioComNovo * diasPorMes : null,
+      mesesEstoqueMgAtual,
+      mesesEstoqueMgComNovo,
     });
   } catch (err) {
     console.error("Erro ao calcular impacto:", err);
@@ -723,22 +719,6 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       return;
     }
 
-    const retAgg = await coll<{ medication_id: number; quantidade: number; paciente_id: number | null }>("retira_medications")
-      .aggregate<{ nome: string; concentracao: string; total_unidades: number }>([
-        { $match: { paciente_id: { $ne: null } } },
-        { $lookup: { from: "medications", localField: "medication_id", foreignField: "_id", as: "m" } },
-        { $unwind: "$m" },
-        {
-          $group: {
-            _id: { nome: "$m.nome", conc: "$m.concentracao" },
-            total_unidades: { $sum: "$quantidade" },
-          },
-        },
-        { $project: { _id: 0, nome: "$_id.nome", concentracao: "$_id.conc", total_unidades: 1 } },
-      ])
-      .toArray();
-    const mgMap = buildMgTotalDispensadoPorMedicamentoMap(retAgg);
-
     const resultados: Array<{
       medicamento_nome: string;
       medicamento_concentracao: string;
@@ -746,7 +726,8 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       consumoDiarioTotal: number;
       estoqueTotal: number;
       mesesEstoque: number | null;
-      mgAcumuladoDispensadoTotal: number | null;
+      mesesEstoqueMg: number | null;
+      previsaoMgTotal: PrevisaoMg;
       resumoTaxaTipo: "por_ciclo_homogeneo" | "diario_apenas" | "agregado";
       porCicloUnidadesTotal?: number;
       porCicloIntervaloDias?: number;
@@ -760,10 +741,15 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       const consumo = g.taxaTotal;
       const mesesEstoque =
         consumo > 0 && estoqueTotal > 0 ? Math.floor(estoqueTotal / (consumo * 30)) : consumo === 0 && estoqueTotal > 0 ? null : 0;
+      const previsaoMgTotal = agregarPrevisaoMg(
+        g.linhas.map((r) => ({ ...r, medicamento_concentracao: r.medicamento_concentracao }))
+      );
+      const mesesEstoqueMg = mesesEstoqueFromMg(
+        estoqueTotal,
+        previsaoMgTotal.mg_dia_previsto,
+        g.medicamento_concentracao
+      );
       const taxaMeta = buildResumoTaxaMeta(g.linhas);
-      const mgKey = medicamentoNomeConcKey(g.medicamento_nome, g.medicamento_concentracao);
-      const mgVal = mgMap.get(mgKey);
-      const mgAcumuladoDispensadoTotal = mgVal === undefined ? 0 : mgVal;
       const base = {
         medicamento_nome: g.medicamento_nome,
         medicamento_concentracao: g.medicamento_concentracao,
@@ -771,7 +757,8 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
         consumoDiarioTotal: consumo,
         estoqueTotal,
         mesesEstoque,
-        mgAcumuladoDispensadoTotal,
+        mesesEstoqueMg,
+        previsaoMgTotal,
       };
       if (taxaMeta.resumoTaxaTipo === "por_ciclo_homogeneo") {
         resultados.push({

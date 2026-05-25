@@ -24,8 +24,8 @@
     "./middleware/**/*.ts",
     "./services/**/*.ts",
     "./types/**/*.ts",
-    "./test-db-connection.ts",
-    "./scripts/**/*.ts"
+    "./utils/**/*.ts",
+    "./test-db-connection.ts"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "scripts", "tests"]
 }
