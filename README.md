@@ -1,6 +1,6 @@
 # Conos
 
-Sistema web para **gestão de estoque de medicamentos** em contexto assistencial: cadastro de lotes, movimentações (entrada e saída), acompanhamento de **pacientes** ligados ao consumo de medicamentos, **simulação de durabilidade** do estoque e **painéis analíticos**. O projeto é dividido em **API REST** (Node.js + Express + TypeScript + MySQL) e **interface** (React + Vite + TypeScript).
+Sistema web para **gestão de estoque de medicamentos** em contexto assistencial: cadastro de lotes, movimentações (entrada e saída), acompanhamento de **pacientes** ligados ao consumo de medicamentos, **simulação de durabilidade** do estoque e **painéis analíticos**. O projeto é dividido em **API REST** (Node.js + Express + TypeScript + MongoDB) e **interface** (React + Vite + TypeScript).
 
 ---
 
@@ -12,7 +12,7 @@ A interface está publicada na **Vercel**:
 
 A API continua em serviço separado; na Vercel configure `VITE_API_URL` apontando para essa API e, no backend, `ALLOWED_ORIGINS` incluindo `https://conos-hu.vercel.app`.
 
-O **banco de dados em produção** é **MySQL** hospedado no **Google Cloud SQL** (conexão via host/porta ou socket Unix com `INSTANCE_CONNECTION_NAME` no Cloud Run, conforme `backend/models/db.ts`).
+O **banco de dados em produção** é **MongoDB** no **MongoDB Atlas** (database `conos`, cluster com replica set). A API conecta via `MONGODB_URI` (ver [`backend/models/mongo.ts`](backend/models/mongo.ts)).
 
 ---
 
@@ -24,6 +24,7 @@ O **banco de dados em produção** é **MySQL** hospedado no **Google Cloud SQL*
 - [Requisitos](#requisitos)
 - [Instalação local (desenvolvimento)](#instalação-local-desenvolvimento)
 - [Variáveis de ambiente](#variáveis-de-ambiente)
+- [Gerar JWT_SECRET](#gerar-jwt_secret)
 - [Banco de dados](#banco-de-dados)
 - [Docker](#docker)
 - [API (visão geral)](#api-visão-geral)
@@ -36,9 +37,9 @@ O **banco de dados em produção** é **MySQL** hospedado no **Google Cloud SQL*
 
 | Camada | Tecnologia | Pasta |
 |--------|------------|--------|
-| Backend | Express 4, TypeScript, `mysql2`, JWT (`bcryptjs` para senhas) | `backend/` |
+| Backend | Express 4, TypeScript, driver `mongodb`, JWT (`bcryptjs` para senhas) | `backend/` |
 | Frontend | React 18, Vite 6, PrimeReact, Chart.js, Formik/Yup, Axios | `frontend/` |
-| Banco | MySQL — em produção, **Google Cloud SQL**; localmente, instância própria ou túnel (ex.: Cloud SQL Auth Proxy) | — |
+| Banco | MongoDB — em produção, **MongoDB Atlas**; localmente, **Docker Compose** (`mongo:8.0.23`) ou URI própria | — |
 
 Fluxo típico: o frontend chama a API com `Authorization: Bearer <token>` após o login; respostas `401` limpam a sessão e redirecionam para o login.
 
@@ -82,39 +83,47 @@ Fluxo típico: o frontend chama a API com `Authorization: Bearer <token>` após 
 ## Requisitos
 
 - **Node.js** 18 ou superior.
-- **MySQL** 8.x acessível pela API (instalação própria, **ou** apenas **Docker** + Docker Compose para subir o MySQL localmente — ver abaixo).
-- Gerenciador de pacotes: **npm** ou **pnpm** (há `pnpm-lock.yaml` no backend; use o que preferir, de forma consistente em cada pasta).
-- **Docker Desktop** (ou Docker Engine + Compose) — opcional, recomendado se quiser o banco local sem instalar o MySQL na máquina.
+- **MongoDB** 8.x acessível pela API (instalação própria, **ou** **Docker** + Docker Compose para subir o MongoDB localmente — ver abaixo).
+- Gerenciador de pacotes: **npm** (recomendado no dia a dia) ou **pnpm** (há `pnpm-lock.yaml` em `backend/` e `frontend/`). Com **pnpm v11** no PC, se aparecer `ERR_PNPM_IGNORED_BUILDS`, use `npm install` / `npm run dev` ou rode `pnpm approve-builds` na pasta do projeto.
+- **Docker Desktop** (ou Docker Engine + Compose) — opcional, recomendado se quiser o banco local sem instalar o MongoDB na máquina.
 
 ---
 
 ## Instalação local (desenvolvimento)
 
-Fluxo **híbrido** recomendado: **Docker Compose** sobe **somente o MySQL**; **backend** e **frontend** rodam na sua máquina com `npm run dev`.
+Fluxo **híbrido** recomendado: **Docker Compose** sobe **somente o MongoDB**; **backend** e **frontend** rodam na sua máquina com `npm run dev`.
 
-Ordem sugerida: (1) banco no Docker; (2) variáveis `JWT_SECRET` e `DB_*` no backend; (3) `npm run dev` em `backend` e `frontend`.
+Ordem sugerida: (1) banco no Docker; (2) `MONGODB_URI` e `JWT_SECRET` no backend; (3) `npm run dev` em `backend` e `frontend`.
 
-### 1. Banco MySQL
+### 1. Banco MongoDB
 
-**Opção A — MySQL com Docker (recomendado para desenvolvimento)**
+**Opção A — MongoDB com Docker (recomendado para desenvolvimento)**
 
-1. Na raiz do repositório, copie [`.env.example`](.env.example) para `.env` e defina `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER` e `MYSQL_PASSWORD` (o arquivo lista o que replicar no backend).
+1. Na raiz do repositório, copie [`.env.example`](.env.example) para `.env` e defina `MONGO_ROOT_PASSWORD` (e opcionalmente `MONGO_INITDB_ROOT_USERNAME`, padrão `root`).
 2. Suba o container:
 
    ```bash
    docker compose up -d
    ```
 
-3. Aguarde o serviço ficar saudável (`docker compose ps`). A API deve usar `DB_HOST=127.0.0.1`, `DB_PORT=3306` e o mesmo banco, usuário e senha definidos em `.env` (`MYSQL_*` ↔ `DB_*`).
+3. Aguarde o serviço ficar saudável (`docker compose ps`). Configure o backend com:
+
+   ```text
+   MONGODB_URI=mongodb://root:<MONGO_ROOT_PASSWORD>@127.0.0.1:27017/conos?authSource=admin
+   ```
+
+   O segmento `/conos` na URI define o database (igual ao Atlas em produção).
 
 Para parar: `docker compose down`. Para apagar os dados persistidos do volume: `docker compose down -v` (irreversível).
 
-**Opção B — MySQL já instalado (sem Docker)**
+**Migração do volume MySQL antigo:** se você já usava o Compose com MySQL, remova o volume antigo antes de subir o Mongo: `docker compose down -v` (apaga `conos_mysql_data` e dados locais do MySQL).
 
-1. Crie um banco (ex.: `conos`) e um usuário com permissões nesse banco.
-2. Use **host**, **porta**, **usuário**, **senha** e **nome do banco** nas variáveis `DB_*` da API.
+**Opção B — MongoDB já instalado ou Atlas (sem Docker local)**
 
-Em ambos os casos, na **primeira conexão** bem-sucedida da API, o código em [`backend/models/db.ts`](backend/models/db.ts) cria e ajusta as tabelas necessárias. Para SQL manual ou produção (GCP), veja [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md). O arquivo [`backend/init-db.sql`](backend/init-db.sql) é **opcional** (bootstrap manual ou referência).
+1. Use uma URI de conexão completa em `MONGODB_URI` (ex.: `mongodb+srv://...` no Atlas, ou `mongodb://host:27017/conos`).
+2. Garanta que o database na URI seja `conos` (ou o nome que você usar em produção).
+
+Na **primeira conexão** bem-sucedida da API, o código em [`backend/models/mongo.ts`](backend/models/mongo.ts) conecta e [`backend/models/indexes.ts`](backend/models/indexes.ts) cria os índices necessários. Coleções são criadas automaticamente no primeiro insert. Arquivos SQL em [`backend/migrations/`](backend/migrations/) são **legado MySQL** (referência histórica).
 
 ### 2. Backend
 
@@ -123,16 +132,14 @@ cd backend
 npm install
 ```
 
-Defina as variáveis de ambiente (mínimo recomendado para desenvolvimento: `JWT_SECRET` e as variáveis `DB_*`; em desenvolvimento, se `JWT_SECRET` não existir, o servidor usa um aviso e segredo apenas para dev — **nunca deixe assim em produção**).
+Copie [`backend/.env.example`](backend/.env.example) para `backend/.env` (a API carrega esse arquivo automaticamente ao subir). Mínimo: `MONGODB_URI` e `JWT_SECRET`. O `.env` na **raiz** do repo é só para o Docker (`MONGO_*`); variáveis da API ficam em `backend/.env`. Se a senha do Mongo tiver caracteres especiais (`/`, `+`, `@`…), use-os **codificados na URI** (ex.: `/` → `%2F`).
 
-```bash
+Gere um valor aleatório forte para `JWT_SECRET` (veja [Gerar JWT_SECRET](#gerar-jwt_secret)) e use no `.env` ou no shell:
+
+```powershell
 # Exemplo Windows PowerShell
-$env:JWT_SECRET="uma-chave-longa-e-aleatoria"
-$env:DB_HOST="127.0.0.1"
-$env:DB_PORT="3306"
-$env:DB_USER="seu_usuario"
-$env:DB_PASSWORD="sua_senha"
-$env:DB_NAME="conos"
+$env:MONGODB_URI="mongodb://root:sua_senha@127.0.0.1:27017/conos?authSource=admin"
+$env:JWT_SECRET="<cole aqui o valor gerado>"
 npm run dev
 ```
 
@@ -173,13 +180,15 @@ npm run dev
 
 ### 4. Primeiro administrador
 
-Após existir a coluna `role` na tabela `usuarios` (criada/atualizada automaticamente na subida da API), novos usuários tendem a ser **`viewer`** por padrão. Para liberar telas administrativas, promova pelo menos um usuário no MySQL:
+Novos usuários cadastrados pela API tendem a ser **`viewer`** por padrão. Para liberar telas administrativas, promova pelo menos um usuário no MongoDB (mongosh, Compass ou Atlas Data Explorer):
 
-```sql
-UPDATE usuarios SET role = 'admin' WHERE email = 'seu-email@exemplo.com';
+```javascript
+use conos
+db.usuarios.updateOne(
+  { email: "seu-email@exemplo.com" },
+  { $set: { role: "admin" } }
+)
 ```
-
-Detalhes em [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md) (seção da migration 8).
 
 ---
 
@@ -190,15 +199,32 @@ Detalhes em [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/READM
 | Variável | Descrição |
 |----------|-----------|
 | `PORT` | Porta HTTP da API (padrão: `3001`). |
-| `JWT_SECRET` | Segredo para assinatura do JWT. **Obrigatório** quando `NODE_ENV=production`. |
-| `DB_HOST` | Host MySQL (padrão local: `127.0.0.1`). |
-| `DB_PORT` | Porta MySQL (padrão: `3306`). |
-| `DB_USER` | Usuário do banco. |
-| `DB_PASSWORD` | Senha do banco. |
-| `DB_NAME` | Nome do banco. |
-| `INSTANCE_CONNECTION_NAME` | Se definido, a API usa socket Unix `/cloudsql/...` (Google Cloud SQL / Cloud Run). |
+| `JWT_SECRET` | Segredo para assinatura do JWT. **Obrigatório** quando `NODE_ENV=production`. Use um valor longo e aleatório (veja [Gerar JWT_SECRET](#gerar-jwt_secret)). |
+| `MONGODB_URI` | URI de conexão MongoDB (**obrigatória**). Local com Docker: `mongodb://root:<senha>@127.0.0.1:27017/conos?authSource=admin`. Produção: URI do Atlas (`mongodb+srv://...`). |
 | `NODE_ENV` | `production` ativa exigência de `JWT_SECRET`. |
 | `ALLOWED_ORIGINS` | Lista separada por vírgulas de origens permitidas no CORS (recomendado em produção). Se vazio, o CORS fica permissivo (adequado só para desenvolvimento). |
+
+### Gerar JWT_SECRET
+
+Use um segredo **único por ambiente** (desenvolvimento, staging, produção). Não reutilize senhas de banco nem commite o valor no Git.
+
+**Windows (PowerShell)** — gera 48 bytes aleatórios em Base64:
+
+```powershell
+$bytes = New-Object byte[] 48
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+Copie a saída para `backend/.env` (`JWT_SECRET=...`) ou atribua no shell: `$env:JWT_SECRET="<saída>"`.
+
+**Linux / macOS (bash)** — alternativa equivalente:
+
+```bash
+openssl rand -base64 48
+```
+
+---
 
 ### Frontend
 
@@ -210,9 +236,9 @@ Detalhes em [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/READM
 
 ## Banco de dados
 
-Em **produção**, os dados ficam no **Google Cloud SQL** (MySQL). Em **desenvolvimento**, use um MySQL local ou conecte-se ao Cloud SQL por IP autorizado ou [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/mysql/connect-auth-proxy).
+Em **produção**, os dados ficam no **MongoDB Atlas** (database `conos`). Em **desenvolvimento**, use o MongoDB do Docker Compose ou uma URI apontando para o Atlas (com IP liberado na allowlist, se necessário).
 
-Principais entidades (criadas/ajustadas na inicialização da API, conforme `backend/models/db.ts`):
+Principais **coleções** (índices garantidos na subida da API via `ensureIndexes` em [`backend/models/indexes.ts`](backend/models/indexes.ts)):
 
 - **usuarios** — autenticação e papel (`admin` / `viewer`).
 - **medications** — lotes e quantidades.
@@ -221,18 +247,32 @@ Principais entidades (criadas/ajustadas na inicialização da API, conforme `bac
 - **pacientes** — cadastro assistencial.
 - **paciente_medicamentos** — vários medicamentos por paciente.
 - **paciente_retornos** — histórico de retornos.
+- **medication_product_catalog** — catálogo de produtos (GTIN).
+- **counters** — sequências numéricas para IDs.
 
-Para execução manual de SQL, ordem de dependências e notas de deploy (GCP), use [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md).
+Migração pontual de dados MySQL → MongoDB: `npm run migrate:mysql-to-mongo` (requer MySQL de origem e `MONGODB_URI`). SQL legado: [`backend/migrations/README-MIGRATIONS.md`](backend/migrations/README-MIGRATIONS.md).
 
 ---
 
 ## Docker
 
-O [`docker-compose.yml`](docker-compose.yml) na raiz sobe **apenas o MySQL** (imagem `mysql:8.0`), com volume persistente `conos_mysql_data` e porta **3306** em `localhost`. **Não** inclui API nem frontend — estes continuam com `npm run dev` nas pastas `backend` e `frontend`.
+O [`docker-compose.yml`](docker-compose.yml) na raiz sobe o **MongoDB** (imagem `mongo:8.0.23`) como **replica set de um nó** (`rs0`), igual ao Atlas — necessário para operações com transação (excluir medicamento, retiradas, etc.). Volume `conos_mongo_data`, porta **27017**. **Não** inclui API nem frontend.
 
-1. Copie [`.env.example`](.env.example) para `.env` e preencha as variáveis `MYSQL_*`.
-2. `docker compose up -d`
-3. Configure o backend com `DB_HOST=127.0.0.1` e as mesmas credenciais (`DB_NAME`, `DB_USER`, `DB_PASSWORD` alinhadas a `MYSQL_*`).
+1. Copie [`.env.example`](.env.example) para `.env` e preencha `MONGO_ROOT_PASSWORD`.
+2. `docker compose up -d` — só o container **`conos-mongo`** (`db`) fica rodando; é o único necessário no dia a dia.
+3. Configure o backend com `MONGODB_URI` (ver [`backend/.env.example`](backend/.env.example)), com `&replicaSet=rs0` na URI local.
+
+**Primeira vez** (ou após `docker compose down -v`), inicie o replica set **uma vez** (senha = `MONGO_ROOT_PASSWORD` do `.env`):
+
+```powershell
+cd C:\Users\guilh\Documents\GithubCloud\conos
+docker cp docker/mongo/init-replica-set.js conos-mongo:/tmp/init-replica-set.js
+docker exec conos-mongo mongosh -u root -p "SUA_SENHA" --authenticationDatabase admin --file /tmp/init-replica-set.js
+```
+
+Mensagem esperada: `Replica set rs0 inicializado` ou `Replica set já inicializado`. Depois disso, transações (ex.: excluir medicamento) funcionam.
+
+Se aparecer `Transaction numbers are only allowed on a replica set`, o replica set ainda não foi iniciado — rode os comandos acima (dados no volume são mantidos).
 
 Os arquivos [`backend/Dockerfile`](backend/Dockerfile) e [`frontend/Dockerfile`](frontend/Dockerfile) permanecem para **deploy** (por exemplo Cloud Run); o Compose local **não** os utiliza.
 
@@ -268,7 +308,7 @@ A verificação ocorre no backend (`backend/middleware/authMiddleware.ts`) e no 
 ## Documentação adicional
 
 - [Guia de testes](docs/GUIA-DE-TESTES.md) — fluxos, dados sugeridos e casos de erro.
-- [Migrations e banco](backend/migrations/README-MIGRATIONS.md) — SQL manual, GCP e migrações automáticas.
+- [Migrations MySQL (legado)](backend/migrations/README-MIGRATIONS.md) — SQL histórico; schema ativo é MongoDB.
 - [Dados para testes](docs/DADOS-PARA-TESTES.md) — complemento ao guia de testes, se aplicável.
 
 ---
@@ -279,7 +319,7 @@ A verificação ocorre no backend (`backend/middleware/authMiddleware.ts`) e no 
 |-------|---------|-----------|
 | `backend` | `npm run dev` | API com `tsx watch` (hot reload). |
 | `backend` | `npm run build` / `npm start` | Compila TypeScript e executa `dist/`. |
-| `backend` | `npm run test:db` | Testa conexão MySQL. |
+| `backend` | `npm run test:db` | Testa conexão MongoDB (`MONGODB_URI`). |
 | `frontend` | `npm run dev` | Servidor Vite. |
 | `frontend` | `npm run build` | Build de produção em `dist/`. |
 | `frontend` | `npm run preview` | Preview do build. |
