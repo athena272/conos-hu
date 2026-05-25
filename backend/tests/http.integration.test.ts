@@ -180,6 +180,80 @@ run("admin can create medication and paciente", async (t) => {
       retorna_servico: false,
     });
   assert.equal(pacienteCreateRes.status, 201);
+
+  const listRes = await request(app)
+    .get("/pacientes")
+    .set("Authorization", `Bearer ${token}`);
+  assert.equal(listRes.status, 200);
+  const lista = listRes.body as Array<{
+    prontuario: number;
+    medicamentos: Array<{ previsao_mg?: { mg_dia_previsto: number | null } }>;
+  }>;
+  const paciente = lista.find((p) => p.prontuario === pacienteProntuario);
+  assert.ok(paciente);
+  assert.equal(paciente!.medicamentos[0]?.previsao_mg?.mg_dia_previsto, 500);
+  assert.ok(
+    paciente!.medicamentos[0]?.previsao_mg != null,
+    "previsao_mg deve estar presente em cada medicamento (nao omitir o campo)",
+  );
+
+  const resumoRes = await request(app)
+    .get("/pacientes/resumo-por-medicamento")
+    .set("Authorization", `Bearer ${token}`);
+  assert.equal(resumoRes.status, 200);
+  const resumo = resumoRes.body as Array<{
+    medicamento_nome: string;
+    medicamento_concentracao: string;
+    previsaoMgTotal?: { mg_dia_previsto: number | null };
+    mesesEstoque: number | null;
+    mesesEstoqueMg: number | null;
+  }>;
+  const rowResumo = resumo.find(
+    (r) => r.medicamento_nome === medName && r.medicamento_concentracao === medConcentration,
+  );
+  assert.ok(rowResumo, "medicamento criado deve aparecer no resumo");
+  assert.equal(rowResumo!.previsaoMgTotal?.mg_dia_previsto, 500);
+  assert.ok(
+    rowResumo!.mesesEstoqueMg === null || typeof rowResumo!.mesesEstoqueMg === "number",
+    "mesesEstoqueMg deve ser numero ou null",
+  );
+
+  const porMgRes = await request(app)
+    .post("/pacientes")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      nome: `IT Paciente MG ${Date.now()}`,
+      prontuario: pacienteProntuario + 1,
+      apac: `IT-APAC-MG-${Date.now()}`,
+      diagnostico: "Teste por miligrama",
+      medicamentos: [
+        {
+          medicamento_nome: medName,
+          medicamento_concentracao: medConcentration,
+          consumo_diario: 0,
+          regime_consumo: "por_miligrama",
+          consumo_mg_diario: 750,
+        },
+      ],
+      observacoes: null,
+      telefone: "",
+      data_liberacao: "2026-01-01",
+      retorna_servico: false,
+    });
+  assert.equal(porMgRes.status, 201);
+
+  const impactRes = await request(app)
+    .get("/pacientes/impacto-estoque")
+    .set("Authorization", `Bearer ${token}`)
+    .query({
+      medicamento_nome: medName,
+      medicamento_concentracao: medConcentration,
+      regime_consumo: "por_miligrama",
+      consumo_mg_diario: "750",
+    });
+  assert.equal(impactRes.status, 200);
+  assert.ok(typeof impactRes.body.consumoMgDiarioComNovo === "number");
+  assert.ok(typeof impactRes.body.mesesEstoqueMgComNovo === "number" || impactRes.body.mesesEstoqueMgComNovo === null);
 });
 
 test.after(async () => {
