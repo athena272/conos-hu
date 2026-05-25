@@ -1,30 +1,21 @@
-# Migrations do banco de dados
+# Migrations do banco de dados (legado MySQL)
 
-Este diretório contém os arquivos SQL de migration. No **GCP (Cloud Run)** as tabelas necessárias são criadas **na subida da aplicação** (ver abaixo). Em ambiente local ou para rodar manualmente, use as opções abaixo.
+> **Schema ativo:** MongoDB (database `conos` no Atlas ou local via Docker). Índices criados na subida da API em [`backend/models/indexes.ts`](../models/indexes.ts). Conexão: `MONGODB_URI` em [`backend/models/mongo.ts`](../models/mongo.ts).
+
+Este diretório contém arquivos **SQL históricos** da época em que o projeto usava MySQL. Mantidos para referência e migração pontual (`npm run migrate:mysql-to-mongo`). **Não** use estes scripts no fluxo diário de desenvolvimento com MongoDB.
 
 ---
 
-## Migrations ao subir no GCP (Cloud Run)
+## Schema MongoDB (atual)
 
-**Não é necessário alterar o `cloudbuild.yaml`.**
+- Coleções criadas no primeiro uso; índices garantidos por `ensureIndexes()` ao conectar.
+- Para dados antigos em MySQL: [`backend/scripts/mysql-to-mongo.ts`](../scripts/mysql-to-mongo.ts) com `MONGODB_URI` e variáveis `SOURCE_MYSQL_*`.
 
-O backend está configurado para criar as tabelas ao iniciar:
+---
 
-- Em **`backend/models/db.ts`**, na primeira conexão ao MySQL, o código executa:
-  - `CREATE TABLE IF NOT EXISTS movimentacoes ...`
-  - `CREATE TABLE IF NOT EXISTS pacientes ...`
+## Conteúdo legado abaixo (MySQL / Cloud SQL)
 
-Assim, quando o Cloud Run sobe uma nova revisão, a API conecta ao banco e garante que essas tabelas existam. Não há passo de migration no Cloud Build.
-
-**Para adicionar uma nova tabela no futuro:**
-
-1. Crie o arquivo em `backend/migrations/N-create_table_nome.sql` (para referência e para rodar manualmente em outros ambientes).
-2. No `backend/models/db.ts`, adicione uma constante com o `CREATE TABLE IF NOT EXISTS ...` e chame esse SQL no mesmo bloco de inicialização (junto com `movimentacoes` e `pacientes`), antes de dar `connection.release()`.
-
-**Se um dia quiser rodar migrations no Cloud Build** (por exemplo, um script que aplica todos os `.sql` da pasta em ordem), seria preciso:
-
-- Um step no `cloudbuild.yaml` que execute esse script **com acesso ao Cloud SQL** (por exemplo, usando Cloud SQL Proxy em um container ou VPC connector).
-- O Cloud Build em si não tem acesso direto ao socket do Cloud SQL; por isso a abordagem atual (criar tabelas na subida do app) é a mais simples.
+As seções a seguir descrevem o fluxo antigo (MySQL, `db.ts`, Cloud Run + Cloud SQL). Podem estar desatualizadas em relação ao deploy atual (MongoDB Atlas).
 
 ---
 
