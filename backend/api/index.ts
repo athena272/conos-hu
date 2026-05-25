@@ -1,3 +1,4 @@
+import "../load-env";
 import type { Request, Response } from "express";
 import app from "../app";
 import { connectMongo } from "../models/mongo";
