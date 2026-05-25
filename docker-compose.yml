@@ -1,28 +1,35 @@
 services:
   db:
-    image: mysql:8.0
-    container_name: conos-db
+    image: mongo:8.0.23
+    container_name: conos-mongo
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-conos}
-      MYSQL_USER: ${MYSQL_USER:-conos}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     ports:
-      - "3306:3306"
+      - "27017:27017"
     volumes:
-      - conos_mysql_data:/var/lib/mysql
+      - conos_mongo_data:/data/db
+    command:
+      - bash
+      - -c
+      - |
+        if [ ! -s /data/replica-keyfile ]; then
+          openssl rand -base64 756 > /data/replica-keyfile
+        fi
+        chmod 400 /data/replica-keyfile
+        chown mongodb:mongodb /data/replica-keyfile
+        exec mongod --replSet rs0 --bind_ip_all --keyFile /data/replica-keyfile
     healthcheck:
-      # Usa a env dentro do container ($$ vira $ no YAML do Compose).
       test:
         [
           "CMD-SHELL",
-          'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" || exit 1',
+          'mongosh -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 2)"',
         ]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 15
+      start_period: 40s
 
 volumes:
-  conos_mysql_data:
+  conos_mongo_data:
