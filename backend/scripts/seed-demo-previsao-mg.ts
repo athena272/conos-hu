@@ -11,14 +11,22 @@ import { getNextId } from "../models/sequences";
 const ADMIN_EMAIL = "seed-admin@conos.local";
 const ADMIN_PASSWORD = "Seed@12345";
 
+type UsuarioSeedDoc = {
+  _id: number;
+  email: string;
+  password: string;
+  role: string;
+  created_at: Date;
+};
+
 async function ensureAdminToken(): Promise<string> {
-  const existing = await coll<{ _id: number; email: string; password: string; role: string }>("usuarios").findOne({
+  const existing = await coll<UsuarioSeedDoc>("usuarios").findOne({
     email: ADMIN_EMAIL,
   });
   if (!existing) {
     const id = await getNextId("usuarios");
     const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
-    await coll("usuarios").insertOne({
+    await coll<UsuarioSeedDoc>("usuarios").insertOne({
       _id: id,
       email: ADMIN_EMAIL,
       password: hash,
