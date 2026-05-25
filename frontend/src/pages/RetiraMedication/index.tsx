@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import LabelInput from "../../components/LabelInput";
 import Button from "../../components/ButtonSubmit";
@@ -13,6 +13,7 @@ import { Toast } from "primereact/toast";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { useApiQuery } from "../../hooks/useApiQuery";
 import "./styles.css";
 import type { MedicationWithStatus, Paciente } from "../../types";
 
@@ -38,14 +39,27 @@ function RetiraMedication() {
   const [lots, setLots] = useState<MedicationWithStatus[]>([]);
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
-  const [pacientesOpcoes, setPacientesOpcoes] = useState<Paciente[]>([]);
-
-  useEffect(() => {
-    api
-      .get<Paciente[]>("/pacientes")
-      .then((res) => setPacientesOpcoes(res.data ?? []))
-      .catch(() => setPacientesOpcoes([]));
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
   }, []);
+
+  const fetchPacientesList = useCallback(async () => {
+    const res = await api.get<Paciente[]>("/pacientes");
+    return res.data ?? [];
+  }, []);
+
+  const {
+    data: pacientesOpcoes,
+    loading: loadingPacientesOpcoes,
+  } = useApiQuery(fetchPacientesList, [], {
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
 
   useEffect(() => {
     const session = getAuth();
@@ -287,9 +301,13 @@ function RetiraMedication() {
                     })),
                   ]}
                   onChange={(e) => setFieldValue("pacienteId", e.value)}
-                  placeholder="Selecione o paciente"
+                  placeholder={
+                    loadingPacientesOpcoes
+                      ? "Carregando pacientes..."
+                      : "Selecione o paciente"
+                  }
                   className="w-full"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || loadingPacientesOpcoes}
                   filter
                   showClear
                 />
