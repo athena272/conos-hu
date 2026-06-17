@@ -222,7 +222,7 @@
 .pacientes-form-dialog .campo-texto,
 .pacientes-form-dialog .campo-dropdown {
   margin-bottom: 0;
-  margin-top: 10;
+  margin-top: 10px;
   min-width: 0;
 }
 
