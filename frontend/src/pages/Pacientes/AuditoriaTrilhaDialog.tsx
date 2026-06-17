@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "primereact/dialog";
 import { Button } from "primereact/button";
-import { SelectButton } from "primereact/selectbutton";
-import { InputNumber } from "primereact/inputnumber";
 import type { AuditoriaTrilha } from "../../utils/previsaoMgAuditoria";
+import { PeriodoCalculoSelector } from "./PeriodoCalculoSelector";
 
 export type { AuditoriaTrilha };
-
-const PERIODO_PRESETS_DIAS = [7, 14, 21, 28, 30];
 
 /**
  * Permite simular o período (dias) dentro do próprio diálogo de auditoria.
@@ -77,31 +74,11 @@ export function AuditoriaTrilhaDialog({
     >
       <div className="pacientes-previsao-audit-body">
         {periodoSimulacao ? (
-          <div className="pacientes-periodo-selector pacientes-audit-periodo">
-            <span className="pacientes-periodo-label">
-              Período de cálculo (dias):
-            </span>
-            <SelectButton
-              value={PERIODO_PRESETS_DIAS.includes(diasPeriodo) ? diasPeriodo : null}
-              onChange={(e) => {
-                if (e.value != null) setDiasPeriodo(e.value);
-              }}
-              options={PERIODO_PRESETS_DIAS.map((d) => ({
-                label: String(d),
-                value: d,
-              }))}
-              aria-label="Período em dias (presets)"
-            />
-            <InputNumber
-              value={diasPeriodo}
-              onValueChange={(e) =>
-                setDiasPeriodo(e.value != null && e.value > 0 ? e.value : 30)
-              }
-              min={1}
-              max={365}
-              showButtons
-              inputStyle={{ width: "4.5rem" }}
-              aria-label="Período personalizado em dias"
+          <div className="pacientes-audit-periodo">
+            <PeriodoCalculoSelector
+              diasPeriodo={diasPeriodo}
+              onChange={setDiasPeriodo}
+              idPrefix="pacientes-audit-periodo"
             />
           </div>
         ) : null}

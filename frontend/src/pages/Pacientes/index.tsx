@@ -11,8 +11,6 @@ import { ConfirmDialog } from "primereact/confirmdialog";
 import { Toast } from "primereact/toast";
 import { Tooltip } from "primereact/tooltip";
 import { Dropdown } from "primereact/dropdown";
-import { SelectButton } from "primereact/selectbutton";
-import { InputNumber } from "primereact/inputnumber";
 import { Field } from "formik";
 import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
@@ -49,9 +47,8 @@ import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
 import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
 import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
+import { PeriodoCalculoSelector } from "./PeriodoCalculoSelector";
 import "./styles.css";
-
-const PERIODO_PRESETS_DIAS = [7, 14, 21, 28, 30];
 
 const TOOLTIP_IDENTIFICACAO_REDACT =
   "Somente usuários administradores do Conos visualizam nome e prontuário completos.";
@@ -1025,38 +1022,18 @@ export default function Pacientes() {
       {(loadingResumo || resumoPorMedicamentoParaExibir.length > 0) && (
         <div className="pacientes-resumo-section">
           <h3>Estoque por medicamento (comprometido)</h3>
-          <div className="pacientes-periodo-selector">
-            <span className="pacientes-periodo-label">
-              Período de cálculo (dias):
-            </span>
-            <SelectButton
-              value={PERIODO_PRESETS_DIAS.includes(diasPeriodo) ? diasPeriodo : null}
-              onChange={(e) => {
-                if (e.value != null) setDiasPeriodo(e.value);
-              }}
-              options={PERIODO_PRESETS_DIAS.map((d) => ({
-                label: String(d),
-                value: d,
-              }))}
-              aria-label="Período em dias (presets)"
-            />
-            <InputNumber
-              value={diasPeriodo}
-              onValueChange={(e) =>
-                setDiasPeriodo(e.value != null && e.value > 0 ? e.value : 30)
-              }
-              min={1}
-              max={365}
-              showButtons
-              inputStyle={{ width: "4.5rem" }}
-              aria-label="Período personalizado em dias"
-            />
-            {diasPeriodo !== 30 && (
-              <span className="pacientes-periodo-hint">
-                Simulação para {diasPeriodo} dias — não altera os dados salvos.
-              </span>
-            )}
-          </div>
+          <PeriodoCalculoSelector
+            diasPeriodo={diasPeriodo}
+            onChange={setDiasPeriodo}
+            idPrefix="pacientes-resumo-periodo"
+            nota={
+              diasPeriodo !== 30 ? (
+                <span className="pacientes-periodo-hint">
+                  Simulação para {diasPeriodo} dias — não altera os dados salvos.
+                </span>
+              ) : null
+            }
+          />
           <DataTable
             key={`resumo-periodo-${diasPeriodo}`}
             value={resumoPorMedicamentoParaExibir}
