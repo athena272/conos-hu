@@ -3,6 +3,7 @@ import {
   mgTotaisFromUnidades,
 } from "./concentracaoMg";
 import {
+  intervaloMgDias,
   parseRegimeConsumo,
   tryResumoPorCicloHomogeneo,
   type PacienteMedicamentoPersistRow,
@@ -52,7 +53,8 @@ export function taxaMgPorDiaFromRow(row: PrevisaoMgRow): number | null {
 
   if (regime === "por_miligrama") {
     const mg = Number(row.consumo_mg_diario);
-    return Number.isFinite(mg) && mg > 0 ? mg : null;
+    if (!Number.isFinite(mg) || mg <= 0) return null;
+    return mg / intervaloMgDias(row.intervalo_ciclo_dias);
   }
 
   const mgPorUnidade = parseMgPorUnidadeFromConcentracao(conc);

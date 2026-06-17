@@ -128,3 +128,51 @@ test("taxaMgPorDiaFromRow por_miligrama ignores concentration", () => {
     200
   );
 });
+
+test("taxaMgPorDiaFromRow por_miligrama com intervalo divide mg pelo intervalo", () => {
+  // 750 mg a cada 28 dias ≈ 26,7857 mg/dia
+  const taxa = taxaMgPorDiaFromRow({
+    regime_consumo: "por_miligrama",
+    consumo_diario: 0,
+    unidades_por_ciclo: null,
+    intervalo_ciclo_dias: 28,
+    consumo_mg_diario: 750,
+    medicamento_concentracao: conc500,
+  });
+  assert.ok(taxa != null && Math.abs(taxa - 750 / 28) < 0.0001);
+});
+
+test("taxaMgPorDiaFromRow por_miligrama sem intervalo é compatível (mg/dia == consumo)", () => {
+  const semIntervalo = taxaMgPorDiaFromRow({
+    regime_consumo: "por_miligrama",
+    consumo_diario: 0,
+    unidades_por_ciclo: null,
+    intervalo_ciclo_dias: null,
+    consumo_mg_diario: 750,
+    medicamento_concentracao: conc500,
+  });
+  const intervaloUm = taxaMgPorDiaFromRow({
+    regime_consumo: "por_miligrama",
+    consumo_diario: 0,
+    unidades_por_ciclo: null,
+    intervalo_ciclo_dias: 1,
+    consumo_mg_diario: 750,
+    medicamento_concentracao: conc500,
+  });
+  assert.equal(semIntervalo, 750);
+  assert.equal(intervaloUm, 750);
+});
+
+test("buildPrevisaoMgFromRow por_miligrama com intervalo", () => {
+  const p = buildPrevisaoMgFromRow({
+    regime_consumo: "por_miligrama",
+    consumo_diario: 0,
+    unidades_por_ciclo: null,
+    intervalo_ciclo_dias: 28,
+    consumo_mg_diario: 750,
+    medicamento_concentracao: conc500,
+  });
+  assert.ok(p.mg_dia_previsto != null && Math.abs(p.mg_dia_previsto - 750 / 28) < 0.0001);
+  assert.ok(p.mg_mes_previsto != null && Math.abs(p.mg_mes_previsto - (750 / 28) * 30) < 0.001);
+  assert.equal(p.contextual_rotulo, "mg/dia");
+});

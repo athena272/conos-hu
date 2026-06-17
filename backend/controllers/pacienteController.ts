@@ -60,7 +60,12 @@ function validateMedicamentos(medicamentos: unknown): string | null {
       if (isNaN(consumo) || consumo <= 0) return `Medicamento ${i + 1}: consumo diário deve ser maior que zero`;
     } else if (regime === "por_miligrama") {
       const mg = Number(rec.consumo_mg_diario);
-      if (isNaN(mg) || mg <= 0) return `Medicamento ${i + 1}: consumo em mg/dia deve ser maior que zero`;
+      if (isNaN(mg) || mg <= 0) return `Medicamento ${i + 1}: consumo em mg deve ser maior que zero`;
+      if (rec.intervalo_ciclo_dias != null && String(rec.intervalo_ciclo_dias) !== "") {
+        const intervalo = Number(rec.intervalo_ciclo_dias);
+        if (!Number.isInteger(intervalo) || intervalo < 1)
+          return `Medicamento ${i + 1}: intervalo (dias) deve ser um inteiro maior ou igual a 1`;
+      }
     } else {
       const unidades = Number(rec.unidades_por_ciclo);
       const intervalo = Number(rec.intervalo_ciclo_dias);
@@ -97,13 +102,14 @@ function valuesForMedicamento(m: PacienteMedicamentoItem): MedicamentoPersistVal
     };
   }
   if (regime === "por_miligrama") {
+    const intervalo = Number(m.intervalo_ciclo_dias);
     return {
       nome,
       conc,
       consumo_diario: 0,
       regime: "por_miligrama",
       unidades_por_ciclo: null,
-      intervalo_ciclo_dias: null,
+      intervalo_ciclo_dias: Number.isInteger(intervalo) && intervalo >= 1 ? intervalo : 1,
       consumo_mg_diario: Number(m.consumo_mg_diario),
     };
   }
@@ -591,7 +597,17 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
       res.status(400).json({ error: "consumo_mg_diario deve ser um número maior que zero quando regime_consumo é por_miligrama" });
       return;
     }
-    taxaMgProposta = consumo_mg;
+    let intervaloMg = 1;
+    const intervaloRaw = req.query.intervalo_ciclo_dias as string | undefined;
+    if (intervaloRaw != null && String(intervaloRaw).trim() !== "") {
+      const iv = parseInt(intervaloRaw, 10);
+      if (!Number.isInteger(iv) || iv < 1) {
+        res.status(400).json({ error: "intervalo_ciclo_dias deve ser um inteiro maior ou igual a 1 quando regime_consumo é por_miligrama" });
+        return;
+      }
+      intervaloMg = iv;
+    }
+    taxaMgProposta = consumo_mg / intervaloMg;
   } else {
     const unidades = parseFloat((req.query.unidades_por_ciclo as string) ?? "");
     const intervalo = parseInt((req.query.intervalo_ciclo_dias as string) ?? "", 10);
