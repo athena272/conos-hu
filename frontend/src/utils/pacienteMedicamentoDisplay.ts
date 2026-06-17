@@ -18,6 +18,16 @@ export function normalizeRegimeConsumo(
 
 const DIAS_POR_MES = 30;
 
+/**
+ * Intervalo (em dias) do regime por_miligrama: `consumo_mg_diario` representa
+ * "X mg administrados a cada Y dias". Linhas antigas têm `intervalo_ciclo_dias`
+ * nulo → tratado como 1 (mantém `mg/dia == consumo_mg_diario`, compat total).
+ */
+export function intervaloMgDias(m: Pick<PacienteMedicamento, "intervalo_ciclo_dias">): number {
+  const d = Number(m.intervalo_ciclo_dias);
+  return Number.isInteger(d) && d >= 1 ? d : 1;
+}
+
 export function parseMgPorUnidadeFromConcentracao(concentracao: string): number | null {
   const s = String(concentracao ?? "").trim();
   if (!s) return null;
@@ -67,7 +77,8 @@ export function taxaMgPorDiaFromMedicamento(m: PacienteMedicamento): number | nu
 
   if (regime === "por_miligrama") {
     const mg = Number(m.consumo_mg_diario);
-    return Number.isFinite(mg) && mg > 0 ? mg : null;
+    if (!Number.isFinite(mg) || mg <= 0) return null;
+    return mg / intervaloMgDias(m);
   }
 
   const mgPorUnidade = parseMgPorUnidadeFromConcentracao(conc);
@@ -138,10 +149,27 @@ export function agregarPrevisaoMgMedicamentos(linhas: PacienteMedicamento[]): Pr
   return finalizePrevisaoMg(mgDiaTotal, mgDiaTotal, "mg/dia");
 }
 
+function normalizeDiasPeriodo(diasPeriodo: number): number {
+  return Number.isFinite(diasPeriodo) && diasPeriodo > 0 ? diasPeriodo : DIAS_POR_MES;
+}
+
+/** Total de mg consumido em `dias` dias a partir da taxa mg/dia. */
+export function mgNoPeriodo(mgDia: number | null | undefined, dias: number): number | null {
+  if (mgDia == null || !Number.isFinite(mgDia) || mgDia <= 0) return null;
+  const d = Number(dias);
+  if (!Number.isFinite(d) || d <= 0) return null;
+  return mgDia * d;
+}
+
+/**
+ * Quantos períodos de `diasPeriodo` dias o estoque (em mg) cobre.
+ * Com `diasPeriodo = 30` equivale ao cálculo canônico de "meses de estoque (mg)".
+ */
 export function mesesEstoqueFromMgFrontend(
   estoqueUnidades: number,
   mgDiaTotal: number | null,
   concentracao: string,
+  diasPeriodo: number = DIAS_POR_MES,
 ): number | null {
   const mgPorUnidade = parseMgPorUnidadeFromConcentracao(concentracao);
   if (mgPorUnidade == null) {
@@ -152,7 +180,23 @@ export function mesesEstoqueFromMgFrontend(
   }
   const estoqueMg = estoqueUnidades * mgPorUnidade;
   if (estoqueMg <= 0) return 0;
-  return Math.floor(estoqueMg / (mgDiaTotal * DIAS_POR_MES));
+  return Math.floor(estoqueMg / (mgDiaTotal * normalizeDiasPeriodo(diasPeriodo)));
+}
+
+/**
+ * Quantos períodos de `diasPeriodo` dias o estoque (em unidades) cobre.
+ * Com `diasPeriodo = 30` equivale ao cálculo canônico de "meses de estoque" por unidade/dia.
+ */
+export function periodosEstoqueUnid(
+  estoqueUnidades: number,
+  unidDiaTotal: number | null,
+  diasPeriodo: number = DIAS_POR_MES,
+): number | null {
+  if (unidDiaTotal == null || unidDiaTotal <= 0) {
+    return estoqueUnidades > 0 ? null : 0;
+  }
+  if (estoqueUnidades <= 0) return 0;
+  return Math.floor(estoqueUnidades / (unidDiaTotal * normalizeDiasPeriodo(diasPeriodo)));
 }
 
 export function normalizePrevisaoMgFromApi(raw: unknown): PrevisaoMg | undefined {
@@ -214,7 +258,8 @@ export function taxaUnidadesPorDiaFromMedicamento(m: PacienteMedicamento): numbe
     const mg = Number(m.consumo_mg_diario);
     const mgPorUnidade = parseMgPorUnidadeFromConcentracao(m.medicamento_concentracao ?? "");
     if (!Number.isFinite(mg) || mg <= 0 || mgPorUnidade == null) return 0;
-    return mg / mgPorUnidade;
+    const mgDia = mg / intervaloMgDias(m);
+    return mgDia / mgPorUnidade;
   }
   const c = Number(m.consumo_diario);
   return Number.isFinite(c) && c > 0 ? c : 0;
@@ -231,7 +276,9 @@ export function usoMedicamentoResumo(m: PacienteMedicamento): string {
   }
   if (regime === "por_miligrama") {
     const mg = m.consumo_mg_diario;
-    return mg != null ? `${mg} mg/dia` : "por miligrama";
+    if (mg == null) return "por miligrama";
+    const dias = intervaloMgDias(m);
+    return dias > 1 ? `${mg} mg / ${dias} dias` : `${mg} mg/dia`;
   }
   return `${m.consumo_diario}/dia`;
 }
@@ -263,19 +310,42 @@ export type LinhaPrevisaoMg = {
   texto: string;
 };
 
-/** Três linhas de previsão (A mg/dia, B mg/mês, C contextual) para UI. */
-export function formatarPrevisaoMgLinhas(previsao: PrevisaoMg | null | undefined): LinhaPrevisaoMg[] {
+/**
+ * Três linhas de previsão (A mg/dia, B mg no período, C contextual) para UI.
+ * `diasPeriodo` simula o período exibido na linha do meio; com 30 mantém o texto
+ * canônico "mg/mês (30 dias)".
+ */
+export function formatarPrevisaoMgLinhas(
+  previsao: PrevisaoMg | null | undefined,
+  diasPeriodo: number = DIAS_POR_MES,
+): LinhaPrevisaoMg[] {
   if (!previsao || previsao.mg_dia_previsto == null) {
     return [{ principal: true, texto: "—" }];
   }
+  const periodo = normalizeDiasPeriodo(diasPeriodo);
   const linhas: LinhaPrevisaoMg[] = [
     { principal: true, texto: `${formatarMgPtBr(previsao.mg_dia_previsto)}/dia` },
   ];
-  if (previsao.mg_mes_previsto != null) {
+  if (periodo === DIAS_POR_MES) {
+    if (previsao.mg_mes_previsto != null) {
+      linhas.push({
+        principal: false,
+        texto: `${formatarMgPtBr(previsao.mg_mes_previsto)}/mês (30 dias)`,
+      });
+    }
+  } else {
+    // Simulação: destaca o total no período escolhido (linha principal) e mantém
+    // o mg/mês de 30 dias como referência canônica (linha secundária).
     linhas.push({
-      principal: false,
-      texto: `${formatarMgPtBr(previsao.mg_mes_previsto)}/mês (30 dias)`,
+      principal: true,
+      texto: `${formatarMgPtBr(previsao.mg_dia_previsto * periodo)} em ${periodo} dias`,
     });
+    if (previsao.mg_mes_previsto != null) {
+      linhas.push({
+        principal: false,
+        texto: `${formatarMgPtBr(previsao.mg_mes_previsto)}/mês (30 dias)`,
+      });
+    }
   }
   if (previsao.mg_contextual != null) {
     linhas.push({
@@ -323,8 +393,17 @@ export function getLinhasTaxaVinculo(
   }
   if (regime === "por_miligrama") {
     const mg = Number(m.consumo_mg_diario);
+    const mgVal = Number.isFinite(mg) ? mg : 0;
+    const dias = intervaloMgDias(m);
+    if (dias > 1) {
+      const taxa = taxaMgPorDiaFromMedicamento(m as PacienteMedicamento) ?? 0;
+      return {
+        principal: `Consumo por miligrama: ${formatarNumeroTaxaPtBr(mgVal)} mg a cada ${dias} dias`,
+        secundaria: `Equiv. ≈ ${formatarNumeroTaxaPtBr(taxa)} mg/dia`,
+      };
+    }
     return {
-      principal: `Consumo por miligrama: ${formatarNumeroTaxaPtBr(Number.isFinite(mg) ? mg : 0)} mg/dia`,
+      principal: `Consumo por miligrama: ${formatarNumeroTaxaPtBr(mgVal)} mg/dia`,
     };
   }
   const c = Number(m.consumo_diario);

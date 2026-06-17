@@ -256,6 +256,118 @@ run("admin can create medication and paciente", async (t) => {
   assert.ok(typeof impactRes.body.mesesEstoqueMgComNovo === "number" || impactRes.body.mesesEstoqueMgComNovo === null);
 });
 
+run("retira funciona sem paciente e valida paciente quando informado", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+
+  const adminId = await getNextId("usuarios");
+  const hash = await bcrypt.hash(password, 10);
+  await coll<{
+    _id: number;
+    email: string;
+    password: string;
+    role: "admin";
+    created_at: Date;
+  }>("usuarios").insertOne({
+    _id: adminId,
+    email,
+    password: hash,
+    role: "admin",
+    created_at: new Date(),
+  });
+
+  const loginRes = await request(app).post("/login").send({ email, password });
+  assert.equal(loginRes.status, 200);
+  const token = loginRes.body.token as string;
+
+  const medName = `IT_RETIRA_${Date.now()}`;
+  const medLote = `ITLOTE-RET-${Date.now()}`;
+  const createRes = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      nome: medName,
+      lote: medLote,
+      quantidade: 10,
+      classificacao: "Teste",
+      concentracao: "500mg",
+      forma: "Comprimido",
+      data_validade: "2031-01-01",
+    });
+  assert.equal(createRes.status, 201);
+
+  const medDoc = await coll<{ _id: number; quantidade: number }>("medications").findOne({
+    nome: medName,
+    lote: medLote,
+  });
+  assert.ok(medDoc, "medicamento criado deve existir");
+  const medicationId = medDoc!._id;
+
+  // 1) Retirada SEM paciente deve funcionar e baixar o estoque
+  const semPacienteRes = await request(app)
+    .post("/retira")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ medication_id: medicationId, quantidade: 2 });
+  assert.equal(semPacienteRes.status, 200, "retirada sem paciente deve funcionar");
+
+  const aposSem = await coll<{ _id: number; quantidade: number }>("medications").findOne({
+    _id: medicationId,
+  });
+  assert.equal(aposSem!.quantidade, 8, "estoque deve baixar mesmo sem paciente vinculado");
+
+  const prontuario = Math.floor(Date.now() / 1000) + 5;
+  const pacienteRes = await request(app)
+    .post("/pacientes")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      nome: `IT Paciente Retira ${Date.now()}`,
+      prontuario,
+      apac: `IT-APAC-RET-${Date.now()}`,
+      diagnostico: "Teste retira",
+      medicamentos: [
+        {
+          medicamento_nome: medName,
+          medicamento_concentracao: "500mg",
+          consumo_diario: 1,
+          regime_consumo: "diario",
+        },
+      ],
+      observacoes: null,
+      telefone: "",
+      data_liberacao: "2026-01-01",
+      retorna_servico: false,
+    });
+  assert.equal(pacienteRes.status, 201);
+  const pacienteId = pacienteRes.body.id as number;
+
+  // 2) Retirada COM paciente válido deve funcionar e gravar o vínculo
+  const comPacienteRes = await request(app)
+    .post("/retira")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ medication_id: medicationId, quantidade: 1, paciente_id: pacienteId });
+  assert.equal(comPacienteRes.status, 200, "retirada com paciente deve funcionar");
+
+  const retiraComPaciente = await coll<{
+    medication_id: number;
+    paciente_id: number | null;
+  }>("retira_medications").findOne({ medication_id: medicationId, paciente_id: pacienteId });
+  assert.ok(retiraComPaciente, "deve gravar a retirada vinculada ao paciente");
+
+  // 3) Retirada com paciente inexistente deve retornar 400
+  const inexistenteRes = await request(app)
+    .post("/retira")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ medication_id: medicationId, quantidade: 1, paciente_id: 999999999 });
+  assert.equal(inexistenteRes.status, 400, "paciente inexistente deve retornar 400");
+
+  await coll<{ medication_id: number }>("retira_medications").deleteMany({ medication_id: medicationId });
+  await coll<{ _id: number }>("medications").deleteMany({ _id: medicationId });
+  await coll<{ paciente_id: number }>("paciente_medicamentos").deleteMany({ paciente_id: pacienteId });
+  await coll<{ _id: number }>("pacientes").deleteMany({ _id: pacienteId });
+});
+
 test.after(async () => {
   if (!hasMongoUri || !mongoReady) {
     await disconnectMongo();

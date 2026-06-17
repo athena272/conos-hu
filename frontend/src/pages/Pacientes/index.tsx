@@ -11,6 +11,8 @@ import { ConfirmDialog } from "primereact/confirmdialog";
 import { Toast } from "primereact/toast";
 import { Tooltip } from "primereact/tooltip";
 import { Dropdown } from "primereact/dropdown";
+import { SelectButton } from "primereact/selectbutton";
+import { InputNumber } from "primereact/inputnumber";
 import { Field } from "formik";
 import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
@@ -48,6 +50,8 @@ import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoP
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
 import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
 import "./styles.css";
+
+const PERIODO_PRESETS_DIAS = [7, 14, 21, 28, 30];
 
 const TOOLTIP_IDENTIFICACAO_REDACT =
   "Somente usuários administradores do Conos visualizam nome e prontuário completos.";
@@ -190,27 +194,45 @@ const medicamentoItemSchema = yup.object().shape({
         ),
     otherwise: (s) => s.notRequired(),
   }),
-  intervalo_ciclo_dias: yup.string().when("regime_consumo", {
-    is: "por_ciclo",
-    then: (s) =>
-      s
-        .required("Intervalo do ciclo (dias) é obrigatório")
-        .test(
-          "int-pos",
+  intervalo_ciclo_dias: yup
+    .string()
+    .when("regime_consumo", {
+      is: "por_ciclo",
+      then: (s) =>
+        s
+          .required("Intervalo do ciclo (dias) é obrigatório")
+          .test(
+            "int-pos",
+            "Informe um número inteiro de dias ≥ 1",
+            (v) => {
+              const n = parseInt(String(v ?? "").trim(), 10);
+              return !isNaN(n) && n >= 1 && String(n) === String(v?.trim());
+            },
+          ),
+      otherwise: (s) => s.notRequired(),
+    })
+    .when("regime_consumo", {
+      is: "por_miligrama",
+      // Opcional no regime por miligrama; se informado, deve ser inteiro ≥ 1.
+      then: (s) =>
+        s.test(
+          "int-pos-mg-opt",
           "Informe um número inteiro de dias ≥ 1",
           (v) => {
-            const n = parseInt(String(v ?? "").trim(), 10);
-            return !isNaN(n) && n >= 1 && String(n) === String(v?.trim());
+            const raw = String(v ?? "").trim();
+            if (raw === "") return true;
+            const n = parseInt(raw, 10);
+            return !isNaN(n) && n >= 1 && String(n) === raw;
           },
         ),
-    otherwise: (s) => s.notRequired(),
-  }),
+      otherwise: (s) => s,
+    }),
   consumo_mg_diario: yup.string().when("regime_consumo", {
     is: "por_miligrama",
     then: (s) =>
       s
-        .required("Consumo em mg/dia é obrigatório")
-        .test("positive-mg", "Consumo em mg/dia deve ser maior que zero", (v) => {
+        .required("Consumo em mg é obrigatório")
+        .test("positive-mg", "Consumo em mg deve ser maior que zero", (v) => {
           const n = parseFloat(String(v ?? "").replace(",", "."));
           return !isNaN(n) && n > 0;
         }),
@@ -310,6 +332,9 @@ function buildImpactoEstoquePath(m: {
   } else if (m.regime_consumo === "por_miligrama") {
     q.set("regime_consumo", "por_miligrama");
     q.set("consumo_mg_diario", String(m.consumo_mg_diario ?? ""));
+    if (m.intervalo_ciclo_dias != null) {
+      q.set("intervalo_ciclo_dias", String(m.intervalo_ciclo_dias));
+    }
   } else {
     q.set("regime_consumo", "diario");
     q.set("consumo_diario", String(m.consumo_diario));
@@ -330,7 +355,9 @@ function resumoMedicamentoNoPayload(m: {
     return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.unidades_por_ciclo} unid. / ${m.intervalo_ciclo_dias} dias)`;
   }
   if (m.regime_consumo === "por_miligrama") {
-    return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_mg_diario} mg/dia)`;
+    const dias = Number(m.intervalo_ciclo_dias);
+    const sufixo = Number.isInteger(dias) && dias > 1 ? `mg / ${dias} dias` : "mg/dia";
+    return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_mg_diario} ${sufixo})`;
   }
   return `${m.medicamento_nome} ${m.medicamento_concentracao} (${m.consumo_diario}/dia)`;
 }
@@ -436,6 +463,7 @@ export default function Pacientes() {
   });
 
   const [previsaoMgInfoVisible, setPrevisaoMgInfoVisible] = useState(false);
+  const [diasPeriodo, setDiasPeriodo] = useState(30);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
   const [addingRetorno, setAddingRetorno] = useState(false);
@@ -654,13 +682,18 @@ export default function Pacientes() {
         };
       }
       if (item.regime_consumo === "por_miligrama") {
+        const intervaloRaw = String(item.intervalo_ciclo_dias ?? "").trim();
+        const intervaloParsed = parseInt(intervaloRaw, 10);
         return {
           medicamento_nome: item.medicamento!.nome,
           medicamento_concentracao: item.medicamento!.concentracao,
           consumo_diario: 0,
           regime_consumo: "por_miligrama" as const,
           unidades_por_ciclo: null,
-          intervalo_ciclo_dias: null,
+          intervalo_ciclo_dias:
+            Number.isInteger(intervaloParsed) && intervaloParsed >= 1
+              ? intervaloParsed
+              : 1,
           consumo_mg_diario: parseFloat(
             String(item.consumo_mg_diario ?? "").replace(",", "."),
           ),
@@ -775,6 +808,7 @@ export default function Pacientes() {
       regime_consumo?: RegimeConsumoMedicamento;
       unidades_por_ciclo?: number | null;
       intervalo_ciclo_dias?: number | null;
+      consumo_mg_diario?: number | null;
     }>;
     Promise.all(
       medicamentosPayload.map((m) =>
@@ -874,7 +908,8 @@ export default function Pacientes() {
                   ? String(m.unidades_por_ciclo)
                   : "",
               intervalo_ciclo_dias:
-                regime === "por_ciclo" && m.intervalo_ciclo_dias != null
+                (regime === "por_ciclo" || regime === "por_miligrama") &&
+                m.intervalo_ciclo_dias != null
                   ? String(m.intervalo_ciclo_dias)
                   : "",
               consumo_mg_diario:
@@ -990,7 +1025,40 @@ export default function Pacientes() {
       {(loadingResumo || resumoPorMedicamentoParaExibir.length > 0) && (
         <div className="pacientes-resumo-section">
           <h3>Estoque por medicamento (comprometido)</h3>
+          <div className="pacientes-periodo-selector">
+            <span className="pacientes-periodo-label">
+              Período de cálculo (dias):
+            </span>
+            <SelectButton
+              value={PERIODO_PRESETS_DIAS.includes(diasPeriodo) ? diasPeriodo : null}
+              onChange={(e) => {
+                if (e.value != null) setDiasPeriodo(e.value);
+              }}
+              options={PERIODO_PRESETS_DIAS.map((d) => ({
+                label: String(d),
+                value: d,
+              }))}
+              aria-label="Período em dias (presets)"
+            />
+            <InputNumber
+              value={diasPeriodo}
+              onValueChange={(e) =>
+                setDiasPeriodo(e.value != null && e.value > 0 ? e.value : 30)
+              }
+              min={1}
+              max={365}
+              showButtons
+              inputStyle={{ width: "4.5rem" }}
+              aria-label="Período personalizado em dias"
+            />
+            {diasPeriodo !== 30 && (
+              <span className="pacientes-periodo-hint">
+                Simulação para {diasPeriodo} dias — não altera os dados salvos.
+              </span>
+            )}
+          </div>
           <DataTable
+            key={`resumo-periodo-${diasPeriodo}`}
             value={resumoPorMedicamentoParaExibir}
             size="small"
             emptyMessage={getDataTableEmptyMessage({
@@ -1016,13 +1084,25 @@ export default function Pacientes() {
                   />
                 )}
                 body={(r: ResumoPorMedicamento) => (
-                  <CelulaPrevisaoMgResumo row={r} pacientes={pacientes} />
+                  <CelulaPrevisaoMgResumo
+                    row={r}
+                    pacientes={pacientes}
+                    diasPeriodo={diasPeriodo}
+                  />
                 )}
               />
               <Column
-                header="Estoque dá para (meses)"
+                header={
+                  diasPeriodo === 30
+                    ? "Estoque dá para (meses)"
+                    : `Estoque dá para (períodos de ${diasPeriodo} dias)`
+                }
                 body={(r: ResumoPorMedicamento) => (
-                  <CelulaMesesEstoqueResumo row={r} pacientes={pacientes} />
+                  <CelulaMesesEstoqueResumo
+                    row={r}
+                    pacientes={pacientes}
+                    diasPeriodo={diasPeriodo}
+                  />
                 )}
               />
             </DataTable>
@@ -1583,7 +1663,7 @@ export default function Pacientes() {
                             />
                           </div>
                         ) : regimeAtual === "por_miligrama" ? (
-                          <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo">
+                          <div className="campo-consumo-row pacientes-medicamento-campo pacientes-medicamento-consumo pacientes-medicamento-ciclo">
                             <Field name={`medicamentos.${index}.consumo_mg_diario`}>
                               {({
                                 field,
@@ -1599,7 +1679,7 @@ export default function Pacientes() {
                                       htmlFor={`consumo-mg-${index}`}
                                       className="input-label"
                                     >
-                                      Consumo (mg/dia)
+                                      Consumo (mg)
                                     </label>
                                     <InputText
                                       id={`consumo-mg-${index}`}
@@ -1607,6 +1687,11 @@ export default function Pacientes() {
                                       placeholder="Ex.: 750"
                                       type="number"
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                      tooltip="Quantidade total em miligramas administrada no intervalo informado ao lado. Com intervalo = 1, equivale a mg/dia."
+                                      tooltipOptions={{
+                                        position: "top",
+                                        className: "pacientes-ciclo-tooltip",
+                                      }}
                                     />
                                   </div>
                                 );
@@ -1615,6 +1700,46 @@ export default function Pacientes() {
                             <ErrorMessage
                               component="span"
                               name={`medicamentos.${index}.consumo_mg_diario`}
+                              className="form-error"
+                            />
+                            <Field
+                              name={`medicamentos.${index}.intervalo_ciclo_dias`}
+                            >
+                              {({
+                                field,
+                              }: {
+                                field: Record<string, unknown>;
+                              }) => {
+                                const hasErr =
+                                  !!itemError?.intervalo_ciclo_dias &&
+                                  !!itemTouched?.intervalo_ciclo_dias;
+                                return (
+                                  <div className="input-container">
+                                    <label
+                                      htmlFor={`mg-intervalo-${index}`}
+                                      className="input-label"
+                                    >
+                                      a cada (dias)
+                                    </label>
+                                    <InputText
+                                      id={`mg-intervalo-${index}`}
+                                      {...field}
+                                      placeholder="Ex.: 28"
+                                      type="number"
+                                      className={`form-field ${hasErr ? "p-invalid" : ""}`}
+                                      tooltip="Em quantos dias a quantidade de mg ao lado é consumida (ex.: 750 mg a cada 28 dias). Deixe 1 para informar mg/dia."
+                                      tooltipOptions={{
+                                        position: "top",
+                                        className: "pacientes-ciclo-tooltip",
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              }}
+                            </Field>
+                            <ErrorMessage
+                              component="span"
+                              name={`medicamentos.${index}.intervalo_ciclo_dias`}
                               className="form-error"
                             />
                           </div>

@@ -18,6 +18,16 @@ export function parseRegimeConsumo(raw: unknown): RegimeConsumo {
 }
 
 /**
+ * Intervalo (em dias) do regime por_miligrama: `consumo_mg_diario` representa
+ * "X mg administrados a cada Y dias". Valor ausente/ inválido → 1, mantendo
+ * `mg/dia == consumo_mg_diario` (compatível com os dados antigos).
+ */
+export function intervaloMgDias(intervalo_ciclo_dias: number | null | undefined): number {
+  const d = Number(intervalo_ciclo_dias);
+  return Number.isInteger(d) && d >= 1 ? d : 1;
+}
+
+/**
  * Taxa média em unidades por dia para agregação de estoque.
  * Modo diário: usa consumo_diario.
  * Modo por ciclo: unidades_por_ciclo / intervalo_ciclo_dias.
@@ -54,7 +64,8 @@ export function taxaFromPersistRow(row: PacienteMedicamentoPersistRow): number {
     const conc = String(row.medicamento_concentracao ?? "");
     const mgPorUnidade = parseMgPorUnidadeFromConcentracao(conc);
     if (!Number.isFinite(mg) || mg <= 0 || mgPorUnidade == null) return 0;
-    return mg / mgPorUnidade;
+    const mgDia = mg / intervaloMgDias(row.intervalo_ciclo_dias);
+    return mgDia / mgPorUnidade;
   }
   return taxaUnidadesPorDia(regime, Number(row.consumo_diario), row.unidades_por_ciclo, row.intervalo_ciclo_dias);
 }
