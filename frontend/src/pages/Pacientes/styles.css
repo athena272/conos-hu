@@ -59,6 +59,10 @@
   border-bottom: 1px solid var(--surface-border, #dee2e6);
 }
 
+.pacientes-audit-periodo .pacientes-periodo-selector {
+  margin-bottom: 0;
+}
+
 .pacientes-resumo-table {
   margin-top: 0.5rem;
   border-radius: 8px;
