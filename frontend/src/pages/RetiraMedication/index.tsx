@@ -326,7 +326,7 @@ function RetiraMedication() {
                 <div className="form-group">
                   <label htmlFor="lot">Lote</label>
                   <Dropdown
-                    id="lot"
+                    inputId="lot"
                     value={values.selectedMedicationId}
                     options={lots.map((m) => ({
                       label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`,
