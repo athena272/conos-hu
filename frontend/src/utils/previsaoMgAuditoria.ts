@@ -3,6 +3,7 @@ import {
   formatarMgPtBr,
   formatarNumeroTaxaPtBr,
   getNotaPrevisaoMgIndisponivel,
+  intervaloMgDias,
   normalizeRegimeConsumo,
   parseMgPorUnidadeFromConcentracao,
   previsaoMgTemValor,
@@ -109,16 +110,26 @@ export function buildPrevisaoMgAuditoria(
 
   if (regime === "por_miligrama") {
     const mg = Number(m.consumo_mg_diario);
+    const dias = intervaloMgDias(m);
+    const mgValido = Number.isFinite(mg) && mg > 0;
     passos.push({
       rotulo: "Consumo informado",
-      detalhe: Number.isFinite(mg) && mg > 0
-        ? `${formatarNumeroTaxaPtBr(mg)} mg/dia (campo consumo em mg/dia)`
-        : "Campo consumo em mg/dia não informado ou inválido.",
+      detalhe: mgValido
+        ? dias > 1
+          ? `${formatarNumeroTaxaPtBr(mg)} mg a cada ${dias} dias (campo consumo em mg)`
+          : `${formatarNumeroTaxaPtBr(mg)} mg/dia (campo consumo em mg)`
+        : "Campo consumo em mg não informado ou inválido.",
     });
+    if (mgValido && dias > 1) {
+      passos.push({
+        rotulo: "Cálculo mg/dia (A)",
+        detalhe: `${formatarNumeroTaxaPtBr(mg)} mg ÷ ${dias} dias = ${formatarMgPtBr(mg / dias)}/dia`,
+      });
+    }
     passos.push({
       rotulo: "Regra",
       detalhe:
-        "No regime por miligrama o valor mg/dia vem direto do cadastro, sem multiplicar pela concentração.",
+        "No regime por miligrama, mg/dia = mg informados ÷ intervalo (dias), sem multiplicar pela concentração.",
     });
   } else {
     const mgPorUnidade = parseMgPorUnidadeFromConcentracao(conc);

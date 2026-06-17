@@ -102,4 +102,28 @@ describe("buildMesesEstoqueResumoAuditoria", () => {
     expect(trilha.passos.some((p) => p.rotulo === "Cálculo meses (mg)")).toBe(true);
     expect(trilha.passos.some((p) => p.detalhe.includes("1.780 unid."))).toBe(true);
   });
+
+  it("reflete o período simulado (× N dias) quando diasPeriodo ≠ 30", () => {
+    const trilha = buildMesesEstoqueResumoAuditoria({
+      row: rowParacetamol,
+      pacientes: pacientesDemo,
+      previsaoExibida: rowParacetamol.previsaoMgTotal,
+      diasPeriodo: 28,
+    });
+    const texto = trilha.passos.map((p) => p.detalhe).join(" ");
+    expect(texto).toContain("× 28 dias");
+    expect(texto).toContain("períodos de 28 dias");
+  });
+});
+
+describe("buildPrevisaoMgResumoAuditoria com período", () => {
+  it("mostra o total em N dias quando diasPeriodo ≠ 30", () => {
+    const trilha = buildPrevisaoMgResumoAuditoria({
+      row: rowParacetamol,
+      pacientes: pacientesDemo,
+      previsaoExibida: rowParacetamol.previsaoMgTotal,
+      diasPeriodo: 28,
+    });
+    expect(trilha.passos.some((p) => p.rotulo === "Total mg em 28 dias (B)")).toBe(true);
+  });
 });

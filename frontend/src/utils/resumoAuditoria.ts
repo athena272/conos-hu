@@ -14,6 +14,17 @@ import type { AuditoriaTrilha, PrevisaoMgAuditoriaPasso } from "./previsaoMgAudi
 
 const DIAS_POR_MES = 30;
 
+function normalizeDiasPeriodo(diasPeriodo: number | undefined): number {
+  return diasPeriodo != null && Number.isFinite(diasPeriodo) && diasPeriodo > 0
+    ? diasPeriodo
+    : DIAS_POR_MES;
+}
+
+/** Rótulo da unidade de duração do estoque conforme o período simulado. */
+function rotuloPeriodo(periodo: number): string {
+  return periodo === DIAS_POR_MES ? "meses" : `períodos de ${periodo} dias`;
+}
+
 export type ContribuicaoPacienteResumo = {
   pacienteNome: string;
   prontuario: number;
@@ -71,18 +82,30 @@ export type BuildResumoAuditoriaInput = {
   previsaoExibida?: PrevisaoMg | null;
   mesesUnidExibido?: number | null;
   mesesMgExibido?: number | null;
+  /** Período simulado em dias (default 30 = comportamento canônico). */
+  diasPeriodo?: number;
 };
 
-function passosResultadoAgregado(previsao: PrevisaoMg): PrevisaoMgAuditoriaPasso[] {
+function passosResultadoAgregado(
+  previsao: PrevisaoMg,
+  periodo: number,
+): PrevisaoMgAuditoriaPasso[] {
   if (!previsaoMgTemValor(previsao)) return [];
   const mgDia = previsao.mg_dia_previsto!;
   const passos: PrevisaoMgAuditoriaPasso[] = [
     { rotulo: "Total mg/dia (A)", detalhe: `${formatarMgPtBr(mgDia)}/dia` },
   ];
-  if (previsao.mg_mes_previsto != null) {
+  if (periodo === DIAS_POR_MES) {
+    if (previsao.mg_mes_previsto != null) {
+      passos.push({
+        rotulo: "Total mg/mês (B)",
+        detalhe: `${formatarMgPtBr(mgDia)}/dia × ${DIAS_POR_MES} dias = ${formatarMgPtBr(previsao.mg_mes_previsto)}/mês`,
+      });
+    }
+  } else {
     passos.push({
-      rotulo: "Total mg/mês (B)",
-      detalhe: `${formatarMgPtBr(mgDia)}/dia × ${DIAS_POR_MES} dias = ${formatarMgPtBr(previsao.mg_mes_previsto)}/mês`,
+      rotulo: `Total mg em ${periodo} dias (B)`,
+      detalhe: `${formatarMgPtBr(mgDia)}/dia × ${periodo} dias = ${formatarMgPtBr(mgDia * periodo)}`,
     });
   }
   if (previsao.mg_contextual != null) {
@@ -98,6 +121,7 @@ function passosResultadoAgregado(previsao: PrevisaoMg): PrevisaoMgAuditoriaPasso
 
 export function buildPrevisaoMgResumoAuditoria(input: BuildResumoAuditoriaInput): AuditoriaTrilha {
   const { row, pacientes } = input;
+  const periodo = normalizeDiasPeriodo(input.diasPeriodo);
   const label = `${row.medicamento_nome} ${row.medicamento_concentracao}`.trim();
   const vinculos = vinculosResumoComPaciente(
     row.medicamento_nome,
@@ -171,7 +195,7 @@ export function buildPrevisaoMgResumoAuditoria(input: BuildResumoAuditoriaInput)
     });
   }
 
-  passos.push(...passosResultadoAgregado(previsao));
+  passos.push(...passosResultadoAgregado(previsao, periodo));
 
   const indisponivel = previsaoMgTemValor(previsao)
     ? null
@@ -188,6 +212,8 @@ export function buildPrevisaoMgResumoAuditoria(input: BuildResumoAuditoriaInput)
 
 export function buildMesesEstoqueResumoAuditoria(input: BuildResumoAuditoriaInput): AuditoriaTrilha {
   const { row, pacientes } = input;
+  const periodo = normalizeDiasPeriodo(input.diasPeriodo);
+  const unidadePeriodo = rotuloPeriodo(periodo);
   const label = `${row.medicamento_nome} ${row.medicamento_concentracao}`.trim();
   const contrib = contribuicoesResumoPorPaciente(
     row.medicamento_nome,
@@ -215,14 +241,14 @@ export function buildMesesEstoqueResumoAuditoria(input: BuildResumoAuditoriaInpu
   const mesesUnid =
     input.mesesUnidExibido ??
     (taxaUnid > 0 && row.estoqueTotal > 0
-      ? Math.floor(row.estoqueTotal / (taxaUnid * DIAS_POR_MES))
+      ? Math.floor(row.estoqueTotal / (taxaUnid * periodo))
       : row.mesesEstoque ?? null);
 
   const estoqueMg =
     mgPorUnidade != null && row.estoqueTotal > 0 ? row.estoqueTotal * mgPorUnidade : null;
   const mesesMgCalc =
     mgDia != null && mgDia > 0 && estoqueMg != null && estoqueMg > 0
-      ? Math.floor(estoqueMg / (mgDia * DIAS_POR_MES))
+      ? Math.floor(estoqueMg / (mgDia * periodo))
       : null;
   const mesesMg = input.mesesMgExibido ?? mesesMgCalc ?? row.mesesEstoqueMg ?? null;
 
@@ -262,7 +288,7 @@ export function buildMesesEstoqueResumoAuditoria(input: BuildResumoAuditoriaInpu
   if (taxaUnid > 0 && row.estoqueTotal > 0) {
     passos.push({
       rotulo: "Cálculo meses (unid.)",
-      detalhe: `${formatarNumeroTaxaPtBr(row.estoqueTotal)} unid. ÷ (${formatarNumeroTaxaPtBr(taxaUnid)} unid./dia × ${DIAS_POR_MES} dias) = ${mesesUnid ?? "—"} meses`,
+      detalhe: `${formatarNumeroTaxaPtBr(row.estoqueTotal)} unid. ÷ (${formatarNumeroTaxaPtBr(taxaUnid)} unid./dia × ${periodo} dias) = ${mesesUnid ?? "—"} ${unidadePeriodo}`,
     });
   } else {
     passos.push({
@@ -299,7 +325,7 @@ export function buildMesesEstoqueResumoAuditoria(input: BuildResumoAuditoriaInpu
   if (estoqueMg != null && mgDia != null && mgDia > 0) {
     passos.push({
       rotulo: "Cálculo meses (mg)",
-      detalhe: `${formatarMgPtBr(estoqueMg)} ÷ (${formatarMgPtBr(mgDia)}/dia × ${DIAS_POR_MES} dias) = ${mesesMg ?? "—"} meses`,
+      detalhe: `${formatarMgPtBr(estoqueMg)} ÷ (${formatarMgPtBr(mgDia)}/dia × ${periodo} dias) = ${mesesMg ?? "—"} ${unidadePeriodo}`,
     });
   } else {
     passos.push({

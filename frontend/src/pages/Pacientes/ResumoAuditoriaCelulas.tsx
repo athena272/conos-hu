@@ -4,28 +4,39 @@ import {
   buildMesesEstoqueResumoAuditoria,
   buildPrevisaoMgResumoAuditoria,
 } from "../../utils/resumoAuditoria";
+import {
+  mesesEstoqueFromMgFrontend,
+  periodosEstoqueUnid,
+} from "../../utils/pacienteMedicamentoDisplay";
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
 import { AuditoriaTrilhaDialog, BotaoAuditoriaTrilha } from "./AuditoriaTrilhaDialog";
+
+const DIAS_POR_MES = 30;
 
 export function CelulaPrevisaoMgResumo({
   row,
   pacientes,
+  diasPeriodo = DIAS_POR_MES,
 }: {
   row: ResumoPorMedicamento;
   pacientes: Paciente[];
+  diasPeriodo?: number;
 }) {
   const [auditVisible, setAuditVisible] = useState(false);
-  const trilha = buildPrevisaoMgResumoAuditoria({
-    row,
-    pacientes,
-    previsaoExibida: row.previsaoMgTotal,
-  });
+  const rebuildTrilha = (dias: number) =>
+    buildPrevisaoMgResumoAuditoria({
+      row,
+      pacientes,
+      previsaoExibida: row.previsaoMgTotal,
+      diasPeriodo: dias,
+    });
+  const trilha = rebuildTrilha(diasPeriodo);
 
   return (
     <>
       <div className="pacientes-previsao-mg-celula">
         <div className="pacientes-taxa-resumo-celula pacientes-previsao-mg-conteudo">
-          <CelulaPrevisaoMg previsao={row.previsaoMgTotal} />
+          <CelulaPrevisaoMg previsao={row.previsaoMgTotal} diasPeriodo={diasPeriodo} />
         </div>
         <BotaoAuditoriaTrilha
           tituloAcessivel={`Ver como a previsão agregada de ${row.medicamento_nome} ${row.medicamento_concentracao} foi calculada`}
@@ -39,6 +50,7 @@ export function CelulaPrevisaoMgResumo({
         trilha={trilha}
         visible={auditVisible}
         onHide={() => setAuditVisible(false)}
+        periodoSimulacao={{ diasPeriodoInicial: diasPeriodo, rebuild: rebuildTrilha }}
       />
     </>
   );
@@ -47,20 +59,54 @@ export function CelulaPrevisaoMgResumo({
 export function CelulaMesesEstoqueResumo({
   row,
   pacientes,
+  diasPeriodo = DIAS_POR_MES,
 }: {
   row: ResumoPorMedicamento;
   pacientes: Paciente[];
+  diasPeriodo?: number;
 }) {
   const [auditVisible, setAuditVisible] = useState(false);
-  const unid = row.mesesEstoque != null ? `${row.mesesEstoque} meses` : "—";
-  const mg = row.mesesEstoqueMg != null ? `${row.mesesEstoqueMg} meses` : "—";
-  const trilha = buildMesesEstoqueResumoAuditoria({
-    row,
-    pacientes,
-    previsaoExibida: row.previsaoMgTotal,
-    mesesUnidExibido: row.mesesEstoque,
-    mesesMgExibido: row.mesesEstoqueMg,
-  });
+
+  const calcularCobertura = (dias: number) => {
+    const ehPadrao = dias === DIAS_POR_MES;
+    return {
+      mesesUnidVal: ehPadrao
+        ? row.mesesEstoque
+        : periodosEstoqueUnid(row.estoqueTotal, row.consumoDiarioTotal, dias),
+      mesesMgVal: ehPadrao
+        ? row.mesesEstoqueMg
+        : mesesEstoqueFromMgFrontend(
+            row.estoqueTotal,
+            row.previsaoMgTotal?.mg_dia_previsto ?? null,
+            row.medicamento_concentracao,
+            dias,
+          ),
+    };
+  };
+
+  const rebuildTrilha = (dias: number) => {
+    const { mesesUnidVal, mesesMgVal } = calcularCobertura(dias);
+    return buildMesesEstoqueResumoAuditoria({
+      row,
+      pacientes,
+      previsaoExibida: row.previsaoMgTotal,
+      mesesUnidExibido: mesesUnidVal,
+      mesesMgExibido: mesesMgVal,
+      diasPeriodo: dias,
+    });
+  };
+
+  const { mesesUnidVal, mesesMgVal } = calcularCobertura(diasPeriodo);
+  // No padrão (30 dias) mostra "N meses"; em simulação, mostra "N períodos
+  // (~N×dias dias)" para tornar a cobertura tangível e verificável.
+  const formatarCobertura = (valor: number | null | undefined): string => {
+    if (valor == null) return "—";
+    if (diasPeriodo === DIAS_POR_MES) return `${valor} meses`;
+    return `${valor} períodos (~${valor * diasPeriodo} dias)`;
+  };
+  const unid = formatarCobertura(mesesUnidVal);
+  const mg = formatarCobertura(mesesMgVal);
+  const trilha = rebuildTrilha(diasPeriodo);
 
   return (
     <>
@@ -87,6 +133,7 @@ export function CelulaMesesEstoqueResumo({
         trilha={trilha}
         visible={auditVisible}
         onHide={() => setAuditVisible(false)}
+        periodoSimulacao={{ diasPeriodoInicial: diasPeriodo, rebuild: rebuildTrilha }}
       />
     </>
   );

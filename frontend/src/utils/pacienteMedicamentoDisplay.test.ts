@@ -3,12 +3,17 @@ import type { PacienteMedicamento } from "../types/paciente";
 import {
   agregarPrevisaoMgMedicamentos,
   buildPrevisaoMgFromMedicamento,
+  formatarPrevisaoMgLinhas,
   getNotaPrevisaoMgIndisponivel,
   mesesEstoqueFromMgFrontend,
+  mgNoPeriodo,
   normalizePacienteLista,
   normalizePrevisaoMgFromApi,
+  periodosEstoqueUnid,
   previsaoMgTemValor,
   resolvePrevisaoMgMedicamento,
+  taxaMgPorDiaFromMedicamento,
+  usoMedicamentoResumo,
 } from "./pacienteMedicamentoDisplay";
 
 function med(
@@ -238,5 +243,115 @@ describe("mesesEstoqueFromMgFrontend", () => {
   it("calcula meses com base em estoque e mg/dia agregado", () => {
     // 1780 un × 500mg = 890000 mg; 3500 mg/dia × 30 = 105000/mês → 8 meses
     expect(mesesEstoqueFromMgFrontend(1780, 3500, "500mg")).toBe(8);
+  });
+
+  it("aceita período configurável (default 30 inalterado)", () => {
+    // diasPeriodo = 30 reproduz o comportamento canônico
+    expect(mesesEstoqueFromMgFrontend(1780, 3500, "500mg", 30)).toBe(8);
+    // 890000 mg / (3500 × 28) = 9,08 → 9 períodos de 28 dias
+    expect(mesesEstoqueFromMgFrontend(1780, 3500, "500mg", 28)).toBe(9);
+  });
+});
+
+describe("formatarPrevisaoMgLinhas com período", () => {
+  const previsao = {
+    mg_dia_previsto: 1250,
+    mg_mes_previsto: 37500,
+    mg_contextual: 1250,
+    contextual_rotulo: "mg/dia" as const,
+  };
+
+  it("mantém 'mg/mês (30 dias)' no período padrão", () => {
+    const linhas = formatarPrevisaoMgLinhas(previsao, 30);
+    expect(linhas.some((l) => l.texto.includes("/mês (30 dias)"))).toBe(true);
+    expect(linhas.some((l) => l.texto.includes("em 21 dias"))).toBe(false);
+  });
+
+  it("destaca o total no período simulado e mantém o mg/mês de referência", () => {
+    const linhas = formatarPrevisaoMgLinhas(previsao, 21);
+    // 1250 × 21 = 26.250 mg em 21 dias, como linha principal (destacada)
+    const linhaPeriodo = linhas.find((l) => l.texto.includes("em 21 dias"));
+    expect(linhaPeriodo).toBeDefined();
+    expect(linhaPeriodo?.principal).toBe(true);
+    expect(linhaPeriodo?.texto).toContain("26.250");
+    expect(linhas.some((l) => l.texto.includes("/mês (30 dias)"))).toBe(true);
+  });
+});
+
+describe("mgNoPeriodo", () => {
+  it("multiplica mg/dia pelo número de dias", () => {
+    expect(mgNoPeriodo(100, 28)).toBe(2800);
+    expect(mgNoPeriodo(100, 30)).toBe(3000);
+  });
+
+  it("retorna null para entradas inválidas", () => {
+    expect(mgNoPeriodo(null, 28)).toBeNull();
+    expect(mgNoPeriodo(0, 28)).toBeNull();
+    expect(mgNoPeriodo(100, 0)).toBeNull();
+  });
+});
+
+describe("periodosEstoqueUnid", () => {
+  it("calcula quantos períodos o estoque em unidades cobre", () => {
+    // 600 unid / (10 unid/dia × 30) = 2
+    expect(periodosEstoqueUnid(600, 10, 30)).toBe(2);
+    // 600 unid / (10 unid/dia × 28) = 2,14 → 2
+    expect(periodosEstoqueUnid(600, 10, 28)).toBe(2);
+  });
+
+  it("retorna null quando consumo é zero mas há estoque", () => {
+    expect(periodosEstoqueUnid(600, 0, 30)).toBeNull();
+    expect(periodosEstoqueUnid(0, 0, 30)).toBe(0);
+  });
+});
+
+describe("regime por_miligrama com intervalo", () => {
+  it("taxa mg/dia divide os mg pelo intervalo em dias", () => {
+    const m = med({
+      medicamento_nome: "Medicamento X",
+      medicamento_concentracao: "250mg",
+      consumo_diario: 0,
+      regime_consumo: "por_miligrama",
+      consumo_mg_diario: 750,
+      intervalo_ciclo_dias: 28,
+    });
+    const taxa = taxaMgPorDiaFromMedicamento(m);
+    expect(taxa).not.toBeNull();
+    expect(Math.abs((taxa ?? 0) - 750 / 28)).toBeLessThan(0.0001);
+  });
+
+  it("intervalo ausente é compatível (mg/dia == consumo informado)", () => {
+    const m = med({
+      medicamento_nome: "Medicamento X",
+      medicamento_concentracao: "250mg",
+      consumo_diario: 0,
+      regime_consumo: "por_miligrama",
+      consumo_mg_diario: 750,
+    });
+    expect(taxaMgPorDiaFromMedicamento(m)).toBe(750);
+  });
+
+  it("usoMedicamentoResumo mostra 'X mg / Y dias' quando há intervalo", () => {
+    const m = med({
+      medicamento_nome: "Medicamento X",
+      medicamento_concentracao: "250mg",
+      consumo_diario: 0,
+      regime_consumo: "por_miligrama",
+      consumo_mg_diario: 750,
+      intervalo_ciclo_dias: 28,
+    });
+    expect(usoMedicamentoResumo(m)).toBe("750 mg / 28 dias");
+  });
+
+  it("usoMedicamentoResumo mantém 'X mg/dia' quando intervalo = 1", () => {
+    const m = med({
+      medicamento_nome: "Medicamento X",
+      medicamento_concentracao: "250mg",
+      consumo_diario: 0,
+      regime_consumo: "por_miligrama",
+      consumo_mg_diario: 750,
+      intervalo_ciclo_dias: 1,
+    });
+    expect(usoMedicamentoResumo(m)).toBe("750 mg/dia");
   });
 });

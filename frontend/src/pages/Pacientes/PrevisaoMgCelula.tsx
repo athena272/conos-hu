@@ -16,10 +16,12 @@ export function CelulaPrevisaoMg({
   previsao,
   medicamento,
   mostrarAuditoria = false,
+  diasPeriodo = 30,
 }: {
   previsao: PrevisaoMg | null | undefined;
   medicamento?: PacienteMedicamento;
   mostrarAuditoria?: boolean;
+  diasPeriodo?: number;
 }) {
   const [auditVisible, setAuditVisible] = useState(false);
 
@@ -32,7 +34,7 @@ export function CelulaPrevisaoMg({
       ? previsao!
       : previsao;
 
-  const linhas = formatarPrevisaoMgLinhas(resolved);
+  const linhas = formatarPrevisaoMgLinhas(resolved, diasPeriodo);
   const nota =
     !previsaoMgTemValor(resolved) && medicamento
       ? getNotaPrevisaoMgIndisponivel({
