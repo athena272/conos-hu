@@ -41,6 +41,7 @@ import {
   agregarPrevisaoMgMedicamentos,
   previsaoMgTemValor,
   mesesEstoqueFromMgFrontend,
+  parseMgPorUnidadeFromConcentracao,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
@@ -1052,7 +1053,27 @@ export default function Pacientes() {
                   `${r.medicamento_nome} - ${r.medicamento_concentracao}`
                 }
               />
-              <Column field="estoqueTotal" header="Estoque total" />
+              <Column
+                field="estoqueTotal"
+                header="Estoque total"
+                body={(r: ResumoPorMedicamento) => {
+                  const mgPorUnidade = parseMgPorUnidadeFromConcentracao(
+                    r.medicamento_concentracao,
+                  );
+                  const mgTotais =
+                    mgPorUnidade != null ? r.estoqueTotal * mgPorUnidade : null;
+                  return (
+                    <div className="pacientes-resumo-estoque-total">
+                      <span>{r.estoqueTotal} unid.</span>
+                      {mgTotais != null && (
+                        <span className="pacientes-resumo-estoque-mg">
+                          {formatarMgPtBr(mgTotais)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                }}
+              />
               <Column field="qtdPacientes" header="Pacientes" />
               <Column
                 header={() => (
