@@ -3,6 +3,7 @@ import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
 import { extractGtinFromDigitString, normalizeGtinDigits, parseGs1Raw } from "../utils/gs1Parse";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
+import { recordEvent } from "../services/eventService";
 
 interface MedicationRow {
   id: number;
@@ -193,6 +194,7 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
   try {
     const id = await getNextId("medications");
     const q = parseInt(quantidade, 10);
+    const usuario_id = req.user!.id;
     await coll<MedicationDoc>("medications").insertOne({
       _id: id,
       nome,
@@ -219,12 +221,24 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
         tipo: "entrada",
         medication_id: id,
         quantidade: q,
-        usuario_id: null,
+        usuario_id,
         data_movimentacao: new Date(),
       });
     } catch (movErr) {
       console.error("Erro ao registrar movimentação de entrada:", movErr);
     }
+    await recordEvent({
+      usuario_id,
+      acao: "medication.create",
+      entidade_tipo: "medication",
+      entidade_id: id,
+      detalhes: {
+        nome,
+        lote,
+        quantidade: q,
+        concentracao: concentracao ?? "",
+      },
+    });
     res.status(201).json({ message: "Medicação registrada com sucesso" });
   } catch (err) {
     console.error("Erro ao registrar medicação:", err);
@@ -370,6 +384,7 @@ export const addQuantity = async (req: Request, res: Response): Promise<void> =>
   }
   try {
     const mid = parseInt(String(medication_id), 10);
+    const usuario_id = req.user!.id;
     const found = await coll<MedicationDoc>("medications").findOne({ _id: mid });
     if (!found) {
       res.status(404).json({ error: "Medicação não encontrada" });
@@ -390,12 +405,24 @@ export const addQuantity = async (req: Request, res: Response): Promise<void> =>
         tipo: "entrada",
         medication_id: mid,
         quantidade: quantidadeNum,
-        usuario_id: null,
+        usuario_id,
         data_movimentacao: new Date(),
       });
     } catch (movErr) {
       console.error("Erro ao registrar movimentação de entrada:", movErr);
     }
+    await recordEvent({
+      usuario_id,
+      acao: "medication.add_quantity",
+      entidade_tipo: "medication",
+      entidade_id: mid,
+      detalhes: {
+        medication_id: mid,
+        nome: found.nome,
+        lote: found.lote,
+        quantidade: quantidadeNum,
+      },
+    });
     res.status(200).json({ message: "Quantidade adicionada com sucesso" });
   } catch (err) {
     console.error("Erro ao adicionar quantidade:", err);
@@ -449,6 +476,19 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
       res.status(404).json({ error: "Medicação não encontrada" });
       return;
     }
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "medication.update",
+      entidade_tipo: "medication",
+      entidade_id: id,
+      detalhes: {
+        nome,
+        lote,
+        quantidade: quantidadeNum,
+        concentracao: concentracao ?? "",
+        data_validade: String(data_validade).slice(0, 10),
+      },
+    });
     const doc = await coll<MedicationDoc>("medications").findOne({ _id: id });
     if (doc) {
       res.status(200).json(addStatus(docToMedicationRow(doc)));
@@ -486,6 +526,16 @@ export const deleteMedication = async (req: Request, res: Response): Promise<voi
     } finally {
       await session.endSession();
     }
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "medication.delete",
+      entidade_tipo: "medication",
+      entidade_id: id,
+      detalhes: {
+        nome: exists.nome,
+        lote: exists.lote,
+      },
+    });
     res.status(204).send();
   } catch (err) {
     const e = err as Error;
