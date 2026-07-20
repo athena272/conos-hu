@@ -16,6 +16,7 @@ import Simulador from "./src/pages/Simulador";
 import Dashboard from "./src/pages/Dashboard";
 import DashboardStock from "./src/pages/DashboardStock";
 import Pacientes from "./src/pages/Pacientes";
+import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
 import AdminRoute from "./src/routes/AdminRoute";
 
@@ -95,6 +96,16 @@ const AppRoutes = () => {
           element={
             <PrivateRoute>
               <DashboardStock />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/historico"
+          element={
+            <PrivateRoute>
+              <AdminRoute>
+                <Historico />
+              </AdminRoute>
             </PrivateRoute>
           }
         />

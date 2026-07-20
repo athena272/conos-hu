@@ -18,6 +18,7 @@ import {
 import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
 import type { UserRole } from "../types/roles";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
+import { recordEvent } from "../services/eventService";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
 
@@ -430,6 +431,17 @@ export const createPaciente = async (req: Request, res: Response): Promise<void>
       });
     }
 
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "paciente.create",
+      entidade_tipo: "paciente",
+      entidade_id: pacienteId,
+      detalhes: {
+        nome: String(nome).trim(),
+        prontuario: prontNum,
+      },
+    });
+
     res.status(201).json({ message: "Paciente cadastrado com sucesso", id: pacienteId });
   } catch (err) {
     console.error("Erro ao cadastrar paciente:", err);
@@ -529,6 +541,17 @@ export const updatePaciente = async (req: Request, res: Response): Promise<void>
       });
     }
 
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "paciente.update",
+      entidade_tipo: "paciente",
+      entidade_id: id,
+      detalhes: {
+        nome: String(nome).trim(),
+        prontuario: prontNum,
+      },
+    });
+
     res.status(200).json({ message: "Paciente atualizado com sucesso" });
   } catch (err) {
     console.error("Erro ao atualizar paciente:", err);
@@ -544,6 +567,14 @@ export const deletePaciente = async (req: Request, res: Response): Promise<void>
     return;
   }
   try {
+    const existing = await coll<{ _id: number; nome?: string; prontuario?: number }>("pacientes").findOne({
+      _id: id,
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Paciente não encontrado" });
+      return;
+    }
+
     const db = getDb();
     const session = db.client.startSession();
     try {
@@ -561,6 +592,18 @@ export const deletePaciente = async (req: Request, res: Response): Promise<void>
     } finally {
       await session.endSession();
     }
+
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "paciente.delete",
+      entidade_tipo: "paciente",
+      entidade_id: id,
+      detalhes: {
+        nome: existing.nome ?? "",
+        prontuario: existing.prontuario ?? null,
+      },
+    });
+
     res.status(204).send();
   } catch (err) {
     if ((err as Error).message === "NOT_FOUND") {
@@ -861,7 +904,7 @@ export const addRetorno = async (req: Request, res: Response): Promise<void> => 
       ? tipo_retorno.trim()
       : null;
   try {
-    const p = await coll<{ _id: number }>("pacientes").findOne({ _id: id });
+    const p = await coll<{ _id: number; nome?: string }>("pacientes").findOne({ _id: id });
     if (!p) {
       res.status(404).json({ error: "Paciente não encontrado" });
       return;
@@ -875,6 +918,17 @@ export const addRetorno = async (req: Request, res: Response): Promise<void> => 
       data_retorno: data_retorno.trim(),
       tipo_retorno: tipoVal,
       created_at: new Date(),
+    });
+    await recordEvent({
+      usuario_id: req.user!.id,
+      acao: "paciente.retorno.add",
+      entidade_tipo: "paciente",
+      entidade_id: id,
+      detalhes: {
+        data_retorno: data_retorno.trim(),
+        tipo_retorno: tipoVal,
+        paciente_nome: p.nome ?? "",
+      },
     });
     res.status(201).json({ message: "Data de retorno adicionada", id: insertId });
   } catch (err) {

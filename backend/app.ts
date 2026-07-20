@@ -4,6 +4,7 @@ import authRoutes from "./routes/authRoutes";
 import medicationRoutes from "./routes/medicationRoutes";
 import retiraMedicationRoutes from "./routes/retiraMedicationRoutes";
 import pacienteRoutes from "./routes/pacienteRoutes";
+import eventoRoutes from "./routes/eventoRoutes";
 
 const app: Express = express();
 
@@ -34,5 +35,6 @@ app.use("/", authRoutes);
 app.use("/medications", medicationRoutes);
 app.use("/retira", retiraMedicationRoutes);
 app.use("/pacientes", pacienteRoutes);
+app.use("/eventos", eventoRoutes);
 
 export default app;

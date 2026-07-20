@@ -69,6 +69,15 @@ export default function Menu() {
         },
       ],
     },
+    ...(admin
+      ? [
+          {
+            label: "Histórico",
+            icon: "pi pi-history",
+            url: "/historico",
+          },
+        ]
+      : []),
     {
       label: "Sair",
       icon: "pi pi-sign-out",

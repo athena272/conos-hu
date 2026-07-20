@@ -1,8 +1,14 @@
 import { Request, Response } from "express";
 import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
+import { recordEvent } from "../services/eventService";
 
-type MedicationStock = { _id: number; quantidade: number };
+type MedicationStock = {
+  _id: number;
+  quantidade: number;
+  nome?: string;
+  lote?: string;
+};
 
 export const retiraMedication = async (req: Request, res: Response): Promise<void> => {
   const usuario_id = req.user!.id;
@@ -34,13 +40,17 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
   try {
     const db = getDb();
 
+    let pacienteNome: string | null = null;
     if (pacienteIdSql != null) {
-      const p = await coll<{ _id: number }>("pacientes").findOne({ _id: pacienteIdSql });
+      const p = await coll<{ _id: number; nome?: string }>("pacientes").findOne({ _id: pacienteIdSql });
       if (!p) {
         res.status(400).json({ error: "Paciente não encontrado" });
         return;
       }
+      pacienteNome = p.nome ?? null;
     }
+
+    const medSnapshot = { nome: "", lote: "" };
 
     const session = db.client.startSession();
     try {
@@ -58,6 +68,9 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
           }
           throw Object.assign(new Error("INSUFFICIENT"), { code: "INSUFFICIENT" });
         }
+
+        medSnapshot.nome = after.nome ?? "";
+        medSnapshot.lote = after.lote ?? "";
 
         const retiraId = await getNextId("retira_medications", session);
         await coll<{
@@ -102,6 +115,22 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
     } finally {
       await session.endSession();
     }
+
+    await recordEvent({
+      usuario_id,
+      acao: "medication.withdraw",
+      entidade_tipo: "medication",
+      entidade_id: medicationId,
+      detalhes: {
+        medication_id: medicationId,
+        nome: medSnapshot.nome,
+        lote: medSnapshot.lote,
+        quantidade: quantidadeNum,
+        ...(pacienteIdSql != null
+          ? { paciente_id: pacienteIdSql, paciente_nome: pacienteNome }
+          : {}),
+      },
+    });
 
     console.log("✅ Retirada realizada com sucesso");
     res.status(200).json({ message: "Retirada realizada com sucesso" });
