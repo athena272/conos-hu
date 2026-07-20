@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { coll } from "../models/mongo";
 import { getNextId } from "../models/sequences";
 import { signAuthToken } from "../services/authToken";
+import { recordEvent } from "../services/eventService";
 import type { UserRole } from "../types/roles";
 
 interface UsuarioDoc {
@@ -37,6 +38,14 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       password: hashedPassword,
       role,
       created_at: new Date(),
+    });
+
+    await recordEvent({
+      usuario_id: id,
+      acao: "usuario.register",
+      entidade_tipo: "usuario",
+      entidade_id: id,
+      detalhes: { email },
     });
 
     const token = signAuthToken({ userId: id, email, role });
