@@ -69,16 +69,16 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
+  gap: 0.35rem;
 }
 
 .historico-detalhe-item {
-  display: grid;
-  grid-template-columns: 6.5rem minmax(0, 1fr);
-  gap: 0.4rem 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.45rem;
   align-items: baseline;
   font-size: 0.85rem;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .historico-detalhe-item dt {
@@ -86,13 +86,19 @@
   color: #6b7280;
   font-weight: 600;
   font-size: 0.78rem;
-  letter-spacing: 0.01em;
+  flex: 0 0 auto;
+}
+
+.historico-detalhe-item dt::after {
+  content: ":";
 }
 
 .historico-detalhe-item dd {
   margin: 0;
   color: #1f2937;
   font-weight: 500;
+  flex: 1 1 8rem;
+  min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -111,9 +117,5 @@
 
   .historico-filter-field {
     flex: 1 1 100%;
-  }
-
-  .historico-detalhe-item {
-    grid-template-columns: 5.5rem minmax(0, 1fr);
   }
 }

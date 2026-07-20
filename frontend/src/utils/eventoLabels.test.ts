@@ -64,6 +64,29 @@ describe("eventoLabels", () => {
     ]);
   });
 
+  it("getEventoDetalheEntries oculta metadados de backfill e traduz observação", () => {
+    expect(
+      getEventoDetalheEntries({
+        nome: "Loratadina",
+        lote: "LOR-2501",
+        quantidade: 30,
+        backfill: true,
+        backfill_source: "movimentacoes",
+        backfill_source_id: 8,
+        responsavel_desconhecido: true,
+      }),
+    ).toEqual([
+      { key: "nome", label: "Nome", value: "Loratadina" },
+      { key: "lote", label: "Lote", value: "LOR-2501" },
+      { key: "quantidade", label: "Quantidade", value: "30" },
+      {
+        key: "responsavel_desconhecido",
+        label: "Observação",
+        value: "Responsável não registrado na época",
+      },
+    ]);
+  });
+
   it("formata data/hora do evento", () => {
     expect(formatEventoDateTime("2026-07-20 10:30:00")).toBe("20/07/2026 10:30:00");
     expect(formatEventoDateTime("2026-07-20T10:30:00")).toBe("20/07/2026 10:30:00");

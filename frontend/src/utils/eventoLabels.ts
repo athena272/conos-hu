@@ -49,7 +49,15 @@ const DETALHE_FIELD_LABELS: Record<string, string> = {
   email: "E-mail",
 };
 
-/** Ordem preferencial de exibição; campos restantes vêm depois. */
+/** Metadados internos (backfill etc.) — nunca exibir na UI. */
+const DETALHE_KEYS_HIDDEN = new Set([
+  "backfill",
+  "backfill_source",
+  "backfill_source_id",
+  "responsavel_desconhecido",
+]);
+
+/** Ordem preferencial de exibição; campos restantes conhecidos vêm depois. */
 const DETALHE_FIELD_ORDER = [
   "nome",
   "lote",
@@ -73,14 +81,14 @@ export interface EventoDetalheEntry {
 
 /**
  * Extrai pares rótulo/valor para UI.
- * Omite IDs internos quando já há nome legível correspondente.
+ * Omite IDs internos quando já há nome legível e metadados de backfill.
  */
 export function getEventoDetalheEntries(
   detalhes: Record<string, unknown> | null | undefined,
 ): EventoDetalheEntry[] {
   if (!detalhes || typeof detalhes !== "object") return [];
 
-  const skip = new Set<string>();
+  const skip = new Set<string>(DETALHE_KEYS_HIDDEN);
   if (detalhes.nome != null && String(detalhes.nome).trim() !== "") {
     skip.add("medication_id");
   }
@@ -90,6 +98,8 @@ export function getEventoDetalheEntries(
 
   const keys = Object.keys(detalhes).filter((key) => {
     if (skip.has(key)) return false;
+    // Só campos com label conhecido — evita vazar chaves técnicas
+    if (!(key in DETALHE_FIELD_LABELS)) return false;
     const value = detalhes[key];
     return value != null && value !== "";
   });
@@ -102,11 +112,21 @@ export function getEventoDetalheEntries(
     return ra - rb || a.localeCompare(b);
   });
 
-  return keys.map((key) => ({
+  const entries: EventoDetalheEntry[] = keys.map((key) => ({
     key,
     label: DETALHE_FIELD_LABELS[key] ?? key,
     value: String(detalhes[key]),
   }));
+
+  if (detalhes.responsavel_desconhecido === true) {
+    entries.push({
+      key: "responsavel_desconhecido",
+      label: "Observação",
+      value: "Responsável não registrado na época",
+    });
+  }
+
+  return entries;
 }
 
 export function formatEventoDetalhes(detalhes: Record<string, unknown> | null | undefined): string {
