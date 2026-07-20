@@ -368,6 +368,118 @@ run("retira funciona sem paciente e valida paciente quando informado", async (t)
   await coll<{ _id: number }>("pacientes").deleteMany({ _id: pacienteId });
 });
 
+run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+
+  const unauthRes = await request(app).get("/eventos");
+  assert.equal(unauthRes.status, 401);
+
+  const viewerEmail = `it_eventos_viewer_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(viewerEmail);
+
+  const viewerReg = await request(app).post("/register").send({ email: viewerEmail, password });
+  assert.equal(viewerReg.status, 201);
+  const viewerToken = (viewerReg.body as RegisterResponse).token;
+
+  const viewerRes = await request(app)
+    .get("/eventos")
+    .set("Authorization", `Bearer ${viewerToken}`);
+  assert.equal(viewerRes.status, 403);
+
+  const adminEmail = `it_eventos_admin_${Date.now()}@example.com`;
+  createdEmails.push(adminEmail);
+  const adminId = await getNextId("usuarios");
+  const hash = await bcrypt.hash(password, 10);
+  await coll<{
+    _id: number;
+    email: string;
+    password: string;
+    role: "admin";
+    created_at: Date;
+  }>("usuarios").insertOne({
+    _id: adminId,
+    email: adminEmail,
+    password: hash,
+    role: "admin",
+    created_at: new Date(),
+  });
+
+  const loginRes = await request(app).post("/login").send({ email: adminEmail, password });
+  assert.equal(loginRes.status, 200);
+  const adminToken = loginRes.body.token as string;
+
+  const medName = `IT_EVENTOS_${Date.now()}`;
+  const medLote = `ITLOTE-EVT-${Date.now()}`;
+  const createRes = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({
+      nome: medName,
+      lote: medLote,
+      quantidade: 5,
+      classificacao: "Teste",
+      concentracao: "100mg",
+      forma: "Comprimido",
+      data_validade: "2031-06-01",
+    });
+  assert.equal(createRes.status, 201);
+
+  const medDoc = await coll<{ _id: number }>("medications").findOne({ nome: medName, lote: medLote });
+  assert.ok(medDoc);
+
+  const eventosRes = await request(app)
+    .get("/eventos")
+    .query({ acao: "medication.create", limit: 20 })
+    .set("Authorization", `Bearer ${adminToken}`);
+  assert.equal(eventosRes.status, 200);
+
+  const eventos = eventosRes.body as Array<{
+    id: number;
+    acao: string;
+    entidade_tipo: string;
+    entidade_id: number | null;
+    usuario_id: number;
+    usuario_email: string | null;
+    detalhes: Record<string, unknown>;
+  }>;
+  const created = eventos.find(
+    (e) => e.entidade_id === medDoc!._id && e.acao === "medication.create"
+  );
+  assert.ok(created, "deve existir evento medication.create");
+  assert.equal(created!.usuario_id, adminId);
+  assert.equal(created!.usuario_email, adminEmail);
+  assert.equal(created!.entidade_tipo, "medication");
+  assert.equal(created!.detalhes.nome, medName);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const byEntidadeRes = await request(app)
+    .get("/eventos")
+    .query({
+      entidade_tipo: "medication",
+      data_inicio: today,
+      data_fim: today,
+      limit: 50,
+    })
+    .set("Authorization", `Bearer ${adminToken}`);
+  assert.equal(byEntidadeRes.status, 200);
+  const byEntidade = byEntidadeRes.body as Array<{ entidade_id: number | null; acao: string }>;
+  assert.ok(
+    byEntidade.some((e) => e.entidade_id === medDoc!._id && e.acao === "medication.create"),
+    "filtro por entidade_tipo e período deve incluir o evento criado"
+  );
+
+  const badDateRes = await request(app)
+    .get("/eventos")
+    .query({ data_inicio: "20-07-2026" })
+    .set("Authorization", `Bearer ${adminToken}`);
+  assert.equal(badDateRes.status, 400);
+
+  await coll<{ _id: number }>("eventos").deleteMany({ entidade_id: medDoc!._id, entidade_tipo: "medication" });
+  await coll<{ medication_id: number }>("movimentacoes").deleteMany({ medication_id: medDoc!._id });
+  await coll<{ _id: number }>("medications").deleteMany({ _id: medDoc!._id });
+});
+
 test.after(async () => {
   if (!hasMongoUri || !mongoReady) {
     await disconnectMongo();
