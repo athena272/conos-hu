@@ -8,7 +8,9 @@
     "dev": "tsx watch server/server.ts",
     "test": "tsx --import ./tests/setup-env.ts --test tests/**/*.test.ts",
     "test:db": "tsx test-db-connection.ts",
-    "migrate:mysql-to-mongo": "tsx scripts/mysql-to-mongo.ts"
+    "migrate:mysql-to-mongo": "tsx scripts/mysql-to-mongo.ts",
+    "backfill:eventos": "tsx --import ./load-env.ts scripts/backfill-eventos.ts",
+    "backfill:eventos:apply": "tsx --import ./load-env.ts scripts/backfill-eventos.ts --apply"
   },
   "author": "",
   "license": "ISC",
