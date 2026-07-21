@@ -126,16 +126,24 @@ export const listEventos = async (req: Request, res: Response): Promise<void> =>
       }
     }
 
-    const items: EventoListItem[] = docs.map((d) => ({
-      id: d._id,
-      acao: d.acao,
-      entidade_tipo: d.entidade_tipo,
-      entidade_id: d.entidade_id,
-      usuario_id: d.usuario_id,
-      usuario_email: emailById.get(d.usuario_id) ?? null,
-      created_at: formatMysqlTimestamp(d.created_at) ?? "",
-      detalhes: d.detalhes ?? {},
-    }));
+    const items: EventoListItem[] = docs.map((d) => {
+      const detalhes = d.detalhes ?? {};
+      const operadorFromDetalhes =
+        typeof detalhes.operador_nome === "string" && detalhes.operador_nome.trim()
+          ? detalhes.operador_nome.trim()
+          : null;
+      return {
+        id: d._id,
+        acao: d.acao,
+        entidade_tipo: d.entidade_tipo,
+        entidade_id: d.entidade_id,
+        usuario_id: d.usuario_id,
+        usuario_email: emailById.get(d.usuario_id) ?? null,
+        operador_nome: operadorFromDetalhes,
+        created_at: formatMysqlTimestamp(d.created_at) ?? "",
+        detalhes,
+      };
+    });
 
     res.status(200).json(items);
   } catch (err) {

@@ -18,7 +18,7 @@ import {
 import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
 import type { UserRole } from "../types/roles";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
-import { recordEvent } from "../services/eventService";
+import { recordEventFromRequest } from "../utils/auditContext";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
 
@@ -431,8 +431,7 @@ export const createPaciente = async (req: Request, res: Response): Promise<void>
       });
     }
 
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "paciente.create",
       entidade_tipo: "paciente",
       entidade_id: pacienteId,
@@ -541,8 +540,7 @@ export const updatePaciente = async (req: Request, res: Response): Promise<void>
       });
     }
 
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "paciente.update",
       entidade_tipo: "paciente",
       entidade_id: id,
@@ -593,8 +591,7 @@ export const deletePaciente = async (req: Request, res: Response): Promise<void>
       await session.endSession();
     }
 
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "paciente.delete",
       entidade_tipo: "paciente",
       entidade_id: id,
@@ -919,8 +916,7 @@ export const addRetorno = async (req: Request, res: Response): Promise<void> => 
       tipo_retorno: tipoVal,
       created_at: new Date(),
     });
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "paciente.retorno.add",
       entidade_tipo: "paciente",
       entidade_id: id,
