@@ -11,7 +11,7 @@ import { ConfirmDialog } from "primereact/confirmdialog";
 import { Dialog } from "primereact/dialog";
 import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
-import { isAdmin } from "../../auth/session";
+import { sessionCanWriteMedications } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
@@ -247,13 +247,13 @@ export default function Home() {
     </div>
   );
 
-  const admin = isAdmin();
+  const canWriteMeds = sessionCanWriteMedications();
 
   return (
     <div className="home-container">
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog
-        visible={admin && !!deletingMedication}
+        visible={canWriteMeds && !!deletingMedication}
         onHide={() => !deletingInProgress && setDeletingMedication(null)}
         header="Excluir medicamento"
         message="Deseja realmente excluir este medicamento? Esta ação não pode ser desfeita."
@@ -323,7 +323,7 @@ export default function Home() {
           body={(rowData: MedicationWithStatus) => getStatusTag(rowData.status)}
           style={{ minWidth: "10rem" }}
         />
-        {admin && (
+        {canWriteMeds && (
           <Column
             header="Ações"
             body={(rowData: MedicationWithStatus) => (
@@ -351,7 +351,7 @@ export default function Home() {
 
       <Dialog
         header="Editar medicamento"
-        visible={admin && !!editingMedication}
+        visible={canWriteMeds && !!editingMedication}
         onHide={closeEdit}
         draggable={false}
         className="home-edit-dialog"
