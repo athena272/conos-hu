@@ -18,7 +18,8 @@ import DashboardStock from "./src/pages/DashboardStock";
 import Pacientes from "./src/pages/Pacientes";
 import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
-import AdminRoute from "./src/routes/AdminRoute";
+import ElevatedRoute from "./src/routes/ElevatedRoute";
+import MedicationWriteRoute from "./src/routes/MedicationWriteRoute";
 
 const AppRoutes = () => {
   return (
@@ -41,9 +42,9 @@ const AppRoutes = () => {
           path="/register-medication"
           element={
             <PrivateRoute>
-              <AdminRoute>
+              <MedicationWriteRoute>
                 <RegisterMedication />
-              </AdminRoute>
+              </MedicationWriteRoute>
             </PrivateRoute>
           }
         />
@@ -51,9 +52,9 @@ const AppRoutes = () => {
           path="/register-medication-barcode"
           element={
             <PrivateRoute>
-              <AdminRoute>
+              <MedicationWriteRoute>
                 <RegisterMedicationByBarcode />
-              </AdminRoute>
+              </MedicationWriteRoute>
             </PrivateRoute>
           }
         />
@@ -61,9 +62,9 @@ const AppRoutes = () => {
           path="/retira-medication"
           element={
             <PrivateRoute>
-              <AdminRoute>
+              <MedicationWriteRoute>
                 <RetiraMedication />
-              </AdminRoute>
+              </MedicationWriteRoute>
             </PrivateRoute>
           }
         />
@@ -103,9 +104,9 @@ const AppRoutes = () => {
           path="/historico"
           element={
             <PrivateRoute>
-              <AdminRoute>
+              <ElevatedRoute>
                 <Historico />
-              </AdminRoute>
+              </ElevatedRoute>
             </PrivateRoute>
           }
         />
