@@ -240,7 +240,7 @@ Em **produção**, os dados ficam no **MongoDB Atlas** (database `conos`). Em **
 
 Principais **coleções** (índices garantidos na subida da API via `ensureIndexes` em [`backend/models/indexes.ts`](backend/models/indexes.ts)):
 
-- **usuarios** — autenticação e papel (`admin` / `viewer`).
+- **usuarios** — autenticação e papel (`admin`, `admin_medicamentos`, `admin_pacientes`, `viewer`).
 - **medications** — lotes e quantidades.
 - **retira_medications** — retiradas vinculadas a usuário e medicamento.
 - **movimentacoes** — entradas e saídas.
@@ -288,9 +288,11 @@ Prefixos principais (todas as rotas abaixo, exceto login/registro na raiz, exige
 |--------|---------|------------|
 | `POST` | `/register` | Cadastro de usuário. |
 | `POST` | `/login` | Login; retorna token. |
-| `GET` / `POST` / `PUT` / `DELETE` | `/medications`… | CRUD e operações de estoque; parte das rotas exige **admin**. |
-| `POST` | `/retira` | Retirada de medicamento (**admin**). |
-| `GET` / `POST` / `PUT` / `DELETE` | `/pacientes`… | Pacientes, retornos, impacto e resumos; escrita em geral **admin**. |
+| `POST` | `/identify` | Identificação do operador na sessão (papéis elevados). |
+| `GET` / `POST` / `PUT` / `DELETE` | `/medications`… | CRUD e operações de estoque; escrita exige **admin** ou **admin_medicamentos**. |
+| `POST` | `/retira` | Retirada de medicamento (escrita de medicamentos). |
+| `GET` / `POST` / `PUT` / `DELETE` | `/pacientes`… | Pacientes e retornos; escrita exige **admin** ou **admin_pacientes**. |
+| `GET` | `/eventos` | Histórico de ações (papéis elevados). |
 
 O cliente HTTP do frontend está em `frontend/src/api/client.ts` e envia o Bearer token automaticamente.
 
@@ -298,10 +300,30 @@ O cliente HTTP do frontend está em `frontend/src/api/client.ts` e envia o Beare
 
 ## Perfis de usuário
 
-- **admin** — acesso a cadastro de medicamentos, retiradas, gestão completa de pacientes e retornos.
-- **viewer** — pode usar rotas autenticadas que não exigem `requireAdmin` (home, dashboards, simulador, leituras de pacientes conforme implementação das rotas).
+| Papel | Leitura | Escrita medicamentos | Escrita pacientes | Histórico |
+|-------|---------|----------------------|-------------------|-----------|
+| **admin** | Completa (incl. identificação de pacientes) | Sim | Sim | Sim |
+| **admin_medicamentos** | Completa | Sim | Não | Sim |
+| **admin_pacientes** | Completa | Não | Sim | Sim |
+| **viewer** | Limitada (nome/prontuário redigidos) | Não | Não | Não |
 
-A verificação ocorre no backend (`backend/middleware/authMiddleware.ts`) e no frontend (`AdminRoute`, `isAdmin` na sessão).
+Novos cadastros via `/register` recebem **`viewer`** por padrão. Promova usuários no MongoDB:
+
+```javascript
+use conos
+// Admin completo (ex.: admin@conos.com)
+db.usuarios.updateOne({ email: "admin@conos.com" }, { $set: { role: "admin" } })
+// Admin só medicamentos
+db.usuarios.updateOne({ email: "..." }, { $set: { role: "admin_medicamentos" } })
+// Admin só pacientes
+db.usuarios.updateOne({ email: "..." }, { $set: { role: "admin_pacientes" } })
+```
+
+### Identificação do operador (auditoria)
+
+Usuários com papel elevado (`admin`, `admin_medicamentos`, `admin_pacientes`) devem informar **nome completo** após o login (`POST /identify`). O nome fica no JWT e é gravado nos eventos do histórico junto com o **IP** da requisição. CPF é opcional e registrado apenas no evento de identificação da sessão.
+
+A verificação ocorre no backend ([`backend/middleware/authMiddleware.ts`](backend/middleware/authMiddleware.ts), [`backend/utils/permissions.ts`](backend/utils/permissions.ts)) e no frontend (`ElevatedRoute`, `MedicationWriteRoute`, helpers em [`frontend/src/auth/session.ts`](frontend/src/auth/session.ts)).
 
 ---
 

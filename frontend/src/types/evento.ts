@@ -9,6 +9,7 @@ export const EVENTO_ACOES = [
   "paciente.delete",
   "paciente.retorno.add",
   "usuario.register",
+  "usuario.identify",
 ] as const;
 
 export type EventoAcao = (typeof EVENTO_ACOES)[number];
@@ -24,6 +25,7 @@ export interface Evento {
   entidade_id: number | null;
   usuario_id: number;
   usuario_email: string | null;
+  operador_nome: string | null;
   created_at: string;
   detalhes: Record<string, unknown>;
 }

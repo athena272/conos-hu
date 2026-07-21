@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
-import { recordEvent } from "../services/eventService";
+import { recordEventFromRequest } from "../utils/auditContext";
 
 type MedicationStock = {
   _id: number;
@@ -116,8 +116,7 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
       await session.endSession();
     }
 
-    await recordEvent({
-      usuario_id,
+    await recordEventFromRequest(req, {
       acao: "medication.withdraw",
       entidade_tipo: "medication",
       entidade_id: medicationId,

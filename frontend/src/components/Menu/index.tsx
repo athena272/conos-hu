@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Menubar } from "primereact/menubar";
-import { clearAuth, isAdmin } from "../../auth/session";
+import { clearAuth, sessionCanWriteMedications, sessionIsElevated } from "../../auth/session";
 import "./styles.css";
 
 export default function Menu() {
   const navigate = useNavigate();
-  const admin = isAdmin();
+  const elevated = sessionIsElevated();
+  const canWriteMeds = sessionCanWriteMedications();
 
   const handleLogout = () => {
     clearAuth();
@@ -22,7 +23,7 @@ export default function Menu() {
       label: "Medicamentos",
       icon: "pi pi-tablet",
       items: [
-        ...(admin
+        ...(canWriteMeds
           ? [
               {
                 label: "Registrar",
@@ -69,7 +70,7 @@ export default function Menu() {
         },
       ],
     },
-    ...(admin
+    ...(elevated
       ? [
           {
             label: "Histórico",

@@ -3,7 +3,7 @@ import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
 import { extractGtinFromDigitString, normalizeGtinDigits, parseGs1Raw } from "../utils/gs1Parse";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
-import { recordEvent } from "../services/eventService";
+import { recordEventFromRequest } from "../utils/auditContext";
 
 interface MedicationRow {
   id: number;
@@ -227,8 +227,7 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
     } catch (movErr) {
       console.error("Erro ao registrar movimentação de entrada:", movErr);
     }
-    await recordEvent({
-      usuario_id,
+    await recordEventFromRequest(req, {
       acao: "medication.create",
       entidade_tipo: "medication",
       entidade_id: id,
@@ -411,8 +410,7 @@ export const addQuantity = async (req: Request, res: Response): Promise<void> =>
     } catch (movErr) {
       console.error("Erro ao registrar movimentação de entrada:", movErr);
     }
-    await recordEvent({
-      usuario_id,
+    await recordEventFromRequest(req, {
       acao: "medication.add_quantity",
       entidade_tipo: "medication",
       entidade_id: mid,
@@ -476,8 +474,7 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
       res.status(404).json({ error: "Medicação não encontrada" });
       return;
     }
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "medication.update",
       entidade_tipo: "medication",
       entidade_id: id,
@@ -526,8 +523,7 @@ export const deleteMedication = async (req: Request, res: Response): Promise<voi
     } finally {
       await session.endSession();
     }
-    await recordEvent({
-      usuario_id: req.user!.id,
+    await recordEventFromRequest(req, {
       acao: "medication.delete",
       entidade_tipo: "medication",
       entidade_id: id,

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { api } from "../../api/client";
-import { isAdmin } from "../../auth/session";
+import { sessionCanWritePacientes } from "../../auth/session";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import { DataTable } from "primereact/datatable";
@@ -926,7 +926,7 @@ export default function Pacientes() {
       }
     : initialFormValues;
 
-  const admin = isAdmin();
+  const canWritePacientes = sessionCanWritePacientes();
 
   const isPageDataLoading =
     loadingPacientes || loadingResumo || loadingMedicamentosDistintos;
@@ -995,7 +995,7 @@ export default function Pacientes() {
         </div>
       </Dialog>
       <ConfirmDialog
-        visible={admin && !!deletingPaciente}
+        visible={canWritePacientes && !!deletingPaciente}
         onHide={() => !deletingInProgress && setDeletingPaciente(null)}
         header="Excluir paciente"
         message="Deseja realmente excluir este paciente? Esta ação não pode ser desfeita."
@@ -1009,7 +1009,7 @@ export default function Pacientes() {
       <Menu />
       <div className="pacientes-title">
         <h2>Pacientes</h2>
-        {admin && (
+        {canWritePacientes && (
           <Button
             label="Novo paciente"
             icon="pi pi-plus"
@@ -1356,7 +1356,7 @@ export default function Pacientes() {
                   title="Histórico de retornos"
                 />
               ) : null}
-              {admin && (
+              {canWritePacientes && (
                 <>
                   <Button
                     label="Editar"
@@ -2195,7 +2195,7 @@ export default function Pacientes() {
               </DataTable>
             )}
             {!showAddRetornoForm ? (
-              admin ? (
+              canWritePacientes ? (
                 <Button
                   label="Adicionar data de retorno"
                   icon="pi pi-plus"

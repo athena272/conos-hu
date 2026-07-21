@@ -1,12 +1,21 @@
-const AUTH_KEY = "auth";
+import {
+  canWriteMedications,
+  canWritePacientes,
+  isElevated,
+  isUserRole,
+  type UserRole,
+} from "./permissions";
 
-export type UserRole = "admin" | "viewer";
+export type { UserRole };
+
+const AUTH_KEY = "auth";
 
 export interface AuthSession {
   token: string;
   userId: number;
   email: string;
   role: UserRole;
+  operadorNome?: string;
 }
 
 export function setAuth(session: AuthSession): void {
@@ -23,9 +32,18 @@ export function getAuth(): AuthSession | null {
       typeof p.token === "string" &&
       typeof p.userId === "number" &&
       typeof p.email === "string" &&
-      (p.role === "admin" || p.role === "viewer")
+      isUserRole(p.role)
     ) {
-      return p as AuthSession;
+      const session: AuthSession = {
+        token: p.token,
+        userId: p.userId,
+        email: p.email,
+        role: p.role,
+      };
+      if (typeof p.operadorNome === "string" && p.operadorNome.trim()) {
+        session.operadorNome = p.operadorNome.trim();
+      }
+      return session;
     }
   } catch {
     /* ignore */
@@ -47,6 +65,27 @@ export function clearAuth(): void {
   localStorage.removeItem("user");
 }
 
-export function isAdmin(): boolean {
-  return getAuth()?.role === "admin";
+export function sessionIsElevated(): boolean {
+  return isElevated(getAuth()?.role);
 }
+
+export function sessionCanWriteMedications(): boolean {
+  return canWriteMedications(getAuth()?.role);
+}
+
+export function sessionCanWritePacientes(): boolean {
+  return canWritePacientes(getAuth()?.role);
+}
+
+/** @deprecated Use sessionIsElevated */
+export function isAdmin(): boolean {
+  return sessionIsElevated();
+}
+
+export function needsOperatorIdentify(): boolean {
+  const auth = getAuth();
+  if (!auth) return false;
+  return isElevated(auth.role) && !auth.operadorNome;
+}
+
+export { isElevated, canWriteMedications, canWritePacientes };

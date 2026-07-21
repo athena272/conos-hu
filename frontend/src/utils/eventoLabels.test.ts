@@ -4,6 +4,7 @@ import {
   eventMatchesSearch,
   formatEventoDateTime,
   formatEventoDetalhes,
+  formatEventoResponsavel,
   getEventoAcaoLabel,
   getEventoDetalheEntries,
   getEventoEntidadeLabel,
@@ -16,6 +17,7 @@ const sampleEvento: Evento = {
   entidade_id: 42,
   usuario_id: 3,
   usuario_email: "admin@exemplo.com",
+  operador_nome: "Maria Silva",
   created_at: "2026-07-20 10:30:00",
   detalhes: { nome: "Metotrexato", quantidade: 2 },
 };
@@ -93,9 +95,29 @@ describe("eventoLabels", () => {
     expect(formatEventoDateTime("")).toBe("—");
   });
 
+  it("formata responsável com nome do operador e e-mail", () => {
+    expect(formatEventoResponsavel(sampleEvento)).toBe("Maria Silva (admin@exemplo.com)");
+    expect(
+      formatEventoResponsavel({
+        ...sampleEvento,
+        operador_nome: null,
+        usuario_email: "admin@conos.com",
+      }),
+    ).toBe("admin@conos.com");
+    expect(
+      formatEventoResponsavel({
+        ...sampleEvento,
+        operador_nome: null,
+        usuario_email: null,
+        usuario_id: 99,
+      }),
+    ).toBe("Usuário #99");
+  });
+
   it("eventMatchesSearch filtra por responsável, ação e detalhes", () => {
     expect(eventMatchesSearch(sampleEvento, "")).toBe(true);
     expect(eventMatchesSearch(sampleEvento, "   ")).toBe(true);
+    expect(eventMatchesSearch(sampleEvento, "maria silva")).toBe(true);
     expect(eventMatchesSearch(sampleEvento, "admin@exemplo")).toBe(true);
     expect(eventMatchesSearch(sampleEvento, "RETIRADA")).toBe(true);
     expect(eventMatchesSearch(sampleEvento, "metotrexato")).toBe(true);

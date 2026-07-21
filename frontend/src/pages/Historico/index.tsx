@@ -15,6 +15,7 @@ import {
   EVENTO_ENTIDADE_FILTER_OPTIONS,
   eventMatchesSearch,
   formatEventoDateTime,
+  formatEventoResponsavel,
   getEventoAcaoLabel,
   getEventoEntidadeLabel,
 } from "../../utils/eventoLabels";
@@ -188,7 +189,7 @@ export default function Historico() {
           <Column
             header="Responsável"
             style={{ minWidth: "12rem" }}
-            body={(row: Evento) => row.usuario_email ?? `Usuário #${row.usuario_id}`}
+            body={(row: Evento) => formatEventoResponsavel(row)}
           />
           <Column
             header="Detalhes"

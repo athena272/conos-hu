@@ -8,6 +8,8 @@ import eventoRoutes from "./routes/eventoRoutes";
 
 const app: Express = express();
 
+app.set("trust proxy", true);
+
 // CORS: em produção use ALLOWED_ORIGINS (ex: URL do frontend na Vercel).
 // Ex: ALLOWED_ORIGINS=https://seu-app.vercel.app,https://outro-dominio.com
 // Se não definido, permite todas as origens (desenvolvimento local).

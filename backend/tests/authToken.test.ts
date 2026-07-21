@@ -28,6 +28,35 @@ test("signAuthToken + verifyAuthToken roundtrip", () => {
   });
 });
 
+test("signAuthToken inclui operador_nome quando informado", () => {
+  process.env.NODE_ENV = "test";
+  process.env.JWT_SECRET = "test-secret";
+
+  const token = signAuthToken({
+    userId: 1,
+    email: "admin@conos.com",
+    role: "admin",
+    operador_nome: "Maria Silva",
+  });
+
+  const payload = verifyAuthToken(token);
+  assert.equal(payload.operador_nome, "Maria Silva");
+});
+
+test("verifyAuthToken aceita papéis especializados", () => {
+  process.env.NODE_ENV = "test";
+  process.env.JWT_SECRET = "test-secret";
+
+  for (const role of ["admin_medicamentos", "admin_pacientes"] as const) {
+    const token = signAuthToken({
+      userId: 2,
+      email: "scoped@example.com",
+      role,
+    });
+    assert.equal(verifyAuthToken(token).role, role);
+  }
+});
+
 test("verifyAuthToken rejects tampered signatures", () => {
   process.env.NODE_ENV = "test";
   process.env.JWT_SECRET = "test-secret";

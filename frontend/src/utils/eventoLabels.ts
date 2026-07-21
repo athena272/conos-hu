@@ -12,6 +12,7 @@ const ACAO_LABELS: Record<EventoAcao, string> = {
   "paciente.delete": "Exclusão de paciente",
   "paciente.retorno.add": "Adição de retorno",
   "usuario.register": "Registro de usuário",
+  "usuario.identify": "Identificação de sessão",
 };
 
 const ENTIDADE_LABELS: Record<EventoEntidade, string> = {
@@ -47,6 +48,7 @@ const DETALHE_FIELD_LABELS: Record<string, string> = {
   data_retorno: "Data retorno",
   tipo_retorno: "Tipo retorno",
   email: "E-mail",
+  ip: "IP",
 };
 
 /** Metadados internos (backfill etc.) — nunca exibir na UI. */
@@ -55,6 +57,9 @@ const DETALHE_KEYS_HIDDEN = new Set([
   "backfill_source",
   "backfill_source_id",
   "responsavel_desconhecido",
+  "operador_nome",
+  "cpf",
+  "user_agent",
 ]);
 
 /** Ordem preferencial de exibição; campos restantes conhecidos vêm depois. */
@@ -69,6 +74,7 @@ const DETALHE_FIELD_ORDER = [
   "data_retorno",
   "tipo_retorno",
   "email",
+  "ip",
   "medication_id",
   "paciente_id",
 ] as const;
@@ -149,6 +155,23 @@ export function formatEventoDateTime(createdAt: string): string {
     : `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}`;
 }
 
+/** Texto da coluna Responsável: nome do operador + conta (e-mail). */
+export function formatEventoResponsavel(evento: Evento): string {
+  const email = evento.usuario_email?.trim();
+  let operador = evento.operador_nome?.trim() ?? "";
+  if (!operador && evento.acao === "usuario.identify") {
+    const nomeDetalhe = evento.detalhes?.nome;
+    if (typeof nomeDetalhe === "string" && nomeDetalhe.trim()) {
+      operador = nomeDetalhe.trim();
+    }
+  }
+
+  if (operador && email) return `${operador} (${email})`;
+  if (operador) return operador;
+  if (email) return email;
+  return `Usuário #${evento.usuario_id}`;
+}
+
 /** Busca case-insensitive em ação, entidade, responsável e detalhes. */
 export function eventMatchesSearch(evento: Evento, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -163,7 +186,9 @@ export function eventMatchesSearch(evento: Evento, query: string): boolean {
     evento.acao,
     entidadeText,
     evento.entidade_tipo,
+    formatEventoResponsavel(evento),
     evento.usuario_email ?? "",
+    evento.operador_nome ?? "",
     `Usuário #${evento.usuario_id}`,
     formatEventoDetalhes(evento.detalhes),
     formatEventoDateTime(evento.created_at),

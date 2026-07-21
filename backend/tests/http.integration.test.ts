@@ -16,9 +16,67 @@ type RegisterResponse = {
   message: string;
   userId: number;
   email: string;
-  role: "admin" | "viewer";
+  role: "admin" | "admin_medicamentos" | "admin_pacientes" | "viewer";
   token: string;
 };
+
+async function insertUserWithRole(
+  email: string,
+  password: string,
+  role: "admin" | "admin_medicamentos" | "admin_pacientes" | "viewer",
+): Promise<number> {
+  const userId = await getNextId("usuarios");
+  const hash = await bcrypt.hash(password, 10);
+  await coll<{
+    _id: number;
+    email: string;
+    password: string;
+    role: typeof role;
+    created_at: Date;
+  }>("usuarios").insertOne({
+    _id: userId,
+    email,
+    password: hash,
+    role,
+    created_at: new Date(),
+  });
+  return userId;
+}
+
+async function loginAs(email: string, password: string): Promise<string> {
+  const loginRes = await request(app).post("/login").send({ email, password });
+  assert.equal(loginRes.status, 200);
+  return loginRes.body.token as string;
+}
+
+const minimalMedicationPayload = (suffix: string) => ({
+  nome: `IT_MED_${suffix}`,
+  lote: `ITLOTE-${suffix}`,
+  quantidade: 1,
+  classificacao: "Teste",
+  concentracao: "500mg",
+  forma: "Comprimido",
+  data_validade: "2030-12-31",
+});
+
+const minimalPacientePayload = (suffix: string, medName: string) => ({
+  nome: `IT Paciente ${suffix}`,
+  prontuario: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
+  apac: `IT-APAC-${suffix}`,
+  diagnostico: "Teste de integração",
+  medicamentos: [
+    {
+      medicamento_nome: medName,
+      medicamento_concentracao: "500mg",
+      consumo_diario: 1,
+      regime_consumo: "diario",
+    },
+  ],
+  observacoes: "Teste automatizado",
+  telefone: "999999999",
+  data_liberacao: "2026-01-01",
+  retorna_servico: false,
+});
 
 run("integration setup connects to MongoDB", async () => {
   try {
@@ -478,6 +536,103 @@ run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => 
   await coll<{ _id: number }>("eventos").deleteMany({ entidade_id: medDoc!._id, entidade_tipo: "medication" });
   await coll<{ medication_id: number }>("movimentacoes").deleteMany({ medication_id: medDoc!._id });
   await coll<{ _id: number }>("medications").deleteMany({ _id: medDoc!._id });
+});
+
+run("admin_medicamentos: escreve medicamentos, não escreve pacientes, lê histórico", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+
+  const email = `it_admin_med_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+
+  await insertUserWithRole(email, password, "admin_medicamentos");
+  const token = await loginAs(email, password);
+
+  const suffix = String(Date.now());
+  const medRes = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${token}`)
+    .send(minimalMedicationPayload(suffix));
+  assert.equal(medRes.status, 201);
+
+  const pacRes = await request(app)
+    .post("/pacientes")
+    .set("Authorization", `Bearer ${token}`)
+    .send(minimalPacientePayload(suffix, `IT_MED_${suffix}`));
+  assert.equal(pacRes.status, 403);
+
+  const eventosRes = await request(app)
+    .get("/eventos")
+    .set("Authorization", `Bearer ${token}`);
+  assert.equal(eventosRes.status, 200);
+
+  const listRes = await request(app)
+    .get("/pacientes")
+    .set("Authorization", `Bearer ${token}`);
+  assert.equal(listRes.status, 200);
+  const lista = listRes.body as Array<{ identificadoresRedatados?: boolean }>;
+  if (lista.length > 0) {
+    assert.equal(lista[0]!.identificadoresRedatados, false);
+  }
+});
+
+run("admin_pacientes: escreve pacientes, não escreve medicamentos", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+
+  const email = `it_admin_pac_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+
+  await insertUserWithRole(email, password, "admin_pacientes");
+  const token = await loginAs(email, password);
+
+  const suffix = String(Date.now());
+  const medRes = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${token}`)
+    .send(minimalMedicationPayload(suffix));
+  assert.equal(medRes.status, 403);
+
+  const pacRes = await request(app)
+    .post("/pacientes")
+    .set("Authorization", `Bearer ${token}`)
+    .send(minimalPacientePayload(suffix, `IT_MED_${suffix}`));
+  assert.equal(pacRes.status, 201);
+});
+
+run("POST /identify reemite token com operador e registra evento", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+
+  const email = `it_identify_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+
+  const userId = await insertUserWithRole(email, password, "admin_medicamentos");
+  const token = await loginAs(email, password);
+
+  const identifyRes = await request(app)
+    .post("/identify")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ nome: "João Operador", cpf: "529.982.247-25" });
+  assert.equal(identifyRes.status, 200);
+  assert.equal(identifyRes.body.operador_nome, "João Operador");
+  assert.ok(typeof identifyRes.body.token === "string");
+
+  const newToken = identifyRes.body.token as string;
+  const eventosRes = await request(app)
+    .get("/eventos")
+    .query({ acao: "usuario.identify", limit: 10 })
+    .set("Authorization", `Bearer ${newToken}`);
+  assert.equal(eventosRes.status, 200);
+
+  const eventos = eventosRes.body as Array<{
+    usuario_id: number;
+    operador_nome: string | null;
+    detalhes: Record<string, unknown>;
+  }>;
+  const identifyEvent = eventos.find((e) => e.usuario_id === userId && e.detalhes.nome === "João Operador");
+  assert.ok(identifyEvent, "deve existir evento usuario.identify");
+  assert.equal(identifyEvent!.operador_nome, "João Operador");
 });
 
 test.after(async () => {
