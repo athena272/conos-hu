@@ -1,10 +1,12 @@
 import crypto from "crypto";
 import type { UserRole } from "../types/roles";
+import { isUserRole } from "../types/roles";
 
 export interface AuthTokenPayload {
   sub: number;
   email: string;
   role: UserRole;
+  operador_nome?: string;
 }
 
 interface JwtBody extends AuthTokenPayload {
@@ -41,6 +43,7 @@ export function signAuthToken(params: {
   userId: number;
   email: string;
   role: UserRole;
+  operador_nome?: string;
 }): string {
   const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
   const secret = getJwtSecret();
@@ -51,6 +54,8 @@ export function signAuthToken(params: {
     role: params.role,
     exp,
   };
+  const operador = params.operador_nome?.trim();
+  if (operador) body.operador_nome = operador;
   const payloadB64 = b64url(JSON.stringify(body));
   const sig = signSegment(headerB64, payloadB64, secret);
   return `${headerB64}.${payloadB64}.${sig}`;
@@ -80,8 +85,16 @@ export function verifyAuthToken(token: string): AuthTokenPayload {
   if (typeof parsed.sub !== "number" || typeof parsed.email !== "string") {
     throw new Error("Invalid token payload");
   }
-  if (parsed.role !== "admin" && parsed.role !== "viewer") {
+  if (!isUserRole(parsed.role)) {
     throw new Error("Invalid token role");
   }
-  return { sub: parsed.sub, email: parsed.email, role: parsed.role };
+  const payload: AuthTokenPayload = {
+    sub: parsed.sub,
+    email: parsed.email,
+    role: parsed.role,
+  };
+  if (typeof parsed.operador_nome === "string" && parsed.operador_nome.trim()) {
+    payload.operador_nome = parsed.operador_nome.trim();
+  }
+  return payload;
 }
