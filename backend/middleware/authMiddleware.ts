@@ -1,5 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyAuthToken } from "../services/authToken";
+import {
+  canWriteMedications,
+  canWritePacientes,
+  isElevated,
+} from "../utils/permissions";
 
 function extractBearer(header: string | undefined): string | null {
   if (!header || !header.startsWith("Bearer ")) return null;
@@ -15,19 +20,53 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   try {
     const payload = verifyAuthToken(token);
-    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+    req.user = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      operador_nome: payload.operador_nome,
+    };
     next();
   } catch {
     res.status(401).json({ message: "Token inválido ou expirado" });
   }
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+export function requireElevated(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ message: "Não autenticado" });
     return;
   }
-  if (req.user.role !== "admin") {
+  if (!isElevated(req.user.role)) {
+    res.status(403).json({ message: "Acesso negado" });
+    return;
+  }
+  next();
+}
+
+/** Alias legado — equivale a requireElevated (Histórico e leituras administrativas). */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  requireElevated(req, res, next);
+}
+
+export function requireMedicationWrite(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autenticado" });
+    return;
+  }
+  if (!canWriteMedications(req.user.role)) {
+    res.status(403).json({ message: "Acesso negado" });
+    return;
+  }
+  next();
+}
+
+export function requirePacienteWrite(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autenticado" });
+    return;
+  }
+  if (!canWritePacientes(req.user.role)) {
     res.status(403).json({ message: "Acesso negado" });
     return;
   }
