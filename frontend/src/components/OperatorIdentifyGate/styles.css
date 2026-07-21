@@ -1,0 +1,35 @@
+.operator-identify-intro {
+  margin: 0 0 1rem;
+  color: #444;
+  line-height: 1.45;
+}
+
+.operator-identify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.operator-identify-field label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.operator-identify-error {
+  color: #c0392b;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.operator-identify-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.operator-identify-backdrop {
+  pointer-events: none;
+  filter: blur(2px);
+  opacity: 0.45;
+  user-select: none;
+}
