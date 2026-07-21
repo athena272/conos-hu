@@ -1,9 +1,14 @@
-export type UserRole = "admin" | "viewer";
+export type UserRole =
+  | "admin"
+  | "admin_medicamentos"
+  | "admin_pacientes"
+  | "viewer";
 
 export interface User {
   id: number;
   email: string;
   role: UserRole;
+  operador_nome?: string;
 }
 
 export interface LoginResponse {
@@ -12,6 +17,7 @@ export interface LoginResponse {
   email: string;
   role: UserRole;
   token: string;
+  operador_nome?: string;
 }
 
 export interface RegisterResponse {
@@ -19,6 +25,15 @@ export interface RegisterResponse {
   userId: number;
   email: string;
   role: UserRole;
+  token: string;
+}
+
+export interface IdentifyResponse {
+  message: string;
+  userId: number;
+  email: string;
+  role: UserRole;
+  operador_nome: string;
   token: string;
 }
 
