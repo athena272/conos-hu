@@ -44,7 +44,11 @@ import {
   parseMgPorUnidadeFromConcentracao,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
-import { filterPacientesByDataLiberacaoRange } from "./pacientesFilters";
+import {
+  filterPacientesByDataLiberacaoRange,
+  filterPacientesByProximaDataRetornoRange,
+  parsePacientesSortKey,
+} from "./pacientesFilters";
 import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
 import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
@@ -472,6 +476,8 @@ export default function Pacientes() {
   const [filtroDataLiberacaoInicio, setFiltroDataLiberacaoInicio] =
     useState("");
   const [filtroDataLiberacaoFim, setFiltroDataLiberacaoFim] = useState("");
+  const [filtroDataRetornoInicio, setFiltroDataRetornoInicio] = useState("");
+  const [filtroDataRetornoFim, setFiltroDataRetornoFim] = useState("");
   const [sortKey, setSortKey] = useState("proxima_data_retorno_asc");
 
   useEffect(() => {
@@ -504,7 +510,12 @@ export default function Pacientes() {
       filtroDataLiberacaoInicio,
       filtroDataLiberacaoFim,
     );
-    const [field, dir] = sortKey.split("_") as [string, "asc" | "desc"];
+    list = filterPacientesByProximaDataRetornoRange(
+      list,
+      filtroDataRetornoInicio,
+      filtroDataRetornoFim,
+    );
+    const { field, dir } = parsePacientesSortKey(sortKey);
     const asc = dir === "asc";
     return [...list].sort((a, b) => {
       if (field === "proxima_data_retorno") {
@@ -542,6 +553,8 @@ export default function Pacientes() {
     filtroLote,
     filtroDataLiberacaoInicio,
     filtroDataLiberacaoFim,
+    filtroDataRetornoInicio,
+    filtroDataRetornoFim,
     sortKey,
   ]);
 
@@ -1133,12 +1146,6 @@ export default function Pacientes() {
               className="pacientes-input-lote"
             />
           </div>
-          <PacientesDateRangeFilter
-            dataInicio={filtroDataLiberacaoInicio}
-            dataFim={filtroDataLiberacaoFim}
-            onDataInicioChange={setFiltroDataLiberacaoInicio}
-            onDataFimChange={setFiltroDataLiberacaoFim}
-          />
           <div className="pacientes-filter-sort-wrap">
             <label
               className="pacientes-filter-data-label"
@@ -1155,6 +1162,24 @@ export default function Pacientes() {
               className="pacientes-dropdown-sort"
             />
           </div>
+        </div>
+        <div className="pacientes-filters-date-groups">
+          <PacientesDateRangeFilter
+            tituloGrupo="Liberação"
+            idPrefix="pacientes-filtro-liberacao"
+            dataInicio={filtroDataLiberacaoInicio}
+            dataFim={filtroDataLiberacaoFim}
+            onDataInicioChange={setFiltroDataLiberacaoInicio}
+            onDataFimChange={setFiltroDataLiberacaoFim}
+          />
+          <PacientesDateRangeFilter
+            tituloGrupo="Próx. retorno"
+            idPrefix="pacientes-filtro-retorno"
+            dataInicio={filtroDataRetornoInicio}
+            dataFim={filtroDataRetornoFim}
+            onDataInicioChange={setFiltroDataRetornoInicio}
+            onDataFimChange={setFiltroDataRetornoFim}
+          />
         </div>
       </div>
 
