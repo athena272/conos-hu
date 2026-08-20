@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Paciente } from "../../types";
 import {
+  filterPacientesByDataCadastroRange,
   filterPacientesByDataLiberacaoRange,
   filterPacientesByProximaDataRetornoRange,
   parsePacientesSortKey,
@@ -119,6 +120,60 @@ describe("filterPacientesByProximaDataRetornoRange", () => {
       filterPacientesByProximaDataRetornoRange(list, "", "05/09/2025").map(
         (p) => p.id,
       ),
+    ).toEqual([1]);
+  });
+});
+
+describe("filterPacientesByDataCadastroRange", () => {
+  const list = [
+    paciente({
+      id: 1,
+      data_liberacao: "2025-01-01",
+      data_cadastro: "2025-08-01",
+    }),
+    paciente({
+      id: 2,
+      data_liberacao: "2025-01-01",
+      data_cadastro: "2025-08-15",
+    }),
+    paciente({
+      id: 3,
+      data_liberacao: "2025-01-01",
+      data_cadastro: "2025-09-01",
+    }),
+    paciente({
+      id: 4,
+      data_liberacao: "2025-01-01",
+      data_cadastro: null,
+    }),
+    paciente({ id: 5, data_liberacao: "2025-01-01" }),
+  ];
+
+  it("mantém todos quando ambos os bounds estão vazios (inclui sem cadastro)", () => {
+    expect(
+      filterPacientesByDataCadastroRange(list, "", "").map((p) => p.id),
+    ).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("filtra intervalo inclusivo de agosto", () => {
+    expect(
+      filterPacientesByDataCadastroRange(
+        list,
+        "01/08/2025",
+        "31/08/2025",
+      ).map((p) => p.id),
+    ).toEqual([1, 2]);
+  });
+
+  it("exclui pacientes sem data_cadastro quando há bound ativo", () => {
+    expect(
+      filterPacientesByDataCadastroRange(list, "01/08/2025", "").map((p) => p.id),
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("aplica só o bound final", () => {
+    expect(
+      filterPacientesByDataCadastroRange(list, "", "01/08/2025").map((p) => p.id),
     ).toEqual([1]);
   });
 });
