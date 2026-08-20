@@ -79,6 +79,25 @@ export function filterPacientesByProximaDataRetornoRange(
   );
 }
 
+/**
+ * Mantém pacientes cuja data de cadastro no sistema está no intervalo inclusivo.
+ * Com qualquer bound ativo, pacientes sem `data_cadastro` são excluídos.
+ */
+export function filterPacientesByDataCadastroRange(
+  pacientes: Paciente[],
+  dataInicioBR: string,
+  dataFimBR: string,
+): Paciente[] {
+  return filterByIsoDateRange(
+    pacientes,
+    (p) =>
+      p.data_cadastro ? toInputDateValue(p.data_cadastro) || null : null,
+    dataInicioBR,
+    dataFimBR,
+    true,
+  );
+}
+
 export type PacientesSortDir = "asc" | "desc";
 
 export interface PacientesSortKeyParsed {
