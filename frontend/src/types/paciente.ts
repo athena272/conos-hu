@@ -41,6 +41,8 @@ export interface Paciente {
   observacoes: string | null;
   telefone: string;
   data_liberacao: string;
+  /** Dia de cadastro no sistema (YYYY-MM-DD); null/ausente em registros antigos. */
+  data_cadastro?: string | null;
   retorna_servico: number;
   tipo_retorno: TipoRetorno | null;
   proxima_data_retorno?: string | null;
