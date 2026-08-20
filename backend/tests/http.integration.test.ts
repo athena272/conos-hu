@@ -245,6 +245,7 @@ run("admin can create medication and paciente", async (t) => {
   assert.equal(listRes.status, 200);
   const lista = listRes.body as Array<{
     prontuario: number;
+    data_cadastro?: string | null;
     medicamentos: Array<{ previsao_mg?: { mg_dia_previsto: number | null } }>;
   }>;
   const paciente = lista.find((p) => p.prontuario === pacienteProntuario);
@@ -253,6 +254,11 @@ run("admin can create medication and paciente", async (t) => {
   assert.ok(
     paciente!.medicamentos[0]?.previsao_mg != null,
     "previsao_mg deve estar presente em cada medicamento (nao omitir o campo)",
+  );
+  assert.ok(
+    typeof paciente!.data_cadastro === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(paciente!.data_cadastro),
+    "paciente criado deve expor data_cadastro no formato YYYY-MM-DD",
   );
 
   const resumoRes = await request(app)

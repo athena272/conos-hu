@@ -175,6 +175,12 @@
   max-width: 22rem;
 }
 
+.pacientes-filter-clear-btn {
+  align-self: flex-end;
+  min-height: 2.75rem;
+  white-space: nowrap;
+}
+
 .pacientes-filters-date-groups {
   display: flex;
   flex-wrap: wrap;

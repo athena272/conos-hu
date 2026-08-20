@@ -31,6 +31,8 @@ interface PacienteRow {
   observacoes: string | null;
   telefone: string;
   data_liberacao: string;
+  /** Dia de cadastro no sistema (YYYY-MM-DD, fuso Brasília); null se o documento não tem created_at. */
+  data_cadastro: string | null;
   retorna_servico: number;
   tipo_retorno: string | null;
 }
@@ -159,6 +161,13 @@ async function respondListPacientes(req: Request, res: Response, list: PacienteL
   res.status(200).json(list.map((p) => redactPacienteIdentificacao(p, role)));
 }
 
+function dataCadastroFromDoc(doc: Record<string, unknown>): string | null {
+  if (doc.created_at == null) return null;
+  const formatted = formatMysqlTimestamp(doc.created_at);
+  if (!formatted) return null;
+  return formatted.slice(0, 10);
+}
+
 function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null): PacienteRowWithProximaRetorno {
   return {
     id: doc._id as number,
@@ -169,6 +178,7 @@ function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null):
     observacoes: doc.observacoes != null ? String(doc.observacoes) : null,
     telefone: String(doc.telefone ?? ""),
     data_liberacao: dateOnly(doc.data_liberacao),
+    data_cadastro: dataCadastroFromDoc(doc),
     retorna_servico: Number(doc.retorna_servico) ? 1 : 0,
     tipo_retorno: doc.tipo_retorno != null ? String(doc.tipo_retorno) : null,
     proxima_data_retorno: proxima,
@@ -400,6 +410,7 @@ export const createPaciente = async (req: Request, res: Response): Promise<void>
       data_liberacao: String(data_liberacao).trim(),
       retorna_servico: retorna ? 1 : 0,
       tipo_retorno: tipoRetornoVal,
+      created_at: new Date(),
     });
 
     for (const m of medList) {

@@ -45,6 +45,7 @@ import {
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import {
+  filterPacientesByDataCadastroRange,
   filterPacientesByDataLiberacaoRange,
   filterPacientesByProximaDataRetornoRange,
   parsePacientesSortKey,
@@ -478,12 +479,39 @@ export default function Pacientes() {
   const [filtroDataLiberacaoFim, setFiltroDataLiberacaoFim] = useState("");
   const [filtroDataRetornoInicio, setFiltroDataRetornoInicio] = useState("");
   const [filtroDataRetornoFim, setFiltroDataRetornoFim] = useState("");
+  const [filtroDataCadastroInicio, setFiltroDataCadastroInicio] = useState("");
+  const [filtroDataCadastroFim, setFiltroDataCadastroFim] = useState("");
   const [sortKey, setSortKey] = useState("proxima_data_retorno_asc");
 
   useEffect(() => {
     const t = window.setTimeout(() => setBuscaDebounced(busca), 300);
     return () => window.clearTimeout(t);
   }, [busca]);
+
+  const filtrosAtivos = Boolean(
+    busca.trim() ||
+      filtroLote.trim() ||
+      filtroDataLiberacaoInicio ||
+      filtroDataLiberacaoFim ||
+      filtroDataRetornoInicio ||
+      filtroDataRetornoFim ||
+      filtroDataCadastroInicio ||
+      filtroDataCadastroFim ||
+      sortKey !== "proxima_data_retorno_asc",
+  );
+
+  const limparFiltros = () => {
+    setBusca("");
+    setBuscaDebounced("");
+    setFiltroLote("");
+    setFiltroDataLiberacaoInicio("");
+    setFiltroDataLiberacaoFim("");
+    setFiltroDataRetornoInicio("");
+    setFiltroDataRetornoFim("");
+    setFiltroDataCadastroInicio("");
+    setFiltroDataCadastroFim("");
+    setSortKey("proxima_data_retorno_asc");
+  };
 
   const filteredAndSortedPacientes = useMemo(() => {
     let list = pacientes;
@@ -514,6 +542,11 @@ export default function Pacientes() {
       list,
       filtroDataRetornoInicio,
       filtroDataRetornoFim,
+    );
+    list = filterPacientesByDataCadastroRange(
+      list,
+      filtroDataCadastroInicio,
+      filtroDataCadastroFim,
     );
     const { field, dir } = parsePacientesSortKey(sortKey);
     const asc = dir === "asc";
@@ -555,6 +588,8 @@ export default function Pacientes() {
     filtroDataLiberacaoFim,
     filtroDataRetornoInicio,
     filtroDataRetornoFim,
+    filtroDataCadastroInicio,
+    filtroDataCadastroFim,
     sortKey,
   ]);
 
@@ -1162,6 +1197,16 @@ export default function Pacientes() {
               className="pacientes-dropdown-sort"
             />
           </div>
+          <Button
+            type="button"
+            label="Limpar filtros"
+            icon="pi pi-filter-slash"
+            outlined
+            className="pacientes-filter-clear-btn"
+            onClick={limparFiltros}
+            disabled={!filtrosAtivos}
+            aria-label="Limpar filtros"
+          />
         </div>
         <div className="pacientes-filters-date-groups">
           <PacientesDateRangeFilter
@@ -1179,6 +1224,14 @@ export default function Pacientes() {
             dataFim={filtroDataRetornoFim}
             onDataInicioChange={setFiltroDataRetornoInicio}
             onDataFimChange={setFiltroDataRetornoFim}
+          />
+          <PacientesDateRangeFilter
+            tituloGrupo="Cadastro"
+            idPrefix="pacientes-filtro-cadastro"
+            dataInicio={filtroDataCadastroInicio}
+            dataFim={filtroDataCadastroFim}
+            onDataInicioChange={setFiltroDataCadastroInicio}
+            onDataFimChange={setFiltroDataCadastroFim}
           />
         </div>
       </div>
