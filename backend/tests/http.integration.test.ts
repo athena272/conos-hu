@@ -498,16 +498,30 @@ run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => 
     .set("Authorization", `Bearer ${adminToken}`);
   assert.equal(eventosRes.status, 200);
 
-  const eventos = eventosRes.body as Array<{
-    id: number;
-    acao: string;
-    entidade_tipo: string;
-    entidade_id: number | null;
-    usuario_id: number;
-    usuario_email: string | null;
-    detalhes: Record<string, unknown>;
-  }>;
-  const created = eventos.find(
+  type EventosPage = {
+    items: Array<{
+      id: number;
+      acao: string;
+      entidade_tipo: string;
+      entidade_id: number | null;
+      usuario_id: number;
+      usuario_email: string | null;
+      detalhes: Record<string, unknown>;
+    }>;
+    total: number;
+    page: number;
+    totalPages: number;
+    limit: number;
+  };
+
+  const eventosPage = eventosRes.body as EventosPage;
+  assert.ok(Array.isArray(eventosPage.items), "deve devolver items[]");
+  assert.equal(typeof eventosPage.total, "number");
+  assert.equal(eventosPage.limit, 20);
+  assert.ok(eventosPage.page >= 1);
+  assert.ok(eventosPage.totalPages >= 1);
+
+  const created = eventosPage.items.find(
     (e) => e.entidade_id === medDoc!._id && e.acao === "medication.create"
   );
   assert.ok(created, "deve existir evento medication.create");
@@ -515,6 +529,28 @@ run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => 
   assert.equal(created!.usuario_email, adminEmail);
   assert.equal(created!.entidade_tipo, "medication");
   assert.equal(created!.detalhes.nome, medName);
+
+  const byNameRes = await request(app)
+    .get("/eventos")
+    .query({ q: medName, limit: 10, page: 1 })
+    .set("Authorization", `Bearer ${adminToken}`);
+  assert.equal(byNameRes.status, 200);
+  const byName = byNameRes.body as EventosPage;
+  assert.ok(
+    byName.items.some((e) => e.entidade_id === medDoc!._id),
+    "busca q deve encontrar o evento pelo nome do medicamento"
+  );
+  assert.ok(byName.total >= 1);
+
+  const page2Res = await request(app)
+    .get("/eventos")
+    .query({ limit: 1, page: 2 })
+    .set("Authorization", `Bearer ${adminToken}`);
+  assert.equal(page2Res.status, 200);
+  const page2 = page2Res.body as EventosPage;
+  assert.equal(page2.limit, 1);
+  assert.equal(page2.page, Math.min(2, page2.totalPages));
+  assert.ok(page2.items.length <= 1);
 
   const today = new Date().toISOString().slice(0, 10);
   const byEntidadeRes = await request(app)
@@ -527,9 +563,9 @@ run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => 
     })
     .set("Authorization", `Bearer ${adminToken}`);
   assert.equal(byEntidadeRes.status, 200);
-  const byEntidade = byEntidadeRes.body as Array<{ entidade_id: number | null; acao: string }>;
+  const byEntidade = byEntidadeRes.body as EventosPage;
   assert.ok(
-    byEntidade.some((e) => e.entidade_id === medDoc!._id && e.acao === "medication.create"),
+    byEntidade.items.some((e) => e.entidade_id === medDoc!._id && e.acao === "medication.create"),
     "filtro por entidade_tipo e período deve incluir o evento criado"
   );
 
@@ -631,12 +667,17 @@ run("POST /identify reemite token com operador e registra evento", async (t) => 
     .set("Authorization", `Bearer ${newToken}`);
   assert.equal(eventosRes.status, 200);
 
-  const eventos = eventosRes.body as Array<{
-    usuario_id: number;
-    operador_nome: string | null;
-    detalhes: Record<string, unknown>;
-  }>;
-  const identifyEvent = eventos.find((e) => e.usuario_id === userId && e.detalhes.nome === "João Operador");
+  const eventosPage = eventosRes.body as {
+    items: Array<{
+      usuario_id: number;
+      operador_nome: string | null;
+      detalhes: Record<string, unknown>;
+    }>;
+  };
+  assert.ok(Array.isArray(eventosPage.items));
+  const identifyEvent = eventosPage.items.find(
+    (e) => e.usuario_id === userId && e.detalhes.nome === "João Operador"
+  );
   assert.ok(identifyEvent, "deve existir evento usuario.identify");
   assert.equal(identifyEvent!.operador_nome, "João Operador");
 });
