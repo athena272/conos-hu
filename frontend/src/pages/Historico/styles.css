@@ -16,10 +16,17 @@
 
 .historico-filters {
   display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.historico-filters-secondary {
+  display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.85rem 1rem;
-  margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .historico-filter-field {
@@ -51,8 +58,8 @@
 }
 
 .historico-filter-search {
-  flex: 1 1 220px;
-  min-width: 220px;
+  width: 100%;
+  flex: 1 1 100%;
 }
 
 .historico-search-wrap {
@@ -62,7 +69,13 @@
 
 .historico-search-input {
   width: 100%;
-  padding-left: 35px;
+  padding-left: 2.5rem;
+}
+
+.historico-filter-clear-btn {
+  align-self: flex-end;
+  min-height: 2.75rem;
+  white-space: nowrap;
 }
 
 .historico-table {
@@ -119,7 +132,7 @@
     width: 100%;
   }
 
-  .historico-filter-field {
+  .historico-filters-secondary .historico-filter-field {
     flex: 1 1 100%;
   }
 }
