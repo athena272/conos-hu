@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import type { UserRole } from "../../auth/session";
 import { setAuth } from "../../auth/session";
-import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { Toast } from "primereact/toast";
 
 interface AuthContextType {
