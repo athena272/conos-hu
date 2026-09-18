@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Dialog } from "primereact/dialog";
 import { Button } from "primereact/button";
 import type { AuditoriaTrilha } from "../../utils/previsaoMgAuditoria";
@@ -20,7 +20,7 @@ export function BotaoAuditoriaTrilha({
   onClick,
 }: {
   tituloAcessivel: string;
-  onClick: (e: React.MouseEvent) => void;
+  onClick: (e: MouseEvent) => void;
 }) {
   return (
     <button

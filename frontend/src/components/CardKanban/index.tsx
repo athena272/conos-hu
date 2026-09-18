@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Dropdown } from "primereact/dropdown";
 import { formatDateBR } from "../../utils/dateUtils";
 import "./styles.css";
