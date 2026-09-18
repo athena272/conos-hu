@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { FilterMatchMode } from "primereact/api";
 import { DataTable, type DataTableFilterEvent, type DataTablePageEvent } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
@@ -29,6 +28,10 @@ import {
 
 import "./styles.scss";
 import type { MedicationWithStatus } from "../../types";
+import {
+  areHomeMedsFiltersActive,
+  createDefaultHomeMedsFilters,
+} from "./homeMedsFilters";
 
 const FORMA_OPTIONS = [
   { label: "Comprimido", value: 1 },
@@ -70,17 +73,7 @@ export default function Home() {
     initialData: [],
     onError: (message) => showFetchError(message),
   });
-  const [filters, setFilters] = useState({
-    global: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.CONTAINS,
-    },
-    nome: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    status: { value: null as string | null, matchMode: FilterMatchMode.EQUALS },
-  });
+  const [filters, setFilters] = useState(createDefaultHomeMedsFilters);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [editingMedication, setEditingMedication] =
     useState<MedicationWithStatus | null>(null);
@@ -180,6 +173,17 @@ export default function Home() {
     setGlobalFilterValue(value);
   };
 
+  const filtrosAtivos = areHomeMedsFiltersActive(
+    globalFilterValue,
+    filters.status.value,
+  );
+
+  const limparFiltros = () => {
+    setGlobalFilterValue("");
+    setFilters(createDefaultHomeMedsFilters());
+    setFilteredTotal(null);
+  };
+
   const openEdit = (row: MedicationWithStatus) => {
     setEditingMedication(row);
     setEditForm({
@@ -256,27 +260,6 @@ export default function Home() {
     }
   };
 
-  const header = (
-    <div className="home-table-toolbar-filters">
-      <InputText
-        value={globalFilterValue}
-        onChange={onGlobalFilterChange}
-        placeholder="Buscar Medicamento"
-      />
-      <Dropdown
-        value={filters.status.value}
-        options={statusOptions}
-        onChange={(e) => {
-          setFilters((prevFilters) => ({
-            ...prevFilters,
-            status: { ...prevFilters.status, value: e.value },
-          }));
-        }}
-        placeholder="Filtrar por Status"
-      />
-    </div>
-  );
-
   const canWriteMeds = sessionCanWriteMedications();
 
   return (
@@ -302,6 +285,43 @@ export default function Home() {
       <div className="title-home">
         <h2>Medicamentos</h2>
       </div>
+      <div className="home-filters-bar">
+        <span className="p-input-icon-left home-filter-busca">
+          <i className="pi pi-search" />
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder="Nome, lote, status..."
+            className="home-input-busca"
+            aria-label="Buscar por nome, lote ou status"
+          />
+        </span>
+        <div className="home-filters-secondary">
+          <Dropdown
+            value={filters.status.value}
+            options={statusOptions}
+            onChange={(e) => {
+              setFilters((prevFilters) => ({
+                ...prevFilters,
+                status: { ...prevFilters.status, value: e.value },
+              }));
+            }}
+            placeholder="Filtrar por Status"
+            className="home-filter-status"
+            showClear
+          />
+          <Button
+            type="button"
+            label="Limpar filtros"
+            icon="pi pi-filter-slash"
+            outlined
+            className="home-filter-clear-btn"
+            onClick={limparFiltros}
+            disabled={!filtrosAtivos}
+            aria-label="Limpar filtros"
+          />
+        </div>
+      </div>
       <div className="pagination-table-block home-table-block">
         <div className="pagination-toolbar">
           <PaginationSummary
@@ -310,7 +330,6 @@ export default function Home() {
             total={totalForPaging}
             summaryLabel="registro(s)"
           />
-          {header}
         </div>
         <DataTable
           value={medications}
