@@ -331,7 +331,7 @@ function RegisterMedicationByBarcode() {
         setCaptureMode(null);
         setScanBuffer("");
         setLastResolve(null);
-        void refreshMedications();
+        void reloadMedications({ silent: true });
       })
       .catch((error: unknown) => {
         toast.current?.show({
