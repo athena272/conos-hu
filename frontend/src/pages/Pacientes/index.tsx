@@ -452,13 +452,14 @@ export default function Pacientes() {
     null,
   );
 
+  const historicoPacienteId = historicoPaciente?.id;
   const fetchHistoricoRetornos = useCallback(async () => {
-    if (!historicoPaciente) return [];
+    if (historicoPacienteId == null) return [];
     const res = await api.get<PacienteRetorno[]>(
-      `/pacientes/${historicoPaciente.id}/retornos`,
+      `/pacientes/${historicoPacienteId}/retornos`,
     );
     return res.data ?? [];
-  }, [historicoPaciente?.id]);
+  }, [historicoPacienteId]);
 
   const {
     data: historicoRetornos,

@@ -46,16 +46,17 @@ export function AuditoriaTrilhaDialog({
   onHide: () => void;
   periodoSimulacao?: PeriodoSimulacaoAuditoria;
 }) {
-  const [diasPeriodo, setDiasPeriodo] = useState(
-    periodoSimulacao?.diasPeriodoInicial ?? 30,
-  );
+  const diasPeriodoInicial = periodoSimulacao?.diasPeriodoInicial;
+  const podeSimularPeriodo = periodoSimulacao != null;
+  const [diasPeriodo, setDiasPeriodo] = useState(diasPeriodoInicial ?? 30);
 
   // Ao reabrir, sincroniza o período do diálogo com o selecionado na tabela.
+  // Não depende do objeto `periodoSimulacao` inteiro: o pai recria-o a cada render.
   useEffect(() => {
-    if (visible && periodoSimulacao) {
-      setDiasPeriodo(periodoSimulacao.diasPeriodoInicial);
+    if (visible && podeSimularPeriodo && diasPeriodoInicial != null) {
+      setDiasPeriodo(diasPeriodoInicial);
     }
-  }, [visible, periodoSimulacao?.diasPeriodoInicial]);
+  }, [visible, podeSimularPeriodo, diasPeriodoInicial]);
 
   const trilhaExibida = periodoSimulacao
     ? periodoSimulacao.rebuild(diasPeriodo)
