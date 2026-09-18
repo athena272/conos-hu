@@ -29,3 +29,11 @@ export interface Evento {
   created_at: string;
   detalhes: Record<string, unknown>;
 }
+
+export interface EventosListResponse {
+  items: Evento[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+}
