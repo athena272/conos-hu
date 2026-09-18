@@ -37,6 +37,10 @@
   min-width: 220px;
 }
 
+.historico-page-size {
+  min-width: 5.5rem;
+}
+
 .historico-date-input {
   min-width: 150px;
   padding: 0.55rem 0.65rem;
