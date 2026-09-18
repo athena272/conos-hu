@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DependencyList,
+} from "react";
 import { normalizeErrorMessage } from "../utils/errorMessages";
 
 export interface UseApiQueryOptions<T> {
@@ -23,7 +29,7 @@ export function shouldShowLoading(
 
 export function useApiQuery<T>(
   fetcher: () => Promise<T>,
-  deps: React.DependencyList,
+  deps: DependencyList,
   options?: UseApiQueryOptions<T>,
 ): UseApiQueryResult<T> {
   const enabled = options?.enabled ?? true;
