@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { FilterMatchMode } from "primereact/api";
-import { DataTable } from "primereact/datatable";
+import { DataTable, type DataTableFilterEvent, type DataTablePageEvent } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
@@ -21,6 +21,11 @@ import React from "react";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import {
+  PaginationBar,
+  PaginationSummary,
+  useClientPagination,
+} from "../../components/pagination";
 
 import "./styles.scss";
 import type { MedicationWithStatus } from "../../types";
@@ -92,6 +97,31 @@ export default function Home() {
   const [deletingMedication, setDeletingMedication] =
     useState<MedicationWithStatus | null>(null);
   const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [filteredTotal, setFilteredTotal] = useState<number | null>(null);
+
+  const totalForPaging = filteredTotal ?? medications.length;
+  const medsPaging = useClientPagination({ rows: 10, total: totalForPaging });
+
+  useEffect(() => {
+    setFilteredTotal(null);
+    medsPaging.resetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when source list changes
+  }, [medications]);
+
+  useEffect(() => {
+    medsPaging.resetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when filters change
+  }, [filters.global.value, filters.status.value, filters.nome.value]);
+
+  const handleMedsFilter = (event: DataTableFilterEvent) => {
+    const filtered = event.filteredValue;
+    setFilteredTotal(Array.isArray(filtered) ? filtered.length : medications.length);
+    medsPaging.resetPage();
+  };
+
+  const handleMedsPage = (event: DataTablePageEvent) => {
+    medsPaging.onPrimePage(event);
+  };
 
   const [statusOptions] = useState([
     { label: "Em Estoque", value: "emEstoque" },
@@ -227,7 +257,7 @@ export default function Home() {
   };
 
   const header = (
-    <div className="filters-container">
+    <div className="home-table-toolbar-filters">
       <InputText
         value={globalFilterValue}
         onChange={onGlobalFilterChange}
@@ -272,20 +302,33 @@ export default function Home() {
       <div className="title-home">
         <h2>Medicamentos</h2>
       </div>
-      <DataTable
-        value={medications}
-        paginator
-        rows={10}
-        filters={filters}
-        filterDisplay="row"
-        globalFilterFields={["nome", "lote", "status"]}
-        header={header}
-        emptyMessage={getDataTableEmptyMessage({
-          loading: false,
-          error: medicationsError,
-          emptyLabel: "Nenhum medicamento encontrado.",
-        })}
-      >
+      <div className="pagination-table-block home-table-block">
+        <div className="pagination-toolbar">
+          <PaginationSummary
+            page={medsPaging.page}
+            totalPages={medsPaging.totalPages}
+            total={totalForPaging}
+            summaryLabel="registro(s)"
+          />
+          {header}
+        </div>
+        <DataTable
+          value={medications}
+          paginator
+          first={medsPaging.first}
+          rows={medsPaging.rows}
+          onPage={handleMedsPage}
+          onFilter={handleMedsFilter}
+          filters={filters}
+          filterDisplay="row"
+          globalFilterFields={["nome", "lote", "status"]}
+          className="conos-hide-native-paginator"
+          emptyMessage={getDataTableEmptyMessage({
+            loading: false,
+            error: medicationsError,
+            emptyLabel: "Nenhum medicamento encontrado.",
+          })}
+        >
         <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
         <Column field="lote" header="Lote" style={{ minWidth: "10rem" }} />
         <Column
@@ -348,6 +391,14 @@ export default function Home() {
           />
         )}
       </DataTable>
+        <PaginationBar
+          page={medsPaging.page}
+          totalPages={medsPaging.totalPages}
+          total={totalForPaging}
+          summaryLabel="registro(s)"
+          onPageChange={medsPaging.setPage}
+        />
+      </div>
 
       <Dialog
         header="Editar medicamento"

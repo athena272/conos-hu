@@ -1,0 +1,258 @@
+/* Shared pagination chrome — aligned with Lara Light Cyan / PrimeReact surfaces */
+
+.pagination-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.pagination-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.85rem 1rem;
+  margin: 0;
+  background: var(--surface-ground, #f8f9fa);
+  border: 1px solid var(--surface-border, #dee2e6);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+
+.pagination-toolbar .pagination-summary,
+.pagination-toolbar .pagination-summary-top {
+  margin: 0;
+}
+
+.pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: var(--surface-ground, #f8f9fa);
+  border: 1px solid var(--surface-border, #dee2e6);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+
+.pagination-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-color-secondary, #64748b);
+  white-space: nowrap;
+}
+
+.pagination-summary-top {
+  margin: 0;
+  text-align: left;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.pagination-pages {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0 0.15rem;
+}
+
+.pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  padding: 0 0.15rem;
+  user-select: none;
+  color: var(--text-color-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+.pagination-goto {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--surface-border, #dee2e6);
+}
+
+.pagination-goto-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-color-secondary, #64748b);
+  white-space: nowrap;
+}
+
+.pagination-goto input {
+  width: 3.25rem;
+  height: 2.25rem;
+  box-sizing: border-box;
+  border: 1px solid var(--surface-border, #ced4da);
+  border-radius: 6px;
+  padding: 0 0.45rem;
+  background: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: center;
+  color: var(--text-color, #334155);
+}
+
+.pagination-goto input:focus {
+  outline: none;
+  border-color: var(--primary-color, #0891b2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #0891b2) 25%, transparent);
+}
+
+.pagination-goto input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--surface-ground, #f1f5f9);
+}
+
+/* Unified button base — outline by default so disabled states stay readable */
+.pagination-btn {
+  appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0 0.8rem;
+  margin: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 6px;
+  border: 1px solid var(--surface-border, #cbd5e1);
+  background: #fff;
+  color: var(--text-color, #334155);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #fff;
+  border-color: var(--primary-color, #0891b2);
+  color: var(--primary-color, #0891b2);
+}
+
+.pagination-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #0891b2) 30%, transparent);
+}
+
+.pagination-btn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  background: var(--surface-ground, #f1f5f9);
+  border-color: var(--surface-border, #e2e8f0);
+  color: #94a3b8;
+}
+
+/* Solid accent only for primary actions */
+.pagination-btn--accent {
+  background: var(--primary-color, #0891b2);
+  border-color: var(--primary-color, #0891b2);
+  color: #fff;
+}
+
+.pagination-btn--accent:hover:not(:disabled) {
+  background: var(--primary-600, #0e7490);
+  border-color: var(--primary-600, #0e7490);
+  color: #fff;
+  filter: none;
+}
+
+.pagination-btn--accent:disabled {
+  background: color-mix(in srgb, var(--primary-color, #0891b2) 35%, #e2e8f0);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pagination-page {
+  min-width: 2.25rem;
+  padding: 0 0.55rem;
+}
+
+.pagination-page.is-current {
+  background: var(--primary-color, #0891b2);
+  border-color: var(--primary-color, #0891b2);
+  color: #fff;
+}
+
+.pagination-page.is-current:hover:not(:disabled) {
+  background: var(--primary-600, #0e7490);
+  border-color: var(--primary-600, #0e7490);
+  color: #fff;
+}
+
+.pagination-page.is-current:disabled {
+  background: var(--primary-color, #0891b2);
+  border-color: var(--primary-color, #0891b2);
+  color: #fff;
+  opacity: 0.85;
+}
+
+/* Hide PrimeReact native paginator when custom controls drive paging */
+.conos-hide-native-paginator .p-paginator {
+  display: none !important;
+}
+
+.conos-hide-native-paginator.p-datatable,
+.conos-hide-native-paginator .p-datatable {
+  border-radius: 0;
+}
+
+.pagination-table-block .p-datatable {
+  border-left: 1px solid var(--surface-border, #dee2e6);
+  border-right: 1px solid var(--surface-border, #dee2e6);
+}
+
+.pagination-table-block .p-datatable .p-datatable-header {
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border, #dee2e6);
+  padding: 0.75rem 1rem;
+}
+
+@media (max-width: 768px) {
+  .pagination-toolbar,
+  .pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-controls {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .pagination-goto {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    width: 100%;
+  }
+}
