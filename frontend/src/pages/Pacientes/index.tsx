@@ -20,6 +20,11 @@ import Menu from "../../components/Menu";
 import LabelInput from "../../components/LabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import {
+  PaginationBar,
+  PaginationSummary,
+  useClientPagination,
+} from "../../components/pagination";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -582,6 +587,28 @@ export default function Pacientes() {
     });
   }, [
     pacientes,
+    buscaDebounced,
+    filtroLote,
+    filtroDataLiberacaoInicio,
+    filtroDataLiberacaoFim,
+    filtroDataRetornoInicio,
+    filtroDataRetornoFim,
+    filtroDataCadastroInicio,
+    filtroDataCadastroFim,
+    sortKey,
+  ]);
+
+  const pacientesPaging = useClientPagination({
+    rows: 10,
+    total: filteredAndSortedPacientes.length,
+  });
+  const pagedPacientes = pacientesPaging.slice(filteredAndSortedPacientes);
+
+  useEffect(() => {
+    pacientesPaging.resetPage();
+    // Reset only when filter/sort inputs change, not when page changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional deps
+  }, [
     buscaDebounced,
     filtroLote,
     filtroDataLiberacaoInicio,
@@ -1236,20 +1263,27 @@ export default function Pacientes() {
         </div>
       </div>
 
-      <DataTable
-        value={filteredAndSortedPacientes}
-        paginator
-        rows={10}
-        emptyMessage={getDataTableEmptyMessage({
-          loading: false,
-          error: pacientesError,
-          emptyLabel: "Nenhum paciente cadastrado.",
-        })}
-        className="pacientes-table pacientes-table-custom"
-        stripedRows
-        rowHover
-        responsiveLayout="scroll"
-      >
+      <div className="pagination-table-block">
+        <div className="pagination-toolbar">
+          <PaginationSummary
+            page={pacientesPaging.page}
+            totalPages={pacientesPaging.totalPages}
+            total={filteredAndSortedPacientes.length}
+            summaryLabel="paciente(s)"
+          />
+        </div>
+        <DataTable
+          value={pagedPacientes}
+          emptyMessage={getDataTableEmptyMessage({
+            loading: false,
+            error: pacientesError,
+            emptyLabel: "Nenhum paciente cadastrado.",
+          })}
+          className="pacientes-table pacientes-table-custom"
+          stripedRows
+          rowHover
+          responsiveLayout="scroll"
+        >
         <Column
           header="Nome"
           style={{ minWidth: "12rem" }}
@@ -1457,7 +1491,15 @@ export default function Pacientes() {
           headerClassName="pacientes-col-header"
           bodyClassName="pacientes-col-acoes"
         />
-      </DataTable>
+        </DataTable>
+        <PaginationBar
+          page={pacientesPaging.page}
+          totalPages={pacientesPaging.totalPages}
+          total={filteredAndSortedPacientes.length}
+          summaryLabel="paciente(s)"
+          onPageChange={pacientesPaging.setPage}
+        />
+      </div>
 
       <Dialog
         header={editingPaciente ? "Editar paciente" : "Novo paciente"}
