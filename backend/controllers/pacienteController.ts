@@ -18,6 +18,11 @@ import {
 import { redactPacienteIdentificacao } from "../utils/pacienteIdentificacao";
 import type { UserRole } from "../types/roles";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
+import { todayIsoDateSaoPaulo } from "../utils/calendarDate";
+import {
+  canonicalizeMedicamentoDisplay,
+  medicamentoNomeConcMatchKey,
+} from "../utils/medicamentoNomeConc";
 import { recordEventFromRequest } from "../utils/auditContext";
 
 const TIPOS_RETORNO = ["farmacia_medico", "somente_farmacia", "farmacia_enfermagem"] as const;
@@ -90,8 +95,8 @@ type MedicamentoPersistValues = {
 };
 
 function valuesForMedicamento(m: PacienteMedicamentoItem): MedicamentoPersistValues {
-  const nome = String(m.medicamento_nome).trim();
-  const conc = String(m.medicamento_concentracao).trim();
+  const nome = canonicalizeMedicamentoDisplay(String(m.medicamento_nome));
+  const conc = canonicalizeMedicamentoDisplay(String(m.medicamento_concentracao));
   const regime = parseRegimeConsumo(m.regime_consumo);
   if (regime === "por_ciclo") {
     return {
@@ -186,12 +191,13 @@ function pacienteDocToRow(doc: Record<string, unknown>, proxima: string | null):
 }
 
 function medicamentoNomeConcKey(nome: string, conc: string): string {
-  return `${String(nome).trim()}\0${String(conc).trim()}`;
+  return medicamentoNomeConcMatchKey(nome, conc);
 }
 
 type PacienteListItem = PacienteRowWithProximaRetorno & {
   medicamentos: ReturnType<typeof mapMedicamentoToResponse>[];
   lotes: string[];
+  datas_retorno: string[];
 };
 
 function isValidDateString(s: string): boolean {
@@ -242,7 +248,7 @@ async function proximaRetornoPorPaciente(ids: number[]): Promise<Map<number, str
   const map = new Map<number, string | null>();
   for (const id of ids) map.set(id, null);
   if (ids.length === 0) return map;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoDateSaoPaulo();
   const retornos = await coll<{ paciente_id: number; data_retorno: string }>("paciente_retornos")
     .find({ paciente_id: { $in: ids }, data_retorno: { $gte: today } })
     .sort({ data_retorno: 1 })
@@ -256,6 +262,23 @@ async function proximaRetornoPorPaciente(ids: number[]): Promise<Map<number, str
   return map;
 }
 
+async function datasRetornoPorPaciente(ids: number[]): Promise<Map<number, string[]>> {
+  const map = new Map<number, string[]>();
+  for (const id of ids) map.set(id, []);
+  if (ids.length === 0) return map;
+  const retornos = await coll<{ paciente_id: number; data_retorno: string }>("paciente_retornos")
+    .find({ paciente_id: { $in: ids } })
+    .sort({ data_retorno: 1 })
+    .toArray();
+  for (const r of retornos) {
+    const list = map.get(r.paciente_id) ?? [];
+    const iso = dateOnly(r.data_retorno);
+    if (iso && !list.includes(iso)) list.push(iso);
+    map.set(r.paciente_id, list);
+  }
+  return map;
+}
+
 export const listPacientes = async (req: Request, res: Response): Promise<void> => {
   try {
     const docs = await coll<Record<string, unknown> & { _id: number }>("pacientes").find().sort({ nome: 1 }).toArray();
@@ -264,7 +287,11 @@ export const listPacientes = async (req: Request, res: Response): Promise<void> 
       return;
     }
     type PacienteDoc = Record<string, unknown> & { _id: number };
-    const proxMap = await proximaRetornoPorPaciente((docs as PacienteDoc[]).map((d) => d._id));
+    const idsAll = (docs as PacienteDoc[]).map((d) => d._id);
+    const [proxMap, datasRetornoMap] = await Promise.all([
+      proximaRetornoPorPaciente(idsAll),
+      datasRetornoPorPaciente(idsAll),
+    ]);
     const pacientes: PacienteRowWithProximaRetorno[] = (docs as PacienteDoc[]).map((d) =>
       pacienteDocToRow(d, proxMap.get(d._id) ?? null)
     );
@@ -285,20 +312,17 @@ export const listPacientes = async (req: Request, res: Response): Promise<void> 
       .toArray();
     const nomeConcSet = new Set<string>();
     for (const pm of medsForLotes) {
-      nomeConcSet.add(`${String(pm.medicamento_nome).trim()}\0${String(pm.medicamento_concentracao).trim()}`);
+      nomeConcSet.add(medicamentoNomeConcKey(String(pm.medicamento_nome), String(pm.medicamento_concentracao)));
     }
-    const orConds = [...nomeConcSet].map((k) => {
-      const [nome, conc] = k.split("\0");
-      return { nome, concentracao: conc };
-    });
     const lotesByPaciente = new Map<number, string[]>();
-    if (orConds.length > 0) {
+    if (nomeConcSet.size > 0) {
       const medMatches = await coll<{ _id: number; nome: string; concentracao: string; lote: string }>("medications")
-        .find({ $or: orConds })
+        .find({})
         .toArray();
       const loteByNomeConc = new Map<string, Set<string>>();
       for (const m of medMatches) {
         const key = medicamentoNomeConcKey(m.nome, m.concentracao);
+        if (!nomeConcSet.has(key)) continue;
         let s = loteByNomeConc.get(key);
         if (!s) {
           s = new Set();
@@ -324,6 +348,7 @@ export const listPacientes = async (req: Request, res: Response): Promise<void> 
       medicamentos: byPaciente.get(p.id) ?? [],
       proxima_data_retorno: p.proxima_data_retorno ?? null,
       lotes: lotesByPaciente.get(p.id) ?? [],
+      datas_retorno: datasRetornoMap.get(p.id) ?? [],
     }));
     await respondListPacientes(req, res, out);
   } catch (err) {
@@ -347,6 +372,7 @@ export const getPacienteById = async (req: Request, res: Response): Promise<void
     }
     const paciente = pacienteDocToRow(doc as Record<string, unknown>, null);
     const list = await coll<MedicamentoPersistRow>("paciente_medicamentos").find({ paciente_id: id }).toArray();
+    const datasMap = await datasRetornoPorPaciente([id]);
     const base: PacienteListItem = {
       ...paciente,
       proxima_data_retorno: null,
@@ -354,6 +380,7 @@ export const getPacienteById = async (req: Request, res: Response): Promise<void
         mapMedicamentoToResponse({ ...m, paciente_id: id })
       ),
       lotes: [],
+      datas_retorno: datasMap.get(id) ?? [],
     };
     const role = req.user?.role as UserRole | undefined;
     res.status(200).json(redactPacienteIdentificacao(base, role));
@@ -674,14 +701,20 @@ export const getImpactoEstoque = async (req: Request, res: Response): Promise<vo
   }
 
   try {
-    const estAgg = await coll<{ _id: number; quantidade: number; nome: string; concentracao: string }>("medications")
-      .aggregate([{ $match: { nome: medicamento_nome, concentracao: medicamento_concentracao } }, { $group: { _id: null, total: { $sum: "$quantidade" } } }])
-      .toArray();
-    const estoqueTotal = Number(estAgg[0]?.total ?? 0);
+    const matchKey = medicamentoNomeConcKey(medicamento_nome, medicamento_concentracao);
 
-    const rows = await coll<MedicamentoPersistRow>("paciente_medicamentos")
-      .find({ medicamento_nome, medicamento_concentracao })
+    const allMeds = await coll<{ quantidade: number; nome: string; concentracao: string }>("medications")
+      .find({})
+      .project({ quantidade: 1, nome: 1, concentracao: 1 })
       .toArray();
+    const estoqueTotal = allMeds
+      .filter((m) => medicamentoNomeConcKey(m.nome, m.concentracao) === matchKey)
+      .reduce((s, m) => s + Number(m.quantidade ?? 0), 0);
+
+    const allRows = await coll<MedicamentoPersistRow>("paciente_medicamentos").find().toArray();
+    const rows = allRows.filter(
+      (r) => medicamentoNomeConcKey(r.medicamento_nome, r.medicamento_concentracao) === matchKey
+    );
     const consumoDiarioAtual = rows.reduce((s: number, p: MedicamentoPersistRow) => s + taxaFromPersistRow(p), 0);
     const pacientesVinculados = new Set(rows.map((p: MedicamentoPersistRow) => p.paciente_id)).size;
 
@@ -764,7 +797,7 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       }
     >();
     for (const r of rows) {
-      const key = `${r.medicamento_nome}\0${r.medicamento_concentracao}`;
+      const key = medicamentoNomeConcKey(r.medicamento_nome, r.medicamento_concentracao);
       let g = grupos.get(key);
       if (!g) {
         g = {
@@ -780,10 +813,20 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       g.taxaTotal += taxaFromPersistRow(r);
       g.linhas.push(r);
     }
-    const gruposArr = Array.from(grupos.values());
+    const gruposArr = Array.from(grupos.entries());
     if (gruposArr.length === 0) {
       res.status(200).json([]);
       return;
+    }
+
+    const allMeds = await coll<{ quantidade: number; nome: string; concentracao: string }>("medications")
+      .find({})
+      .project({ quantidade: 1, nome: 1, concentracao: 1 })
+      .toArray();
+    const estoqueByKey = new Map<string, number>();
+    for (const m of allMeds) {
+      const key = medicamentoNomeConcKey(m.nome, m.concentracao);
+      estoqueByKey.set(key, (estoqueByKey.get(key) ?? 0) + Number(m.quantidade ?? 0));
     }
 
     const resultados: Array<{
@@ -800,11 +843,8 @@ export const getResumoPorMedicamento = async (_req: Request, res: Response): Pro
       porCicloIntervaloDias?: number;
     }> = [];
 
-    for (const g of gruposArr) {
-      const estAgg = await coll<{ quantidade: number; nome: string; concentracao: string }>("medications")
-        .aggregate([{ $match: { nome: g.medicamento_nome, concentracao: g.medicamento_concentracao } }, { $group: { _id: null, total: { $sum: "$quantidade" } } }])
-        .toArray();
-      const estoqueTotal = Number(estAgg[0]?.total ?? 0);
+    for (const [key, g] of gruposArr) {
+      const estoqueTotal = estoqueByKey.get(key) ?? 0;
       const consumo = g.taxaTotal;
       const mesesEstoque =
         consumo > 0 && estoqueTotal > 0 ? Math.floor(estoqueTotal / (consumo * 30)) : consumo === 0 && estoqueTotal > 0 ? null : 0;

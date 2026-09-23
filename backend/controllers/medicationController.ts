@@ -4,6 +4,11 @@ import { getNextId } from "../models/sequences";
 import { extractGtinFromDigitString, normalizeGtinDigits, parseGs1Raw } from "../utils/gs1Parse";
 import { dateOnly, formatMysqlTimestamp } from "../models/mappers";
 import { recordEventFromRequest } from "../utils/auditContext";
+import { todayIsoDateSaoPaulo } from "../utils/calendarDate";
+import {
+  canonicalizeMedicamentoDisplay,
+  medicamentoNomeConcMatchKey,
+} from "../utils/medicamentoNomeConc";
 
 interface MedicationRow {
   id: number;
@@ -195,13 +200,15 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
     const id = await getNextId("medications");
     const q = parseInt(quantidade, 10);
     const usuario_id = req.user!.id;
+    const nomeCanon = canonicalizeMedicamentoDisplay(String(nome));
+    const concCanon = canonicalizeMedicamentoDisplay(String(concentracao ?? ""));
     await coll<MedicationDoc>("medications").insertOne({
       _id: id,
-      nome,
+      nome: nomeCanon,
       lote,
       quantidade: q,
       classificacao: classificacao ?? null,
-      concentracao: concentracao ?? "",
+      concentracao: concCanon,
       forma: forma ?? "",
       data_validade: String(data_validade).slice(0, 10),
       created_at: new Date(),
@@ -232,10 +239,10 @@ export const registerMedication = async (req: Request, res: Response): Promise<v
       entidade_tipo: "medication",
       entidade_id: id,
       detalhes: {
-        nome,
+        nome: nomeCanon,
         lote,
         quantidade: q,
-        concentracao: concentracao ?? "",
+        concentracao: concCanon,
       },
     });
     res.status(201).json({ message: "Medicação registrada com sucesso" });
@@ -268,7 +275,7 @@ export const getMedications = async (_req: Request, res: Response): Promise<void
 
 export const getValidade = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIsoDateSaoPaulo();
     const docs = await coll<MedicationDoc>("medications").find({ data_validade: { $lt: today } }).toArray();
     res.status(200).json(docs.map(docToMedicationRow));
   } catch (err) {
@@ -342,12 +349,29 @@ export const getMedicationById = async (req: Request, res: Response): Promise<vo
 
 export const getDistinctNomeConcentration = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const rows = await coll<MedicationDoc>("medications").aggregate<{ nome: string; concentracao: string }>([
-        { $group: { _id: { nome: "$nome", concentracao: "$concentracao" } } },
-        { $project: { _id: 0, nome: "$_id.nome", concentracao: "$_id.concentracao" } },
-        { $sort: { nome: 1, concentracao: 1 } },
-      ])
+    const docs = await coll<MedicationDoc>("medications")
+      .find({})
+      .project({ nome: 1, concentracao: 1 })
       .toArray();
+    const byKey = new Map<string, { nome: string; concentracao: string; count: number }>();
+    for (const d of docs) {
+      const nome = String(d.nome ?? "");
+      const concentracao = String(d.concentracao ?? "");
+      const key = medicamentoNomeConcMatchKey(nome, concentracao);
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, { nome, concentracao, count: 1 });
+      } else {
+        existing.count += 1;
+      }
+    }
+    const rows = Array.from(byKey.values())
+      .map(({ nome, concentracao }) => ({ nome, concentracao }))
+      .sort(
+        (a, b) =>
+          a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }) ||
+          a.concentracao.localeCompare(b.concentracao, "pt-BR", { sensitivity: "base" })
+      );
     res.status(200).json(rows);
   } catch (err) {
     console.error("Erro ao buscar medicamentos distintos:", err);
@@ -363,11 +387,12 @@ export const getLotsByNameConcentration = async (req: Request, res: Response): P
     return;
   }
   try {
-    const docs = await coll<MedicationDoc>("medications")
-      .find({ nome: nome.trim(), concentracao: concentracao.trim() })
-      .sort({ data_validade: 1 })
-      .toArray();
-    res.status(200).json(docs.map((d: MedicationDoc) => addStatus(docToMedicationRow(d))));
+    const matchKey = medicamentoNomeConcMatchKey(nome, concentracao);
+    const docs = await coll<MedicationDoc>("medications").find({}).sort({ data_validade: 1 }).toArray();
+    const matched = docs.filter(
+      (d) => medicamentoNomeConcMatchKey(d.nome, d.concentracao ?? "") === matchKey
+    );
+    res.status(200).json(matched.map((d: MedicationDoc) => addStatus(docToMedicationRow(d))));
   } catch (err) {
     console.error("Erro ao buscar lotes:", err);
     res.status(500).json({ error: "Erro ao buscar lotes" });
@@ -446,12 +471,14 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
     return;
   }
   try {
+    const nomeCanon = canonicalizeMedicamentoDisplay(String(nome));
+    const concCanon = canonicalizeMedicamentoDisplay(String(concentracao ?? ""));
     const setDoc: Record<string, unknown> = {
-      nome,
+      nome: nomeCanon,
       lote,
       quantidade: quantidadeNum,
       classificacao: classificacao ?? "",
-      concentracao: concentracao ?? "",
+      concentracao: concCanon,
       forma: forma ?? "",
       data_validade: String(data_validade).slice(0, 10),
     };
@@ -479,10 +506,10 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
       entidade_tipo: "medication",
       entidade_id: id,
       detalhes: {
-        nome,
+        nome: nomeCanon,
         lote,
         quantidade: quantidadeNum,
-        concentracao: concentracao ?? "",
+        concentracao: concCanon,
         data_validade: String(data_validade).slice(0, 10),
       },
     });
