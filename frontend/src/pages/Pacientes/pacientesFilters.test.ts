@@ -72,21 +72,25 @@ describe("filterPacientesByProximaDataRetornoRange", () => {
       id: 1,
       data_liberacao: "2025-01-01",
       proxima_data_retorno: "2025-09-05",
+      datas_retorno: ["2025-09-05"],
     }),
     paciente({
       id: 2,
       data_liberacao: "2025-01-01",
       proxima_data_retorno: "2025-09-20",
+      datas_retorno: ["2025-09-20"],
     }),
     paciente({
       id: 3,
       data_liberacao: "2025-01-01",
       proxima_data_retorno: "2025-10-01",
+      datas_retorno: ["2025-10-01"],
     }),
     paciente({
       id: 4,
       data_liberacao: "2025-01-01",
       proxima_data_retorno: null,
+      datas_retorno: [],
     }),
     paciente({ id: 5, data_liberacao: "2025-01-01" }),
   ];
@@ -107,7 +111,7 @@ describe("filterPacientesByProximaDataRetornoRange", () => {
     ).toEqual([1, 2]);
   });
 
-  it("exclui pacientes sem proxima_data_retorno quando há bound ativo", () => {
+  it("exclui pacientes sem datas de retorno quando há bound ativo", () => {
     expect(
       filterPacientesByProximaDataRetornoRange(list, "01/09/2025", "").map(
         (p) => p.id,
@@ -121,6 +125,41 @@ describe("filterPacientesByProximaDataRetornoRange", () => {
         (p) => p.id,
       ),
     ).toEqual([1]);
+  });
+
+  it("mantém paciente com retorno no dia mesmo após próximo retorno futuro", () => {
+    const attended = [
+      paciente({
+        id: 10,
+        data_liberacao: "2025-01-01",
+        proxima_data_retorno: "2025-10-15",
+        datas_retorno: ["2025-09-23", "2025-10-15"],
+      }),
+    ];
+    expect(
+      filterPacientesByProximaDataRetornoRange(
+        attended,
+        "23/09/2025",
+        "23/09/2025",
+      ).map((p) => p.id),
+    ).toEqual([10]);
+  });
+
+  it("usa fallback de proxima_data_retorno quando datas_retorno ausente", () => {
+    const legacy = [
+      paciente({
+        id: 11,
+        data_liberacao: "2025-01-01",
+        proxima_data_retorno: "2025-09-10",
+      }),
+    ];
+    expect(
+      filterPacientesByProximaDataRetornoRange(
+        legacy,
+        "01/09/2025",
+        "30/09/2025",
+      ).map((p) => p.id),
+    ).toEqual([11]);
   });
 });
 
