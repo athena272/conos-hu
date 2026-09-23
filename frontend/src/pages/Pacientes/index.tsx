@@ -55,6 +55,9 @@ import {
   filterPacientesByProximaDataRetornoRange,
   parsePacientesSortKey,
 } from "./pacientesFilters";
+import { buildMedicamentoDropdownOptions } from "./medicamentoDropdownOptions";
+import { DispensaDoDiaPaciente } from "./DispensaDoDiaPaciente";
+import type { DispensaDoDiaMedicamentoOption } from "./DispensaDoDiaPaciente";
 import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
 import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
@@ -672,10 +675,9 @@ export default function Pacientes() {
     }
   }, [historicoPaciente]);
 
-  const medicamentoDropdownOptions = medicamentosDistintos.map((m) => ({
-    label: `${m.nome} - ${m.concentracao}`,
-    value: m,
-  }));
+  const medicamentoDropdownOptions = buildMedicamentoDropdownOptions(
+    medicamentosDistintos,
+  );
 
   const openCreate = () => {
     setEditingPaciente(null);
@@ -1099,6 +1101,9 @@ export default function Pacientes() {
       {(loadingResumo || resumoPorMedicamentoParaExibir.length > 0) && (
         <div className="pacientes-resumo-section">
           <h3>Estoque por medicamento (comprometido)</h3>
+          <p className="pacientes-field-hint">
+            Contagem por nome e concentração (todos os lotes desse medicamento).
+          </p>
           <PeriodoCalculoSelector
             diasPeriodo={diasPeriodo}
             onChange={setDiasPeriodo}
@@ -1246,7 +1251,8 @@ export default function Pacientes() {
             onDataFimChange={setFiltroDataLiberacaoFim}
           />
           <PacientesDateRangeFilter
-            tituloGrupo="Próx. retorno"
+            tituloGrupo="Retorno"
+            hintGrupo="Qualquer retorno no período"
             idPrefix="pacientes-filtro-retorno"
             dataInicio={filtroDataRetornoInicio}
             dataFim={filtroDataRetornoFim}
@@ -1682,6 +1688,10 @@ export default function Pacientes() {
                                     }
                                     optionLabel="label"
                                     optionValue="value"
+                                    filter
+                                    filterBy="label"
+                                    filterPlaceholder="Buscar medicamento..."
+                                    showClear
                                     onChange={(e: {
                                       value: MedicamentoDistinto | null;
                                     }) => {
@@ -2085,6 +2095,40 @@ export default function Pacientes() {
                       type="date"
                     />
                   </>
+                )}
+                {editingPaciente && (
+                  <DispensaDoDiaPaciente
+                    pacienteId={editingPaciente.id}
+                    medicamentos={values.medicamentos
+                      .filter(
+                        (m): m is MedicamentoFormItem & { medicamento: MedicamentoDistinto } =>
+                          Boolean(m.medicamento?.nome && m.medicamento?.concentracao),
+                      )
+                      .map((m, idx): DispensaDoDiaMedicamentoOption => ({
+                        key: `${m.medicamento.nome}\0${m.medicamento.concentracao}\0${idx}`,
+                        label: `${m.medicamento.nome} - ${m.medicamento.concentracao}`,
+                        nome: m.medicamento.nome,
+                        concentracao: m.medicamento.concentracao,
+                        regime_consumo: m.regime_consumo,
+                        unidades_por_ciclo: m.unidades_por_ciclo,
+                      }))}
+                    onSuccess={(detail) => {
+                      toast.current?.show({
+                        severity: "success",
+                        summary: "Sucesso",
+                        detail,
+                        life: 4000,
+                      });
+                    }}
+                    onError={(detail) => {
+                      toast.current?.show({
+                        severity: "error",
+                        summary: "Erro",
+                        detail,
+                        life: 4000,
+                      });
+                    }}
+                  />
                 )}
               </div>
               <div className="pacientes-form-footer">

@@ -58,25 +58,43 @@ export function filterPacientesByDataLiberacaoRange(
   );
 }
 
+function isoDatesRetornoPaciente(p: Paciente): string[] {
+  if (p.datas_retorno && p.datas_retorno.length > 0) {
+    return p.datas_retorno
+      .map((d) => toInputDateValue(d) || "")
+      .filter(Boolean);
+  }
+  if (p.proxima_data_retorno) {
+    const iso = toInputDateValue(p.proxima_data_retorno);
+    return iso ? [iso] : [];
+  }
+  return [];
+}
+
 /**
- * Mantém pacientes cuja próxima data de retorno está no intervalo inclusivo.
- * Com qualquer bound ativo, pacientes sem `proxima_data_retorno` são excluídos.
+ * Mantém pacientes que possuem qualquer data de retorno no intervalo inclusivo.
+ * Usa `datas_retorno` (agenda completa); fallback para `proxima_data_retorno`.
+ * Com qualquer bound ativo, pacientes sem datas de retorno são excluídos.
  */
 export function filterPacientesByProximaDataRetornoRange(
   pacientes: Paciente[],
   dataInicioBR: string,
   dataFimBR: string,
 ): Paciente[] {
-  return filterByIsoDateRange(
-    pacientes,
-    (p) =>
-      p.proxima_data_retorno
-        ? toInputDateValue(p.proxima_data_retorno) || null
-        : null,
-    dataInicioBR,
-    dataFimBR,
-    true,
-  );
+  const isoInicio = parseDateBRToISODate(dataInicioBR);
+  const isoFim = parseDateBRToISODate(dataFimBR);
+  const hasActiveBound = Boolean(isoInicio || isoFim);
+  if (!hasActiveBound) return pacientes;
+
+  return pacientes.filter((p) => {
+    const datas = isoDatesRetornoPaciente(p);
+    if (datas.length === 0) return false;
+    return datas.some((iso) => {
+      if (isoInicio && iso < isoInicio) return false;
+      if (isoFim && iso > isoFim) return false;
+      return true;
+    });
+  });
 }
 
 /**

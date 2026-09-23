@@ -46,6 +46,8 @@ export interface Paciente {
   retorna_servico: number;
   tipo_retorno: TipoRetorno | null;
   proxima_data_retorno?: string | null;
+  /** Todas as datas de retorno (YYYY-MM-DD); usada no filtro de agenda. */
+  datas_retorno?: string[];
   lotes?: string[];
 }
 

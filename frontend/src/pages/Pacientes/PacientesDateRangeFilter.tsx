@@ -12,6 +12,8 @@ const CALENDAR_DATE_FORMAT = "dd/mm/yy";
 
 export interface PacientesDateRangeFilterProps {
   tituloGrupo: string;
+  /** Texto auxiliar abaixo do título do grupo. */
+  hintGrupo?: string;
   labelInicio?: string;
   labelFim?: string;
   idPrefix: string;
@@ -37,6 +39,7 @@ function calendarValueToFilterString(e: {
  */
 export function PacientesDateRangeFilter({
   tituloGrupo,
+  hintGrupo,
   labelInicio = "De",
   labelFim = "Até",
   idPrefix,
@@ -51,6 +54,9 @@ export function PacientesDateRangeFilter({
   return (
     <div className="pacientes-filter-date-group" role="group" aria-label={tituloGrupo}>
       <span className="pacientes-filter-date-group-title">{tituloGrupo}</span>
+      {hintGrupo ? (
+        <span className="pacientes-filter-date-group-hint">{hintGrupo}</span>
+      ) : null}
       <div className="pacientes-filter-date-group-fields">
         <span className="pacientes-filter-data-wrap">
           <label className="pacientes-filter-data-label" htmlFor={idInicio}>
