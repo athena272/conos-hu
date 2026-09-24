@@ -1,10 +1,11 @@
-/* Estilo global para a fonte em todas as páginas */
+/* Tipografia Conos — tokens em src/styles/design-tokens.css */
 * {
-    font-family: 'Lucida Grande', Tahoma, Verdana, Arial, sans-serif;
+  font-family: "DM Sans", "Segoe UI", Tahoma, Verdana, sans-serif;
 }
 
-h2{
-    display: flex;
-    justify-content: center;
-    color: #374151;
+h1,
+h2,
+h3 {
+  font-family: "Libre Baskerville", Georgia, serif;
+  color: #1a2a36;
 }
