@@ -2045,22 +2045,6 @@ export default function Pacientes() {
                         regime_consumo: m.regime_consumo,
                         unidades_por_ciclo: m.unidades_por_ciclo,
                       }))}
-                    onSuccess={(detail) => {
-                      toast.current?.show({
-                        severity: "success",
-                        summary: "Sucesso",
-                        detail,
-                        life: 4000,
-                      });
-                    }}
-                    onError={(detail) => {
-                      toast.current?.show({
-                        severity: "error",
-                        summary: "Erro",
-                        detail,
-                        life: 4000,
-                      });
-                    }}
                   />
                 )}
               </div>
