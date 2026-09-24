@@ -292,7 +292,7 @@ Prefixos principais (todas as rotas abaixo, exceto login/registro na raiz, exige
 | `GET` / `POST` / `PUT` / `DELETE` | `/medications`… | CRUD e operações de estoque; escrita exige **admin** ou **admin_medicamentos**. |
 | `POST` | `/retira` | Retirada de medicamento (escrita de medicamentos). |
 | `GET` / `POST` / `PUT` / `DELETE` | `/pacientes`… | Pacientes e retornos; escrita exige **admin** ou **admin_pacientes**. |
-| `GET` | `/eventos` | Histórico de ações (papéis elevados). |
+| `GET` | `/eventos` | Histórico de ações (qualquer usuário autenticado). |
 
 O cliente HTTP do frontend está em `frontend/src/api/client.ts` e envia o Bearer token automaticamente.
 
@@ -305,7 +305,7 @@ O cliente HTTP do frontend está em `frontend/src/api/client.ts` e envia o Beare
 | **admin** | Completa (incl. identificação de pacientes) | Sim | Sim | Sim |
 | **admin_medicamentos** | Completa | Sim | Não | Sim |
 | **admin_pacientes** | Completa | Não | Sim | Sim |
-| **viewer** | Limitada (nome/prontuário redigidos) | Não | Não | Não |
+| **viewer** | Limitada (nome/prontuário redigidos) | Não | Não | Sim |
 
 Novos cadastros via `/register` recebem **`viewer`** por padrão. Promova usuários no MongoDB:
 
