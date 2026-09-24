@@ -32,7 +32,8 @@ import {
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import { useApiQuery } from "../../hooks/useApiQuery";
-import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
+import { formatDateBR, toInputDateValue, daysBetweenIsoDates, shouldSendDataRetornoOnEdit } from "../../utils/dateUtils";
+
 import type {
   Paciente,
   PacienteRetorno,
@@ -672,69 +673,83 @@ export default function Pacientes() {
     setImpactDataList([]);
   };
 
-  const buildPayload = (values: FormValues): Record<string, unknown> => ({
-    nome: String(values.nome ?? "").trim(),
-    prontuario: parseInt(String(values.prontuario ?? "").trim(), 10),
-    apac: String(values.apac ?? "").trim(),
-    diagnostico: String(values.diagnostico ?? "").trim(),
-    medicamentos: values.medicamentos.map((item) => {
-      if (item.regime_consumo === "por_ciclo") {
-        return {
-          medicamento_nome: item.medicamento!.nome,
-          medicamento_concentracao: item.medicamento!.concentracao,
-          consumo_diario: 0,
-          regime_consumo: "por_ciclo" as const,
-          unidades_por_ciclo: parseFloat(
-            String(item.unidades_por_ciclo ?? "").replace(",", "."),
-          ),
-          intervalo_ciclo_dias: parseInt(
-            String(item.intervalo_ciclo_dias ?? "").trim(),
-            10,
-          ),
-        };
-      }
-      if (item.regime_consumo === "por_miligrama") {
-        const intervaloRaw = String(item.intervalo_ciclo_dias ?? "").trim();
-        const intervaloParsed = parseInt(intervaloRaw, 10);
-        return {
-          medicamento_nome: item.medicamento!.nome,
-          medicamento_concentracao: item.medicamento!.concentracao,
-          consumo_diario: 0,
-          regime_consumo: "por_miligrama" as const,
-          unidades_por_ciclo: null,
-          intervalo_ciclo_dias:
-            Number.isInteger(intervaloParsed) && intervaloParsed >= 1
-              ? intervaloParsed
-              : 1,
-          consumo_mg_diario: parseFloat(
-            String(item.consumo_mg_diario ?? "").replace(",", "."),
-          ),
-        };
-      }
-      return {
-        medicamento_nome: item.medicamento!.nome,
-        medicamento_concentracao: item.medicamento!.concentracao,
-        consumo_diario: parseFloat(
-          String(item.consumo_diario ?? "").replace(",", "."),
-        ),
-        regime_consumo: "diario" as const,
-        unidades_por_ciclo: null,
-        intervalo_ciclo_dias: null,
-      };
-    }),
-    observacoes:
-      values.observacoes != null && values.observacoes !== ""
-        ? String(values.observacoes).trim() || null
-        : null,
-    telefone: values.telefone != null ? String(values.telefone).trim() : "",
-    data_liberacao: String(values.data_liberacao ?? "").trim(),
-    retorna_servico: values.retorna_servico,
-    tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
-    data_retorno:
+  const buildPayload = (
+    values: FormValues,
+    options?: { proximaDataRetornoInicial?: string | null },
+  ): Record<string, unknown> => {
+    const dataRetornoTrim =
       values.retorna_servico && values.data_retorno?.trim()
         ? String(values.data_retorno).trim()
-        : undefined,
-  });
+        : "";
+    const isEdit = options != null && "proximaDataRetornoInicial" in options;
+    const includeDataRetorno = isEdit
+      ? shouldSendDataRetornoOnEdit(
+          dataRetornoTrim,
+          options?.proximaDataRetornoInicial,
+        )
+      : Boolean(dataRetornoTrim);
+
+    return {
+      nome: String(values.nome ?? "").trim(),
+      prontuario: parseInt(String(values.prontuario ?? "").trim(), 10),
+      apac: String(values.apac ?? "").trim(),
+      diagnostico: String(values.diagnostico ?? "").trim(),
+      medicamentos: values.medicamentos.map((item) => {
+        if (item.regime_consumo === "por_ciclo") {
+          return {
+            medicamento_nome: item.medicamento!.nome,
+            medicamento_concentracao: item.medicamento!.concentracao,
+            consumo_diario: 0,
+            regime_consumo: "por_ciclo" as const,
+            unidades_por_ciclo: parseFloat(
+              String(item.unidades_por_ciclo ?? "").replace(",", "."),
+            ),
+            intervalo_ciclo_dias: parseInt(
+              String(item.intervalo_ciclo_dias ?? "").trim(),
+              10,
+            ),
+          };
+        }
+        if (item.regime_consumo === "por_miligrama") {
+          const intervaloRaw = String(item.intervalo_ciclo_dias ?? "").trim();
+          const intervaloParsed = parseInt(intervaloRaw, 10);
+          return {
+            medicamento_nome: item.medicamento!.nome,
+            medicamento_concentracao: item.medicamento!.concentracao,
+            consumo_diario: 0,
+            regime_consumo: "por_miligrama" as const,
+            unidades_por_ciclo: null,
+            intervalo_ciclo_dias:
+              Number.isInteger(intervaloParsed) && intervaloParsed >= 1
+                ? intervaloParsed
+                : 1,
+            consumo_mg_diario: parseFloat(
+              String(item.consumo_mg_diario ?? "").replace(",", "."),
+            ),
+          };
+        }
+        return {
+          medicamento_nome: item.medicamento!.nome,
+          medicamento_concentracao: item.medicamento!.concentracao,
+          consumo_diario: parseFloat(
+            String(item.consumo_diario ?? "").replace(",", "."),
+          ),
+          regime_consumo: "diario" as const,
+          unidades_por_ciclo: null,
+          intervalo_ciclo_dias: null,
+        };
+      }),
+      observacoes:
+        values.observacoes != null && values.observacoes !== ""
+          ? String(values.observacoes).trim() || null
+          : null,
+      telefone: values.telefone != null ? String(values.telefone).trim() : "",
+      data_liberacao: String(values.data_liberacao ?? "").trim(),
+      retorna_servico: values.retorna_servico,
+      tipo_retorno: values.retorna_servico ? values.tipo_retorno : null,
+      data_retorno: includeDataRetorno ? dataRetornoTrim : undefined,
+    };
+  };
 
   const handleSubmit = (
     values: FormValues,
@@ -766,7 +781,15 @@ export default function Pacientes() {
     }
     let payload: Record<string, unknown>;
     try {
-      payload = buildPayload(values);
+      payload = buildPayload(
+        values,
+        editingPaciente
+          ? {
+              proximaDataRetornoInicial:
+                editingPaciente.proxima_data_retorno ?? null,
+            }
+          : undefined,
+      );
     } catch (e) {
       console.log("🚀 ~ handleSubmit ~ e:", e);
       toast.current?.show({
@@ -933,7 +956,9 @@ export default function Pacientes() {
         data_liberacao: toInputDateValue(editingPaciente.data_liberacao ?? ""),
         retorna_servico: Boolean(editingPaciente.retorna_servico),
         tipo_retorno: editingPaciente.tipo_retorno ?? "",
-        data_retorno: "",
+        data_retorno: toInputDateValue(
+          editingPaciente.proxima_data_retorno ?? "",
+        ),
       }
     : initialFormValues;
 
@@ -1974,6 +1999,34 @@ export default function Pacientes() {
                       placeholder="Selecione a data de retorno"
                       required
                     />
+                    {editingPaciente ? (
+                      <p className="pacientes-field-hint">
+                        Alterar esta data agenda um novo retorno. Se permanecer
+                        igual à próxima já cadastrada, nada é inserido de novo.
+                      </p>
+                    ) : null}
+                    {(() => {
+                      const dias = daysBetweenIsoDates(
+                        values.data_liberacao,
+                        values.data_retorno,
+                      );
+                      if (dias == null) return null;
+                      return (
+                        <p
+                          className="pacientes-dias-retorno"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span className="pacientes-dias-retorno-valor">
+                            {dias === 1 ? "1 dia" : `${dias} dias`}
+                          </span>
+                          <span className="pacientes-dias-retorno-label">
+                            {" "}
+                            entre a liberação e o retorno
+                          </span>
+                        </p>
+                      );
+                    })()}
                   </>
                 )}
                 {editingPaciente && (
