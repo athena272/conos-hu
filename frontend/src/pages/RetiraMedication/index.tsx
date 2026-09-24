@@ -13,6 +13,9 @@ import { Toast } from "primereact/toast";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { FieldLabel } from "../../components/forms/FieldLabel";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { PackageMinus } from "lucide-react";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import "./styles.css";
 import type { MedicationWithStatus, Paciente } from "../../types";
@@ -165,8 +168,11 @@ function RetiraMedication() {
       <Header />
       <Menu />
       <div className="container-retire-medication">
-        <h2>Retirar Medicamento</h2>
-        <p>Preencha os dados abaixo para retirar um medicamento.</p>
+        <PageHeader
+          title="Retirar Medicamento"
+          description="Busque o lote e informe a quantidade a retirar do estoque."
+          icon={PackageMinus}
+        />
         <p className="retire-medication-hint">
           Opcional: vincule a retirada a um paciente para acumular o total em mg dispensado na lista de
           pacientes (somente retiradas com paciente informado entram nesse total).
@@ -301,6 +307,7 @@ function RetiraMedication() {
                 <label htmlFor="retira-paciente">Paciente (opcional)</label>
                 <Dropdown
                   inputId="retira-paciente"
+                  name="pacienteId"
                   value={values.pacienteId}
                   options={[
                     { label: "— Não vincular —", value: null },
@@ -324,9 +331,10 @@ function RetiraMedication() {
 
               {lots.length > 0 && (
                 <div className="form-group">
-                  <label htmlFor="lot">Lote</label>
+                  <FieldLabel htmlFor="lot" label="Lote" required />
                   <Dropdown
                     inputId="lot"
+                    name="selectedMedicationId"
                     value={values.selectedMedicationId}
                     options={lots.map((m) => ({
                       label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`,
@@ -336,6 +344,7 @@ function RetiraMedication() {
                     placeholder="Selecione o lote"
                     className="w-full"
                     disabled={isSubmitting}
+                    aria-required
                   />
                 </div>
               )}
@@ -347,6 +356,7 @@ function RetiraMedication() {
                   placeholder="Digite a quantidade à retirar"
                   type="number"
                   disabled={isSubmitting}
+                  required
                 />
               </div>
 
