@@ -16,6 +16,7 @@ import Simulador from "./src/pages/Simulador";
 import Dashboard from "./src/pages/Dashboard";
 import DashboardStock from "./src/pages/DashboardStock";
 import Pacientes from "./src/pages/Pacientes";
+import EstoqueComprometido from "./src/pages/EstoqueComprometido";
 import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
 import ElevatedRoute from "./src/routes/ElevatedRoute";
@@ -81,6 +82,14 @@ const AppRoutes = () => {
           element={
             <PrivateRoute>
               <Pacientes />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/estoque-comprometido"
+          element={
+            <PrivateRoute>
+              <EstoqueComprometido />
             </PrivateRoute>
           }
         />
