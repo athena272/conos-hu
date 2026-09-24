@@ -28,10 +28,10 @@ test("canWriteMedications e canWritePacientes respeitam escopo", () => {
   assert.equal(canWritePacientes("viewer"), false);
 });
 
-test("canWithdrawMedications inclui admin_pacientes para dispensa na rotina", () => {
+test("canWithdrawMedications segue canWriteMedications (estoque só na senha de medicamentos)", () => {
   assert.equal(canWithdrawMedications("admin"), true);
   assert.equal(canWithdrawMedications("admin_medicamentos"), true);
-  assert.equal(canWithdrawMedications("admin_pacientes"), true);
+  assert.equal(canWithdrawMedications("admin_pacientes"), false);
   assert.equal(canWithdrawMedications("viewer"), false);
   assert.equal(canWithdrawMedications(undefined), false);
 });

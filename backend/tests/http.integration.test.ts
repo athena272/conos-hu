@@ -618,7 +618,7 @@ run("admin_medicamentos: escreve medicamentos, não escreve pacientes, lê hist�
   }
 });
 
-run("admin_pacientes: escreve pacientes, não cadastra medicamentos, mas pode retirar", async (t) => {
+run("admin_pacientes: escreve pacientes, não escreve medicamentos nem retira estoque", async (t) => {
   if (skipIfMongoUnavailable(t)) return;
 
   const email = `it_admin_pac_${Date.now()}@example.com`;
@@ -667,7 +667,11 @@ run("admin_pacientes: escreve pacientes, não cadastra medicamentos, mas pode re
     .post("/retira")
     .set("Authorization", `Bearer ${token}`)
     .send({ medication_id: createdMed!.id, quantidade: 1, paciente_id: pacRes.body.id });
-  assert.equal(retiraRes.status, 200, "admin_pacientes deve poder dispensar/retirar");
+  assert.equal(
+    retiraRes.status,
+    403,
+    "admin_pacientes não deve baixar estoque; baixa só na senha de medicamentos",
+  );
 });
 
 run("POST /identify reemite token com operador e registra evento", async (t) => {
