@@ -10,7 +10,8 @@ import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FloatLabelInput from "../../components/FloatLabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
-import loginImage from "../../assets/images/login.svg";
+import { BrandMark } from "../../components/brand/BrandMark";
+import authHero from "../../assets/images/auth-hero.png";
 
 import "./styles.css";
 
@@ -83,27 +84,50 @@ function Login() {
         {({ isSubmitting }) => (
           <>
             <FullScreenLoader active={isSubmitting} message="Entrando..." />
-            <div className="container-secundary-one">
-              <img src={loginImage} alt="Login" id="login-image" />
+            <div className="container-secundary-one auth-hero">
+              <img src={authHero} alt="" className="auth-hero-image" />
+              <div className="auth-hero-overlay">
+                <BrandMark tone="onDark" subtitle="Estoque e pacientes" />
+                <p className="auth-hero-lead">
+                  Controle de medicamentos, lotes e pacientes em um só lugar.
+                </p>
+              </div>
             </div>
             <div className="container-secundary-two">
               <h1>Login</h1>
               <p>Faça login para acessar sua conta.</p>
 
               <Form className="login-form">
-                <FloatLabelInput name="email" placeholder="Email" type="email" autoComplete="username" />
-                <FloatLabelInput
-                  name="password"
-                  placeholder="Senha"
-                  type="password"
-                  autoComplete="current-password"
-                />
+                <div className="form-group">
+                  <FloatLabelInput
+                    name="email"
+                    label="Email"
+                    placeholder="Digite o seu email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    floating={false}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <FloatLabelInput
+                    name="password"
+                    label="Senha"
+                    placeholder="Digite a sua senha"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    floating={false}
+                  />
+                </div>
+
                 <ButtonSubmit disabled={isSubmitting}>
                   Entrar
                 </ButtonSubmit>
               </Form>
 
-              <p style={{ color: "#393f81" }}>
+              <p style={{ color: "var(--muted)" }}>
                 Não tem uma conta? <a href="/register">Cadastre-se.</a>
               </p>
             </div>
