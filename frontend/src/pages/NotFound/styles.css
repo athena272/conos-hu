@@ -19,7 +19,7 @@
   
 .not-found-title h2 {
     font-size: 2em;
-    color: #2c516b;
+    color: #1a2a36;
 }
 
 .not-found-title p {
@@ -30,7 +30,7 @@
 .not-found-link {
     display: inline-block;
     margin-top: 0.5rem;
-    color: #2c516b;
+    color: #1a2a36;
     font-weight: 600;
     text-decoration: none;
 }
