@@ -1,6 +1,7 @@
 import {
   canWriteMedications,
   canWritePacientes,
+  canWithdrawMedications,
   isElevated,
   isUserRole,
   type UserRole,
@@ -73,6 +74,10 @@ export function sessionCanWriteMedications(): boolean {
   return canWriteMedications(getAuth()?.role);
 }
 
+export function sessionCanWithdrawMedications(): boolean {
+  return canWithdrawMedications(getAuth()?.role);
+}
+
 export function sessionCanWritePacientes(): boolean {
   return canWritePacientes(getAuth()?.role);
 }
@@ -88,4 +93,9 @@ export function needsOperatorIdentify(): boolean {
   return isElevated(auth.role) && !auth.operadorNome;
 }
 
-export { isElevated, canWriteMedications, canWritePacientes };
+export {
+  isElevated,
+  canWriteMedications,
+  canWritePacientes,
+  canWithdrawMedications,
+};
