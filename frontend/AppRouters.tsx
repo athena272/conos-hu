@@ -19,7 +19,6 @@ import Pacientes from "./src/pages/Pacientes";
 import EstoqueComprometido from "./src/pages/EstoqueComprometido";
 import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
-import ElevatedRoute from "./src/routes/ElevatedRoute";
 import MedicationWriteRoute from "./src/routes/MedicationWriteRoute";
 
 const AppRoutes = () => {
@@ -113,9 +112,7 @@ const AppRoutes = () => {
           path="/historico"
           element={
             <PrivateRoute>
-              <ElevatedRoute>
-                <Historico />
-              </ElevatedRoute>
+              <Historico />
             </PrivateRoute>
           }
         />

@@ -6,7 +6,7 @@ interface ElevatedRouteProps {
   children: ReactNode;
 }
 
-/** Papéis elevados: admin completo e admins especializados (Histórico, leitura plena). */
+/** Papéis elevados: admin completo e admins especializados (leitura plena / ações administrativas). */
 const ElevatedRoute = ({ children }: ElevatedRouteProps) => {
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;

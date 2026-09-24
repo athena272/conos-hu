@@ -45,7 +45,7 @@ export function requireElevated(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-/** Alias legado — equivale a requireElevated (Histórico e leituras administrativas). */
+/** Alias legado — equivale a requireElevated (leituras/ações administrativas). */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   requireElevated(req, res, next);
 }

@@ -1,11 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { Menubar } from "primereact/menubar";
-import { clearAuth, sessionCanWriteMedications, sessionCanWithdrawMedications, sessionIsElevated } from "../../auth/session";
+import { clearAuth, sessionCanWriteMedications, sessionCanWithdrawMedications } from "../../auth/session";
 import "./styles.css";
 
 export default function Menu() {
   const navigate = useNavigate();
-  const elevated = sessionIsElevated();
   const canWriteMeds = sessionCanWriteMedications();
   const canWithdrawMeds = sessionCanWithdrawMedications();
 
@@ -86,15 +85,11 @@ export default function Menu() {
         },
       ],
     },
-    ...(elevated
-      ? [
-          {
-            label: "Histórico",
-            icon: "pi pi-history",
-            url: "/historico",
-          },
-        ]
-      : []),
+    {
+      label: "Histórico",
+      icon: "pi pi-history",
+      url: "/historico",
+    },
     {
       label: "Sair",
       icon: "pi pi-sign-out",

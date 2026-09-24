@@ -432,7 +432,7 @@ run("retira funciona sem paciente e valida paciente quando informado", async (t)
   await coll<{ _id: number }>("pacientes").deleteMany({ _id: pacienteId });
 });
 
-run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => {
+run("GET /eventos exige auth (qualquer papel) e registra eventos de escrita", async (t) => {
   if (skipIfMongoUnavailable(t)) return;
 
   const unauthRes = await request(app).get("/eventos");
@@ -449,7 +449,8 @@ run("GET /eventos exige auth admin e registra eventos de escrita", async (t) => 
   const viewerRes = await request(app)
     .get("/eventos")
     .set("Authorization", `Bearer ${viewerToken}`);
-  assert.equal(viewerRes.status, 403);
+  assert.equal(viewerRes.status, 200);
+  assert.ok(Array.isArray((viewerRes.body as { items?: unknown }).items), "viewer deve listar eventos");
 
   const adminEmail = `it_eventos_admin_${Date.now()}@example.com`;
   createdEmails.push(adminEmail);
