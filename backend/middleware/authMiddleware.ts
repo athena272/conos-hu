@@ -3,6 +3,7 @@ import { verifyAuthToken } from "../services/authToken";
 import {
   canWriteMedications,
   canWritePacientes,
+  canWithdrawMedications,
   isElevated,
 } from "../utils/permissions";
 
@@ -55,6 +56,18 @@ export function requireMedicationWrite(req: Request, res: Response, next: NextFu
     return;
   }
   if (!canWriteMedications(req.user.role)) {
+    res.status(403).json({ message: "Acesso negado" });
+    return;
+  }
+  next();
+}
+
+export function requireMedicationWithdraw(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autenticado" });
+    return;
+  }
+  if (!canWithdrawMedications(req.user.role)) {
     res.status(403).json({ message: "Acesso negado" });
     return;
   }
