@@ -23,13 +23,9 @@ export function canWriteMedications(role: UserRole | undefined): boolean {
   return role === "admin" || role === "admin_medicamentos";
 }
 
-/** Dispensa / retirada de estoque: farmacêuticas (admin_pacientes) também precisam na rotina. */
+/** Baixa física de estoque (POST /retira): mesma regra de escrita de medicamentos. */
 export function canWithdrawMedications(role: UserRole | undefined): boolean {
-  return (
-    role === "admin" ||
-    role === "admin_medicamentos" ||
-    role === "admin_pacientes"
-  );
+  return canWriteMedications(role);
 }
 
 export function canWritePacientes(role: UserRole | undefined): boolean {
