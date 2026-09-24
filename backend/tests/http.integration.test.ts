@@ -618,7 +618,7 @@ run("admin_medicamentos: escreve medicamentos, não escreve pacientes, lê hist�
   }
 });
 
-run("admin_pacientes: escreve pacientes, não escreve medicamentos", async (t) => {
+run("admin_pacientes: escreve pacientes, não cadastra medicamentos, mas pode retirar", async (t) => {
   if (skipIfMongoUnavailable(t)) return;
 
   const email = `it_admin_pac_${Date.now()}@example.com`;
@@ -640,6 +640,34 @@ run("admin_pacientes: escreve pacientes, não escreve medicamentos", async (t) =
     .set("Authorization", `Bearer ${token}`)
     .send(minimalPacientePayload(suffix, `IT_MED_${suffix}`));
   assert.equal(pacRes.status, 201);
+
+  const adminEmail = `it_admin_for_pac_retira_${Date.now()}@example.com`;
+  createdEmails.push(adminEmail);
+  await insertUserWithRole(adminEmail, password, "admin");
+  const adminToken = await loginAs(adminEmail, password);
+  const medCreate = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({
+      ...minimalMedicationPayload(`${suffix}_w`),
+      quantidade: 10,
+    });
+  assert.equal(medCreate.status, 201);
+
+  const medList = await request(app)
+    .get("/medications")
+    .set("Authorization", `Bearer ${token}`);
+  assert.equal(medList.status, 200);
+  const createdMed = (medList.body as Array<{ id: number; lote: string }>).find(
+    (m) => m.lote === `ITLOTE-${suffix}_w`
+  );
+  assert.ok(createdMed, "medicamento criado pelo admin deve ser listável");
+
+  const retiraRes = await request(app)
+    .post("/retira")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ medication_id: createdMed!.id, quantidade: 1, paciente_id: pacRes.body.id });
+  assert.equal(retiraRes.status, 200, "admin_pacientes deve poder dispensar/retirar");
 });
 
 run("POST /identify reemite token com operador e registra evento", async (t) => {

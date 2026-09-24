@@ -1,12 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import { Menubar } from "primereact/menubar";
-import { clearAuth, sessionCanWriteMedications, sessionIsElevated } from "../../auth/session";
+import { clearAuth, sessionCanWriteMedications, sessionCanWithdrawMedications, sessionIsElevated } from "../../auth/session";
 import "./styles.css";
 
 export default function Menu() {
   const navigate = useNavigate();
   const elevated = sessionIsElevated();
   const canWriteMeds = sessionCanWriteMedications();
+  const canWithdrawMeds = sessionCanWithdrawMedications();
 
   const handleLogout = () => {
     clearAuth();
@@ -35,6 +36,10 @@ export default function Menu() {
                 icon: "pi pi-qrcode",
                 url: "/register-medication-barcode",
               },
+            ]
+          : []),
+        ...(canWithdrawMeds
+          ? [
               {
                 label: "Retirar",
                 icon: "pi pi-cart-arrow-down",
