@@ -7,6 +7,8 @@ import Menu from "../../components/Menu";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import CardKanban from "../../components/CardKanban";
 import CardKanbanMedication from "../../components/CardKanbanMedication";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { Boxes } from "lucide-react";
 import { aggregateByMedication } from "../../utils/stockAggregation";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import "./styles.css";
@@ -47,7 +49,11 @@ function DashboardStock() {
       <Menu />
       <div className="container-stock">
         <div className="title-stock">
-          <h2>Painel de Estoque</h2>
+          <PageHeader
+            title="Painel de Estoque"
+            description="Organize o estoque por lote ou por medicamento em visão kanban."
+            icon={Boxes}
+          />
         </div>
 
         {!loading && (

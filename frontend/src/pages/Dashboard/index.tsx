@@ -6,6 +6,8 @@ import Menu from "../../components/Menu";
 import StatusCard from "../../components/StatusCard";
 import ChartCard from "../../components/ChartCard";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { LayoutDashboard } from "lucide-react";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { Bar } from "react-chartjs-2";
 import {
@@ -144,7 +146,11 @@ const Dashboard = () => {
       <Menu />
       <div className="dashboard-container">
         <div className="dashboard-title">
-          <h2>Painel de Controle</h2>
+          <PageHeader
+            title="Painel de Controle"
+            description="Visão geral do estoque por status e distribuição dos medicamentos."
+            icon={LayoutDashboard}
+          />
         </div>
 
         {!loading && (
