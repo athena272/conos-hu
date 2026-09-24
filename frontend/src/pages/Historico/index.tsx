@@ -8,6 +8,8 @@ import { InputText } from "primereact/inputtext";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { History } from "lucide-react";
 import {
   PaginationBar,
   PaginationSummary,
@@ -129,22 +131,24 @@ export default function Historico() {
       <Menu />
       <div className="historico-container">
         <div className="historico-header">
-          <h2>Histórico de ações</h2>
-          <p className="historico-subtitle">
-            Registro das ações de escrita no sistema e seus responsáveis.
-          </p>
+          <PageHeader
+            title="Histórico de ações"
+            description="Registro das ações de escrita no sistema e seus responsáveis."
+            icon={History}
+          />
         </div>
 
         <div className="historico-filters">
           <div className="historico-filter-field historico-filter-search">
             <label htmlFor="historico-busca">Busca</label>
-            <span className="p-input-icon-left historico-search-wrap">
-              <i className="pi pi-search" />
+            <span className="historico-search-wrap">
+              <i className="pi pi-search" aria-hidden />
               <InputText
                 id="historico-busca"
+                name="historico-busca"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Responsável, detalhes, ação..."
+                placeholder="Digite o responsável, detalhes ou ação"
                 className="historico-search-input"
               />
             </span>
@@ -154,14 +158,15 @@ export default function Historico() {
             <div className="historico-filter-field">
               <label htmlFor="historico-acao-filter">Ação</label>
               <Dropdown
-                id="historico-acao-filter"
+                inputId="historico-acao-filter"
+                name="historico-acao-filter"
                 value={acaoFilter}
                 options={EVENTO_ACAO_FILTER_OPTIONS}
                 onChange={(e) => {
                   setAcaoFilter(asStringOrNull(e.value));
                   setPage(1);
                 }}
-                placeholder="Todas as ações"
+                placeholder="Selecione a ação"
                 className="historico-filter-dropdown"
                 showClear
               />
@@ -170,14 +175,15 @@ export default function Historico() {
             <div className="historico-filter-field">
               <label htmlFor="historico-entidade-filter">Entidade</label>
               <Dropdown
-                id="historico-entidade-filter"
+                inputId="historico-entidade-filter"
+                name="historico-entidade-filter"
                 value={entidadeFilter}
                 options={EVENTO_ENTIDADE_FILTER_OPTIONS}
                 onChange={(e) => {
                   setEntidadeFilter(asStringOrNull(e.value));
                   setPage(1);
                 }}
-                placeholder="Todas as entidades"
+                placeholder="Selecione a entidade"
                 className="historico-filter-dropdown"
                 showClear
               />
@@ -187,9 +193,11 @@ export default function Historico() {
               <label htmlFor="historico-data-inicio">Data início</label>
               <input
                 id="historico-data-inicio"
+                name="historico-data-inicio"
                 type="date"
                 className="historico-date-input"
                 value={dataInicio}
+                placeholder="Selecione a data inicial"
                 onChange={(e) => {
                   setDataInicio(e.target.value);
                   setPage(1);
@@ -201,9 +209,11 @@ export default function Historico() {
               <label htmlFor="historico-data-fim">Data fim</label>
               <input
                 id="historico-data-fim"
+                name="historico-data-fim"
                 type="date"
                 className="historico-date-input"
                 value={dataFim}
+                placeholder="Selecione a data final"
                 onChange={(e) => {
                   setDataFim(e.target.value);
                   setPage(1);
@@ -215,12 +225,14 @@ export default function Historico() {
               <label htmlFor="historico-page-size">Por página</label>
               <Dropdown
                 inputId="historico-page-size"
+                name="historico-page-size"
                 value={rows}
                 options={PAGE_SIZE_OPTIONS}
                 onChange={(e) => {
                   setRows(typeof e.value === "number" ? e.value : 20);
                   setPage(1);
                 }}
+                placeholder="Selecione quantos por página"
                 className="historico-filter-dropdown historico-page-size"
               />
             </div>

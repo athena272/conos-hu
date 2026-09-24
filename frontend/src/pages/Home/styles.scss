@@ -25,13 +25,35 @@
 }
 
 .home-filter-busca {
+  position: relative;
   width: 100%;
   display: block;
+}
+
+.home-filter-busca .pi-search {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  bottom: auto;
+  margin: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--muted, #5f6b75);
+  line-height: 1;
+}
+
+.home-filter-busca .pi-search::before {
+  line-height: 1;
 }
 
 .home-input-busca {
   width: 100%;
   padding-left: 2.5rem;
+  box-sizing: border-box;
 }
 
 .home-filters-secondary {
