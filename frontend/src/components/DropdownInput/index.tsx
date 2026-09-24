@@ -1,5 +1,6 @@
 import { Field, ErrorMessage } from "formik";
 import { Dropdown } from "primereact/dropdown";
+import { FieldLabel } from "../forms/FieldLabel";
 import "./styles.css";
 
 export interface DropdownOption {
@@ -11,23 +12,26 @@ interface DropdownInputProps {
   name: string;
   label: string;
   options: DropdownOption[];
+  required?: boolean;
 }
 
-function DropdownInput({ name, label, options }: DropdownInputProps) {
+function DropdownInput({ name, label, options, required = false }: DropdownInputProps) {
   return (
     <div className="campo-dropdown">
       <Field name={name}>
         {({ field, form }: { field: { value: unknown }; form: { setFieldValue: (name: string, value: unknown) => void; setFieldTouched: (name: string, touched: boolean) => void; errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
           <div className="input-container">
-            <label htmlFor={name} className="input-label">{label}</label>
+            <FieldLabel htmlFor={name} label={label} required={required} />
             <Dropdown
-              id={name}
+              inputId={name}
+              name={name}
               value={field.value}
               onChange={(e: { value: unknown }) => form.setFieldValue(name, e.value)}
               onBlur={() => form.setFieldTouched(name, true)}
               options={options}
               optionLabel="name"
-              placeholder={`Selecione ${label}`}
+              placeholder={`Selecione ${label.toLowerCase()}`}
+              aria-required={required || undefined}
               className={`w-full md:w-14rem ${form.errors[name] && form.touched[name] ? "p-invalid" : ""}`}
             />
           </div>
