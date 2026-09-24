@@ -338,6 +338,31 @@
   line-height: 1.35;
 }
 
+.pacientes-dias-retorno {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #2563eb) 28%, transparent);
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 10%, transparent);
+  line-height: 1.35;
+}
+
+.pacientes-dias-retorno-valor {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--primary-color, #1d4ed8);
+}
+
+.pacientes-dias-retorno-label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-color, #1f2937);
+}
+
 .pacientes-dispensa-dia {
   margin-top: 1rem;
   padding-top: 1rem;
