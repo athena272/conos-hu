@@ -64,6 +64,7 @@ export function PacientesDateRangeFilter({
           </label>
           <Calendar
             inputId={idInicio}
+            name={idInicio}
             value={parseDateBRToLocalDate(dataInicio)}
             onChange={(e) => onDataInicioChange(calendarValueToFilterString(e))}
             dateFormat={CALENDAR_DATE_FORMAT}
@@ -83,6 +84,7 @@ export function PacientesDateRangeFilter({
           </label>
           <Calendar
             inputId={idFim}
+            name={idFim}
             value={parseDateBRToLocalDate(dataFim)}
             onChange={(e) => onDataFimChange(calendarValueToFilterString(e))}
             dateFormat={CALENDAR_DATE_FORMAT}
