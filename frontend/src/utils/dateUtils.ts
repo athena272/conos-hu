@@ -57,3 +57,54 @@ export function localDateToDateBR(d: Date): string {
   const day = d.getDate();
   return `${String(day).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
 }
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** YYYY-MM-DD válido no calendário → Date local à meia-noite; senão null. */
+export function parseIsoDateToLocalDate(iso: string): Date | null {
+  const s = toInputDateValue(iso);
+  if (!ISO_DATE_RE.test(s)) return null;
+  const [y, m, d] = s.split("-").map((x) => parseInt(x, 10));
+  const date = new Date(y, m - 1, d);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m - 1 ||
+    date.getDate() !== d
+  ) {
+    return null;
+  }
+  return date;
+}
+
+/**
+ * Diferença em dias civis (fim − início), sem conversão de fuso.
+ * Retorna null se alguma data for inválida ou se fim < início.
+ */
+export function daysBetweenIsoDates(
+  inicioISO: string,
+  fimISO: string,
+): number | null {
+  const inicio = parseIsoDateToLocalDate(inicioISO);
+  const fim = parseIsoDateToLocalDate(fimISO);
+  if (!inicio || !fim) return null;
+  const ms = fim.getTime() - inicio.getTime();
+  if (ms < 0) return null;
+  return Math.round(ms / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * No edit, só envia data_retorno se o usuário alterou em relação à próxima
+ * já conhecida — evita inserir retorno duplicado ao salvar sem mudança.
+ */
+export function shouldSendDataRetornoOnEdit(
+  formDataRetorno: string | null | undefined,
+  proximaDataRetornoInicial: string | null | undefined,
+): boolean {
+  const formIso = toInputDateValue(String(formDataRetorno ?? "").trim());
+  if (!formIso || !ISO_DATE_RE.test(formIso)) return false;
+  const proximaIso = proximaDataRetornoInicial
+    ? toInputDateValue(proximaDataRetornoInicial)
+    : "";
+  if (!proximaIso) return true;
+  return formIso !== proximaIso;
+}
