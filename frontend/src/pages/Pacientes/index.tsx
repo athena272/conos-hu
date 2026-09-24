@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import { sessionCanWritePacientes } from "../../auth/session";
 import { Formik, Form, FormikHelpers } from "formik";
@@ -18,6 +19,9 @@ import { ErrorMessage } from "formik";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import LabelInput from "../../components/LabelInput";
+import { FieldLabel } from "../../components/forms/FieldLabel";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { Users } from "lucide-react";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import {
@@ -34,19 +38,13 @@ import type {
   PacienteRetorno,
   ImpactoEstoque,
   MedicamentoDistinto,
-  ResumoPorMedicamento,
   RegimeConsumoMedicamento,
 } from "../../types";
 import {
   formatarNumeroTaxaPtBr,
   formatarMgPtBr,
-  inferResumoTaxaMetaFromMedicamentos,
   normalizeRegimeConsumo,
   normalizePacienteLista,
-  agregarPrevisaoMgMedicamentos,
-  previsaoMgTemValor,
-  mesesEstoqueFromMgFrontend,
-  parseMgPorUnidadeFromConcentracao,
 } from "../../utils/pacienteMedicamentoDisplay";
 import { PacientesDateRangeFilter } from "./PacientesDateRangeFilter";
 import {
@@ -58,10 +56,7 @@ import {
 import { buildMedicamentoDropdownOptions } from "./medicamentoDropdownOptions";
 import { DispensaDoDiaPaciente } from "./DispensaDoDiaPaciente";
 import type { DispensaDoDiaMedicamentoOption } from "./DispensaDoDiaPaciente";
-import { normalizeResumoPorMedicamentoLista } from "../../utils/normalizeResumoPorMedicamento";
 import { CelulaPrevisaoMg } from "./PrevisaoMgCelula";
-import { CelulaPrevisaoMgResumo, CelulaMesesEstoqueResumo } from "./ResumoAuditoriaCelulas";
-import { PeriodoCalculoSelector } from "./PeriodoCalculoSelector";
 import "./styles.css";
 
 const TOOLTIP_IDENTIFICACAO_REDACT =
@@ -381,6 +376,7 @@ function formatTipoRetorno(tipo: string | null): string {
 
 export default function Pacientes() {
   const toast = useRef<Toast>(null);
+  const navigate = useNavigate();
 
   const showFetchError = useCallback((message: string) => {
     toast.current?.show({
@@ -403,13 +399,6 @@ export default function Pacientes() {
     return res.data ?? [];
   }, []);
 
-  const fetchResumoList = useCallback(async () => {
-    const res = await api.get<ResumoPorMedicamento[]>(
-      "/pacientes/resumo-por-medicamento",
-    );
-    return normalizeResumoPorMedicamentoLista(res.data);
-  }, []);
-
   const {
     data: pacientes,
     loading: loadingPacientes,
@@ -424,15 +413,6 @@ export default function Pacientes() {
     data: medicamentosDistintos,
     loading: loadingMedicamentosDistintos,
   } = useApiQuery(fetchMedicamentosDistintosList, [], {
-    initialData: [],
-    onError: (message) => showFetchError(message),
-  });
-
-  const {
-    data: resumoPorMedicamento,
-    loading: loadingResumo,
-    reload: reloadResumo,
-  } = useApiQuery(fetchResumoList, [], {
     initialData: [],
     onError: (message) => showFetchError(message),
   });
@@ -475,7 +455,6 @@ export default function Pacientes() {
   });
 
   const [previsaoMgInfoVisible, setPrevisaoMgInfoVisible] = useState(false);
-  const [diasPeriodo, setDiasPeriodo] = useState(30);
   const [novaDataRetorno, setNovaDataRetorno] = useState("");
   const [novoTipoRetorno, setNovoTipoRetorno] = useState("");
   const [addingRetorno, setAddingRetorno] = useState(false);
@@ -623,49 +602,6 @@ export default function Pacientes() {
     filtroDataCadastroFim,
     sortKey,
   ]);
-
-  const resumoPorMedicamentoParaExibir = useMemo(() => {
-    return resumoPorMedicamento.map((row) => {
-      const meds = pacientes
-        .flatMap((p) => p.medicamentos ?? [])
-        .filter(
-          (m) =>
-            m.medicamento_nome === row.medicamento_nome &&
-            m.medicamento_concentracao === row.medicamento_concentracao,
-        );
-
-      let enriched = row;
-      if (row.resumoTaxaTipo == null || row.resumoTaxaTipo === "") {
-        const inferred = inferResumoTaxaMetaFromMedicamentos(meds);
-        if (inferred) enriched = { ...enriched, ...inferred };
-      }
-
-      const previsaoMgTotal =
-        enriched.previsaoMgTotal && previsaoMgTemValor(enriched.previsaoMgTotal)
-          ? enriched.previsaoMgTotal
-          : meds.length > 0
-            ? agregarPrevisaoMgMedicamentos(meds)
-            : enriched.previsaoMgTotal;
-
-      const mgDia = previsaoMgTotal?.mg_dia_previsto ?? null;
-      const mesesEstoqueMg =
-        enriched.mesesEstoqueMg != null
-          ? enriched.mesesEstoqueMg
-          : mesesEstoqueFromMgFrontend(
-              enriched.estoqueTotal,
-              mgDia,
-              row.medicamento_concentracao,
-            );
-
-      return {
-        ...enriched,
-        ...(previsaoMgTotal && previsaoMgTemValor(previsaoMgTotal)
-          ? { previsaoMgTotal }
-          : {}),
-        ...(mesesEstoqueMg !== undefined ? { mesesEstoqueMg } : {}),
-      };
-    });
-  }, [resumoPorMedicamento, pacientes]);
 
   useEffect(() => {
     if (!historicoPaciente) {
@@ -855,7 +791,6 @@ export default function Pacientes() {
             life: 3000,
           });
           void reloadPacientes({ silent: true });
-          void reloadResumo({ silent: true });
         })
         .catch((err: unknown) => {
           toast.current?.show({
@@ -910,7 +845,6 @@ export default function Pacientes() {
         });
         closeForm();
         void reloadPacientes({ silent: true });
-        void reloadResumo({ silent: true });
       })
       .catch((err: unknown) => {
         toast.current?.show({
@@ -942,7 +876,6 @@ export default function Pacientes() {
       });
       setDeletingPaciente(null);
       void reloadPacientes({ silent: true });
-      void reloadResumo({ silent: true });
     } catch (err: unknown) {
       toast.current?.show({
         severity: "error",
@@ -1007,7 +940,7 @@ export default function Pacientes() {
   const canWritePacientes = sessionCanWritePacientes();
 
   const isPageDataLoading =
-    loadingPacientes || loadingResumo || loadingMedicamentosDistintos;
+    loadingPacientes || loadingMedicamentosDistintos;
   const isHistoricoLoading = !!historicoPaciente && loadingHistorico;
   const fullscreenLoaderActive =
     formSubmitting ||
@@ -1086,116 +1019,40 @@ export default function Pacientes() {
       <Header />
       <Menu />
       <div className="pacientes-title">
-        <h2>Pacientes</h2>
-        {canWritePacientes && (
+        <PageHeader
+          title="Pacientes"
+          description="Cadastro, consumo diário e acompanhamento de retorno ao serviço."
+          icon={Users}
+        />
+        <div className="pacientes-title-actions">
           <Button
-            label="Novo paciente"
-            icon="pi pi-plus"
-            onClick={openCreate}
-            className="p-button-primary"
-            style={{ marginTop: "20px" }}
+            label="Estoque comprometido"
+            icon="pi pi-box"
+            className="p-button-outlined"
+            onClick={() => navigate("/estoque-comprometido")}
           />
-        )}
+          {canWritePacientes && (
+            <Button
+              label="Novo paciente"
+              icon="pi pi-plus"
+              onClick={openCreate}
+              className="p-button-primary"
+            />
+          )}
+        </div>
       </div>
 
-      {(loadingResumo || resumoPorMedicamentoParaExibir.length > 0) && (
-        <div className="pacientes-resumo-section">
-          <h3>Estoque por medicamento (comprometido)</h3>
-          <p className="pacientes-field-hint">
-            Contagem por nome e concentração (todos os lotes desse medicamento).
-          </p>
-          <PeriodoCalculoSelector
-            diasPeriodo={diasPeriodo}
-            onChange={setDiasPeriodo}
-            idPrefix="pacientes-resumo-periodo"
-            nota={
-              diasPeriodo !== 30 ? (
-                <span className="pacientes-periodo-hint">
-                  Simulação para {diasPeriodo} dias — não altera os dados salvos.
-                </span>
-              ) : null
-            }
-          />
-          <DataTable
-            key={`resumo-periodo-${diasPeriodo}`}
-            value={resumoPorMedicamentoParaExibir}
-            size="small"
-            emptyMessage={getDataTableEmptyMessage({
-              loading: false,
-              error: null,
-              emptyLabel: "Nenhum medicamento com pacientes vinculados.",
-            })}
-            className="pacientes-resumo-table"
-          >
-              <Column
-                field="medicamento_nome"
-                header="Medicamento"
-                body={(r: ResumoPorMedicamento) =>
-                  `${r.medicamento_nome} - ${r.medicamento_concentracao}`
-                }
-              />
-              <Column
-                field="estoqueTotal"
-                header="Estoque total"
-                body={(r: ResumoPorMedicamento) => {
-                  const mgPorUnidade = parseMgPorUnidadeFromConcentracao(
-                    r.medicamento_concentracao,
-                  );
-                  const mgTotais =
-                    mgPorUnidade != null ? r.estoqueTotal * mgPorUnidade : null;
-                  return (
-                    <div className="pacientes-resumo-estoque-total">
-                      <span>{r.estoqueTotal} unid.</span>
-                      {mgTotais != null && (
-                        <span className="pacientes-resumo-estoque-mg">
-                          {formatarMgPtBr(mgTotais)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                }}
-              />
-              <Column field="qtdPacientes" header="Pacientes" />
-              <Column
-                header={() => (
-                  <PrevisaoMgColunaHeader
-                    onOpen={() => setPrevisaoMgInfoVisible(true)}
-                  />
-                )}
-                body={(r: ResumoPorMedicamento) => (
-                  <CelulaPrevisaoMgResumo
-                    row={r}
-                    pacientes={pacientes}
-                    diasPeriodo={diasPeriodo}
-                  />
-                )}
-              />
-              <Column
-                header={
-                  diasPeriodo === 30
-                    ? "Estoque dá para (meses)"
-                    : `Estoque dá para (períodos de ${diasPeriodo} dias)`
-                }
-                body={(r: ResumoPorMedicamento) => (
-                  <CelulaMesesEstoqueResumo
-                    row={r}
-                    pacientes={pacientes}
-                    diasPeriodo={diasPeriodo}
-                  />
-                )}
-              />
-            </DataTable>
-        </div>
-      )}
-
       <div className="pacientes-filters-bar">
-        <span className="p-input-icon-left pacientes-filter-busca">
-          <i className="pi pi-search" />
+        <span className="pacientes-filter-busca">
+          <i className="pi pi-search" aria-hidden />
           <InputText
+            id="pacientes-filtro-busca"
+            name="pacientes-filtro-busca"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome ou medicamento"
+            placeholder="Digite o nome ou o medicamento"
             className="pacientes-input-busca"
+            aria-label="Buscar por nome ou medicamento"
           />
         </span>
         <div className="pacientes-filters-bar-secondary">
@@ -1208,9 +1065,10 @@ export default function Pacientes() {
             </label>
             <InputText
               id="pacientes-filtro-lote"
+              name="pacientes-filtro-lote"
               value={filtroLote}
               onChange={(e) => setFiltroLote(e.target.value)}
-              placeholder="Filtrar por lote"
+              placeholder="Digite o lote"
               className="pacientes-input-lote"
             />
           </div>
@@ -1223,10 +1081,11 @@ export default function Pacientes() {
             </label>
             <Dropdown
               inputId="pacientes-filtro-ordenacao"
+              name="pacientes-filtro-ordenacao"
               value={sortKey}
               options={SORT_OPTIONS}
               onChange={(e) => setSortKey(e.value ?? "proxima_data_retorno_asc")}
-              placeholder="Selecione"
+              placeholder="Selecione a ordenação"
               className="pacientes-dropdown-sort"
             />
           </div>
@@ -1536,18 +1395,21 @@ export default function Pacientes() {
                 <LabelInput
                   name="nome"
                   label="Nome"
-                  placeholder="Nome do paciente"
+                  placeholder="Digite o nome do paciente"
+                  required
                 />
                 <LabelInput
                   name="prontuario"
                   label="Prontuário"
-                  placeholder="Número do prontuário"
+                  placeholder="Digite o número do prontuário"
                   type="number"
+                  required
                 />
                 <LabelInput
                   name="apac"
                   label="APAC"
-                  placeholder="APAC (texto)"
+                  placeholder="Digite a APAC"
+                  required
                 />
                 <div className="campo-texto">
                   <Field name="diagnostico">
@@ -1562,14 +1424,17 @@ export default function Pacientes() {
                       };
                     }) => (
                       <div className="input-container">
-                        <label htmlFor="diagnostico" className="input-label">
-                          Diagnóstico
-                        </label>
+                        <FieldLabel
+                          htmlFor="diagnostico"
+                          label="Diagnóstico"
+                          required
+                        />
                         <InputTextarea
                           id="diagnostico"
                           {...field}
                           placeholder="Digite o diagnóstico"
                           rows={3}
+                          aria-required
                           className={`w-full form-field ${form.errors.diagnostico && form.touched.diagnostico ? "p-invalid" : ""}`}
                         />
                       </div>
@@ -1582,9 +1447,10 @@ export default function Pacientes() {
                   />
                 </div>
                 <div className="campo-lista-medicamentos">
-                  <label className="input-label">
-                    Medicamentos (nome, concentração e regime de uso)
-                  </label>
+                  <FieldLabel
+                    label="Medicamentos (nome, concentração e regime de uso)"
+                    required
+                  />
                   <p className="pacientes-field-hint">
                     Selecione pelo nome e concentração. O paciente fica
                     vinculado ao medicamento, não a um lote específico; o
@@ -1670,14 +1536,14 @@ export default function Pacientes() {
 
                               return (
                                 <div className="input-container">
-                                  <label
+                                  <FieldLabel
                                     htmlFor={`medicamento-${index}`}
-                                    className="input-label"
-                                  >
-                                    Medicamento
-                                  </label>
+                                    label="Medicamento"
+                                    required
+                                  />
                                   <Dropdown
-                                    id={`medicamento-${index}`}
+                                    inputId={`medicamento-${index}`}
+                                    name={`medicamentos.${index}.medicamento`}
                                     value={dropdownValue}
                                     options={medicamentoDropdownOptions}
                                     disabled={loadingMedicamentosDistintos}
@@ -1690,8 +1556,9 @@ export default function Pacientes() {
                                     optionValue="value"
                                     filter
                                     filterBy="label"
-                                    filterPlaceholder="Buscar medicamento..."
+                                    filterPlaceholder="Digite para buscar o medicamento"
                                     showClear
+                                    aria-required
                                     onChange={(e: {
                                       value: MedicamentoDistinto | null;
                                     }) => {
@@ -1724,16 +1591,17 @@ export default function Pacientes() {
                         </div>
 
                         <div className="campo-dropdown pacientes-medicamento-campo">
-                          <label
-                            className="input-label"
+                          <FieldLabel
                             htmlFor={`regime-${index}`}
-                          >
-                            Regime de uso
-                          </label>
+                            label="Regime de uso"
+                            required
+                          />
                           <Dropdown
                             inputId={`regime-${index}`}
+                            name={`medicamentos.${index}.regime_consumo`}
                             value={regimeAtual}
                             options={REGIME_MEDICAMENTO_OPTIONS}
+                            aria-required
                             onChange={(e: { value: RegimeConsumoMedicamento }) => {
                               setFieldValue(
                                 `medicamentos.${index}.regime_consumo`,
@@ -1750,7 +1618,7 @@ export default function Pacientes() {
                                 true,
                               )
                             }
-                            placeholder="Selecione"
+                            placeholder="Selecione o regime de uso"
                             className="w-full"
                           />
                         </div>
@@ -1768,17 +1636,17 @@ export default function Pacientes() {
                                   !!itemTouched?.consumo_diario;
                                 return (
                                   <div className="input-container">
-                                    <label
+                                    <FieldLabel
                                       htmlFor={`consumo-${index}`}
-                                      className="input-label"
-                                    >
-                                      Consumo/dia
-                                    </label>
+                                      label="Consumo/dia"
+                                      required
+                                    />
                                     <InputText
                                       id={`consumo-${index}`}
                                       {...field}
-                                      placeholder="Ex.: 2"
+                                      placeholder="Digite o consumo por dia"
                                       type="number"
+                                      aria-required
                                       className={`form-field ${hasConsumoError ? "p-invalid" : ""}`}
                                     />
                                   </div>
@@ -1804,17 +1672,17 @@ export default function Pacientes() {
                                   !!itemTouched?.consumo_mg_diario;
                                 return (
                                   <div className="input-container">
-                                    <label
+                                    <FieldLabel
                                       htmlFor={`consumo-mg-${index}`}
-                                      className="input-label"
-                                    >
-                                      Consumo (mg)
-                                    </label>
+                                      label="Consumo (mg)"
+                                      required
+                                    />
                                     <InputText
                                       id={`consumo-mg-${index}`}
                                       {...field}
-                                      placeholder="Ex.: 750"
+                                      placeholder="Digite o consumo em mg"
                                       type="number"
+                                      aria-required
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
                                       tooltip="Quantidade total em miligramas administrada no intervalo informado ao lado. Com intervalo = 1, equivale a mg/dia."
                                       tooltipOptions={{
@@ -1844,17 +1712,17 @@ export default function Pacientes() {
                                   !!itemTouched?.intervalo_ciclo_dias;
                                 return (
                                   <div className="input-container">
-                                    <label
+                                    <FieldLabel
                                       htmlFor={`mg-intervalo-${index}`}
-                                      className="input-label"
-                                    >
-                                      a cada (dias)
-                                    </label>
+                                      label="a cada (dias)"
+                                      required
+                                    />
                                     <InputText
                                       id={`mg-intervalo-${index}`}
                                       {...field}
-                                      placeholder="Ex.: 28"
+                                      placeholder="Digite o intervalo em dias"
                                       type="number"
+                                      aria-required
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
                                       tooltip="Em quantos dias a quantidade de mg ao lado é consumida (ex.: 750 mg a cada 28 dias). Deixe 1 para informar mg/dia."
                                       tooltipOptions={{
@@ -1887,17 +1755,17 @@ export default function Pacientes() {
                                   !!itemTouched?.unidades_por_ciclo;
                                 return (
                                   <div className="input-container">
-                                    <label
+                                    <FieldLabel
                                       htmlFor={`unidades-ciclo-${index}`}
-                                      className="input-label"
-                                    >
-                                      Unidades por ciclo
-                                    </label>
+                                      label="Unidades por ciclo"
+                                      required
+                                    />
                                     <InputText
                                       id={`unidades-ciclo-${index}`}
                                       {...field}
-                                      placeholder="Ex.: 1"
+                                      placeholder="Digite as unidades por ciclo"
                                       type="number"
+                                      aria-required
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
                                       tooltip="Quantas unidades de estoque (comprimidos, seringas, etc., conforme o cadastro) são dispensadas de uma vez para cobrir até a próxima retirada."
                                       tooltipOptions={{
@@ -1927,17 +1795,17 @@ export default function Pacientes() {
                                   !!itemTouched?.intervalo_ciclo_dias;
                                 return (
                                   <div className="input-container">
-                                    <label
+                                    <FieldLabel
                                       htmlFor={`intervalo-ciclo-${index}`}
-                                      className="input-label"
-                                    >
-                                      Intervalo (dias)
-                                    </label>
+                                      label="Intervalo (dias)"
+                                      required
+                                    />
                                     <InputText
                                       id={`intervalo-ciclo-${index}`}
                                       {...field}
-                                      placeholder="Ex.: 45"
+                                      placeholder="Digite o intervalo do ciclo em dias"
                                       type="number"
+                                      aria-required
                                       className={`form-field ${hasErr ? "p-invalid" : ""}`}
                                       tooltip="Quantos dias, em média, entre uma dispensação deste medicamento e a próxima (ex.: até o retorno agendado). Usado para calcular o consumo médio por dia no estoque."
                                       tooltipOptions={{
@@ -2006,7 +1874,7 @@ export default function Pacientes() {
                         <InputTextarea
                           id="observacoes"
                           {...field}
-                          placeholder="Digite as observações"
+                          placeholder="Digite as observações, se desejar"
                           rows={3}
                           className={`w-full form-field ${form.errors.observacoes && form.touched.observacoes ? "p-invalid" : ""}`}
                         />
@@ -2022,33 +1890,41 @@ export default function Pacientes() {
                 <LabelInput
                   name="telefone"
                   label="Telefone (opcional)"
-                  placeholder="Telefone"
+                  placeholder="Digite o telefone"
                 />
                 <LabelInput
                   name="data_liberacao"
                   label="Data de liberação"
                   type="date"
+                  placeholder="Selecione a data de liberação"
+                  required
                 />
                 <div className="campo-dropdown">
-                  <label htmlFor="retorna_servico" className="input-label">
-                    O paciente vai retornar para o serviço?
-                  </label>
+                  <FieldLabel
+                    htmlFor="retorna_servico"
+                    label="O paciente vai retornar para o serviço?"
+                    required
+                  />
                   <Dropdown
-                    id="retorna_servico"
+                    inputId="retorna_servico"
+                    name="retorna_servico"
                     value={values.retorna_servico}
                     options={RETORNA_SERVICO_OPTIONS}
                     onChange={(e: { value: boolean }) =>
                       setFieldValue("retorna_servico", e.value)
                     }
-                    placeholder="Sim ou Não"
+                    placeholder="Selecione sim ou não"
                     className="w-full"
+                    aria-required
                   />
                 </div>
                 {values.retorna_servico && (
                   <div className="campo-dropdown">
-                    <label htmlFor="tipo_retorno" className="input-label">
-                      Tipo de retorno
-                    </label>
+                    <FieldLabel
+                      htmlFor="tipo_retorno"
+                      label="Tipo de retorno"
+                      required
+                    />
                     <Field name="tipo_retorno">
                       {({
                         form,
@@ -2067,7 +1943,8 @@ export default function Pacientes() {
                         };
                       }) => (
                         <Dropdown
-                          id="tipo_retorno"
+                          inputId="tipo_retorno"
+                          name="tipo_retorno"
                           value={values.tipo_retorno}
                           options={TIPO_RETORNO_OPTIONS}
                           onChange={(e: { value: string }) => {
@@ -2075,7 +1952,8 @@ export default function Pacientes() {
                             form.setFieldTouched("tipo_retorno", true);
                           }}
                           onBlur={() => setFieldTouched("tipo_retorno", true)}
-                          placeholder="Selecione"
+                          placeholder="Selecione o tipo de retorno"
+                          aria-required
                           className={`w-full ${errors.tipo_retorno && touched.tipo_retorno ? "p-invalid" : ""}`}
                         />
                       )}
@@ -2093,6 +1971,8 @@ export default function Pacientes() {
                       name="data_retorno"
                       label="Data de retorno"
                       type="date"
+                      placeholder="Selecione a data de retorno"
+                      required
                     />
                   </>
                 )}
@@ -2380,9 +2260,11 @@ export default function Pacientes() {
                     </label>
                     <input
                       id="nova-data-retorno"
+                      name="nova-data-retorno"
                       type="date"
                       value={novaDataRetorno}
                       onChange={(e) => setNovaDataRetorno(e.target.value)}
+                      placeholder="Selecione a data de retorno"
                       className="p-inputtext p-component w-full form-field"
                     />
                   </div>
@@ -2392,12 +2274,14 @@ export default function Pacientes() {
                     Tipo de retorno (opcional)
                   </label>
                   <Dropdown
+                    inputId="pacientes-novo-tipo-retorno"
+                    name="pacientes-novo-tipo-retorno"
                     value={novoTipoRetorno}
                     options={TIPO_RETORNO_OPTIONS}
                     onChange={(e: { value: string }) =>
                       setNovoTipoRetorno(e.value ?? "")
                     }
-                    placeholder="Selecione"
+                    placeholder="Selecione o tipo de retorno"
                     className="w-full"
                   />
                 </div>

@@ -1,11 +1,10 @@
+import { BrandMark } from "../brand/BrandMark";
 import "./styles.css";
-import "primeicons/primeicons.css";
-import logo from "../../assets/images/logo.png";
 
 export default function Header() {
   return (
-    <nav className="menu-container">
-      <img src={logo} alt="Logo" className="menu-logo" />
+    <nav className="menu-container" aria-label="Marca Conos">
+      <BrandMark size="md" subtitle="Controle de medicamentos" />
     </nav>
   );
 }

@@ -70,6 +70,8 @@ function CardKanban({ medications }: CardKanbanProps) {
     <div>
       <div className="kanban-filter">
         <Dropdown
+          inputId="kanban-filtro-status"
+          name="kanban-filtro-status"
           value={filterStatus}
           onChange={(e) => {
             console.log("Novo status selecionado:", e.value);
@@ -77,7 +79,7 @@ function CardKanban({ medications }: CardKanbanProps) {
           }}
           options={statusOptions}
           optionLabel="name"
-          placeholder="Filtrar por Status"
+          placeholder="Selecione o status"
           className="w-full md:w-14rem"
         />
       </div>

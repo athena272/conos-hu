@@ -170,6 +170,7 @@ export function DispensaDoDiaPaciente({
           </label>
           <Dropdown
             inputId="dispensa-medicamento"
+            name="dispensa-medicamento"
             value={medKey}
             options={medicamentos.map((m) => ({
               label: m.label,
@@ -187,6 +188,7 @@ export function DispensaDoDiaPaciente({
           </label>
           <Dropdown
             inputId="dispensa-lote"
+            name="dispensa-lote"
             value={medicationId}
             options={lots.map((m) => ({
               label: `Lote ${m.lote} · Val. ${formatDateBR(m.data_validade)} · Qtd ${m.quantidade}`,
@@ -212,10 +214,12 @@ export function DispensaDoDiaPaciente({
           </label>
           <InputText
             id="dispensa-quantidade"
+            name="dispensa-quantidade"
             type="number"
             value={quantidade}
             onChange={(e) => setQuantidade(e.target.value)}
             className="w-full"
+            placeholder="Digite a quantidade liberada hoje"
             disabled={submitting}
             min={1}
           />

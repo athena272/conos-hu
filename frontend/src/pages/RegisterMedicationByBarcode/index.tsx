@@ -14,6 +14,9 @@ import { api } from "../../api/client";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { FieldLabel } from "../../components/forms/FieldLabel";
+import { ScanBarcode } from "lucide-react";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
 
@@ -349,11 +352,11 @@ function RegisterMedicationByBarcode() {
       <Header />
       <Menu />
       <div className="container-register-barcode">
-        <h2>Registrar medicamento (código de barras)</h2>
-        <p>
-          Use um leitor USB ou digite o código. Os campos são preenchidos automaticamente quando
-          possível; complete o restante manualmente.
-        </p>
+        <PageHeader
+          title="Registrar medicamento (código de barras)"
+          description="Use um leitor USB ou digite o código. Os campos são preenchidos automaticamente quando possível; complete o restante manualmente."
+          icon={ScanBarcode}
+        />
         <Toast ref={toast} position="top-right" />
 
         <Formik
@@ -385,8 +388,10 @@ function RegisterMedicationByBarcode() {
               />
               <Form className="register-form">
                 <div className="form-group">
-                  <label>Tipo de entrada</label>
+                  <label htmlFor="barcode-entry-type">Tipo de entrada</label>
                   <Dropdown
+                    inputId="barcode-entry-type"
+                    name="entryType"
                     value={values.entryType}
                     options={[
                       { label: "Novo lote", value: "new" },
@@ -401,7 +406,7 @@ function RegisterMedicationByBarcode() {
                         setLastResolve(null);
                       }
                     }}
-                    placeholder="Selecione"
+                    placeholder="Selecione o tipo de entrada"
                     className="w-full"
                   />
                 </div>
@@ -441,6 +446,8 @@ function RegisterMedicationByBarcode() {
                         <div className="scan-input-wrap">
                           <input
                             ref={scanInputRef}
+                            id="barcode-scan-input"
+                            name="barcode-scan-input"
                             type="text"
                             value={scanBuffer}
                             onChange={(e) => setScanBuffer(e.target.value)}
@@ -454,8 +461,8 @@ function RegisterMedicationByBarcode() {
                             style={{ width: "100%", boxSizing: "border-box" }}
                             placeholder={
                               captureMode === "usb"
-                                ? "Foco aqui e escaneie…"
-                                : "Digite o código…"
+                                ? "Escaneie o código com o leitor USB"
+                                : "Digite o código de barras"
                             }
                             autoFocus={captureMode === "type"}
                             autoComplete="off"
@@ -506,8 +513,10 @@ function RegisterMedicationByBarcode() {
                 {values.entryType === "existing" ? (
                   <>
                     <div className="form-group">
-                      <label>Medicamento / Lote</label>
+                      <FieldLabel htmlFor="barcode-existing-medication" label="Medicamento / Lote" required />
                       <Dropdown
+                        inputId="barcode-existing-medication"
+                        name="existingMedicationId"
                         value={values.existingMedicationId}
                         options={medications.map((m) => ({
                           label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)}`,
@@ -521,14 +530,16 @@ function RegisterMedicationByBarcode() {
                         }
                         disabled={loadingMedications}
                         className="w-full"
+                        aria-required
                       />
                     </div>
                     <div className="form-group">
                       <LabelInput
                         name="quantity"
                         label="Quantidade"
-                        placeholder="Quantidade a adicionar"
+                        placeholder="Digite a quantidade a adicionar"
                         type="number"
+                        required
                       />
                     </div>
                   </>
@@ -539,6 +550,7 @@ function RegisterMedicationByBarcode() {
                         name="name"
                         label="Nome do medicamento"
                         placeholder="Digite o nome do medicamento"
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -546,6 +558,7 @@ function RegisterMedicationByBarcode() {
                         name="batch"
                         label="Lote"
                         placeholder="Digite o nome do lote"
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -554,6 +567,7 @@ function RegisterMedicationByBarcode() {
                         label="Quantidade"
                         type="number"
                         placeholder="Digite a quantidade do medicamento"
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -561,13 +575,15 @@ function RegisterMedicationByBarcode() {
                         name="classification"
                         label="Classificação"
                         placeholder="Digite a classificação do medicamento"
+                        required
                       />
                     </div>
                     <div className="form-group">
                       <LabelInput
                         name="concentration"
                         label="Concentração"
-                        placeholder="Ex.: 500mg, 250mg"
+                        placeholder="Digite a concentração (ex.: 500mg, 250mg)"
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -575,14 +591,16 @@ function RegisterMedicationByBarcode() {
                         name="pharmaceuticalForm"
                         label="Forma Farmacêutica"
                         options={pharmaceuticalForms}
+                        required
                       />
                     </div>
                     <div className="form-group">
                       <LabelInput
                         name="expiryDate"
                         label="Validade"
-                        placeholder="Validade"
+                        placeholder="Digite a data de validade"
                         type="date"
+                        required
                       />
                     </div>
                   </>

@@ -1,3 +1,26 @@
-.p-menubar {
-    border-radius: 0px;
+.menu-wrapper {
+  position: relative;
+  z-index: 900;
+}
+
+.menu-wrapper .p-menubar {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--line, #cdd6dc);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(20, 24, 28, 0.04);
+}
+
+.menu-wrapper .p-menubar .p-menuitem-link {
+  border-radius: 999px;
+  transition: background-color var(--ease, 180ms ease), color var(--ease, 180ms ease);
+}
+
+.menu-wrapper .p-menubar .p-menuitem-link:hover {
+  background: var(--brand-soft, rgba(78, 182, 194, 0.14)) !important;
+}
+
+.menu-wrapper .p-menubar .p-menuitem-icon {
+  color: var(--brand, #4eb6c2);
 }

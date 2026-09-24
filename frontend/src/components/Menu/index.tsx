@@ -52,7 +52,18 @@ export default function Menu() {
     {
       label: "Pacientes",
       icon: "pi pi-users",
-      url: "/pacientes",
+      items: [
+        {
+          label: "Lista de pacientes",
+          icon: "pi pi-users",
+          url: "/pacientes",
+        },
+        {
+          label: "Estoque comprometido",
+          icon: "pi pi-box",
+          url: "/estoque-comprometido",
+        },
+      ],
     },
     {
       label: "Dashboards",

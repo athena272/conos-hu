@@ -3,6 +3,9 @@ import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import Button from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { FieldLabel } from "../../components/forms/FieldLabel";
+import { Calculator } from "lucide-react";
 import { Dropdown } from "primereact/dropdown";
 import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
@@ -109,17 +112,25 @@ export default function Simulador() {
       <Header />
       <Menu />
       <div className="container-simulador">
-        <h2>Simulador de duração de estoque</h2>
-        <p>Simule em quantos dias o estoque acaba com base no número de pacientes e no consumo diário por paciente.</p>
+        <PageHeader
+          title="Simulador de duração de estoque"
+          description="Simule em quantos dias o estoque acaba com base no número de pacientes e no consumo diário por paciente."
+          icon={Calculator}
+        />
         <Toast ref={toast} position="top-right" />
 
         <FullScreenLoader active={loadingMedications} message="Carregando..." />
         {!loadingMedications && (
           <div className="simulador-form">
             <div className="form-group">
-              <label htmlFor="simulador-medicamento">Medicamento / Lote</label>
+              <FieldLabel
+                htmlFor="simulador-medicamento"
+                label="Medicamento / Lote"
+                required
+              />
               <Dropdown
-                id="simulador-medicamento"
+                inputId="simulador-medicamento"
+                name="simulador-medicamento"
                 value={selectedId}
                 options={medications.map((m) => ({
                   label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)}`,
@@ -132,17 +143,23 @@ export default function Simulador() {
                 placeholder="Selecione o medicamento"
                 className="w-full"
                 disabled={calculating}
+                aria-required
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="simulador-numero-pacientes">Número de pacientes</label>
+              <FieldLabel
+                htmlFor="simulador-numero-pacientes"
+                label="Número de pacientes"
+                required
+              />
               <input
                 id="simulador-numero-pacientes"
+                name="simulador-numero-pacientes"
                 type="number"
                 min="1"
                 step="1"
-                placeholder="Ex: 5"
+                placeholder="Digite o número de pacientes"
                 value={numeroPacientes}
                 onChange={(e) => {
                   setNumeroPacientes(e.target.value);
@@ -150,17 +167,23 @@ export default function Simulador() {
                 }}
                 disabled={calculating}
                 className="form-field"
+                aria-required
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="simulador-consumo-por-paciente">Consumo diário por paciente</label>
+              <FieldLabel
+                htmlFor="simulador-consumo-por-paciente"
+                label="Consumo diário por paciente"
+                required
+              />
               <input
                 id="simulador-consumo-por-paciente"
+                name="simulador-consumo-por-paciente"
                 type="number"
                 min="0.01"
                 step="0.01"
-                placeholder="Ex: 2"
+                placeholder="Digite o consumo diário por paciente"
                 value={consumoDiarioPorPaciente}
                 onChange={(e) => {
                   setConsumoDiarioPorPaciente(e.target.value);
@@ -168,6 +191,7 @@ export default function Simulador() {
                 }}
                 disabled={calculating}
                 className="form-field"
+                aria-required
               />
             </div>
 

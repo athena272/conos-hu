@@ -73,11 +73,13 @@ function CardKanbanMedication({ medications }: CardKanbanMedicationProps) {
     <div>
       <div className="kanban-filter">
         <Dropdown
+          inputId="kanban-med-filtro-status"
+          name="kanban-med-filtro-status"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.value)}
           options={statusOptions}
           optionLabel="name"
-          placeholder="Filtrar por Status"
+          placeholder="Selecione o status"
           className="w-full md:w-14rem"
         />
       </div>

@@ -13,6 +13,9 @@ import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { FieldLabel } from "../../components/forms/FieldLabel";
+import { PackagePlus } from "lucide-react";
 import "./styles.css";
 import type { MedicationWithStatus } from "../../types";
 
@@ -219,8 +222,11 @@ function RegisterMedication() {
       <Header />
       <Menu />
       <div className="container-register-medication">
-        <h2>Registrar Medicamento</h2>
-        <p>Preencha os dados abaixo para registrar um novo medicamento.</p>
+        <PageHeader
+          title="Registrar Medicamento"
+          description="Preencha os dados abaixo para registrar um novo medicamento ou adicionar quantidade a um lote existente."
+          icon={PackagePlus}
+        />
         <Toast ref={toast} position="top-right" />
 
         <Formik
@@ -252,8 +258,10 @@ function RegisterMedication() {
               />
               <Form className="register-form">
               <div className="form-group">
-                <label>Tipo de entrada</label>
+                <label htmlFor="register-entry-type">Tipo de entrada</label>
                 <Dropdown
+                  inputId="register-entry-type"
+                  name="entryType"
                   value={values.entryType}
                   options={[
                     { label: "Novo lote", value: "new" },
@@ -263,7 +271,7 @@ function RegisterMedication() {
                     setFieldValue("entryType", e.value);
                     if (e.value === "existing") setFieldValue("existingMedicationId", null);
                   }}
-                  placeholder="Selecione"
+                  placeholder="Selecione o tipo de entrada"
                   className="w-full"
                 />
               </div>
@@ -271,8 +279,10 @@ function RegisterMedication() {
               {values.entryType === "existing" ? (
                 <>
                   <div className="form-group">
-                    <label>Medicamento / Lote</label>
+                    <FieldLabel htmlFor="register-existing-medication" label="Medicamento / Lote" required />
                     <Dropdown
+                      inputId="register-existing-medication"
+                      name="existingMedicationId"
                       value={values.existingMedicationId}
                       options={medications.map((m) => ({
                         label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)}`,
@@ -286,14 +296,16 @@ function RegisterMedication() {
                       }
                       disabled={loadingMedications}
                       className="w-full"
+                      aria-required
                     />
                   </div>
                   <div className="form-group">
                     <LabelInput
                       name="quantity"
                       label="Quantidade"
-                      placeholder="Quantidade a adicionar"
+                      placeholder="Digite a quantidade a adicionar"
                       type="number"
+                      required
                     />
                   </div>
                 </>
@@ -304,6 +316,7 @@ function RegisterMedication() {
                       name="name"
                       label="Nome do medicamento"
                       placeholder="Digite o nome do medicamento"
+                      required
                     />
                   </div>
                   <div className="form-group">
@@ -311,6 +324,7 @@ function RegisterMedication() {
                       name="batch"
                       label="Lote"
                       placeholder="Digite o nome do lote"
+                      required
                     />
                   </div>
                   <div className="form-group">
@@ -319,6 +333,7 @@ function RegisterMedication() {
                       label="Quantidade"
                       type="number"
                       placeholder="Digite a quantidade do medicamento"
+                      required
                     />
                   </div>
                   <div className="form-group">
@@ -326,13 +341,15 @@ function RegisterMedication() {
                       name="classification"
                       label="Classificação"
                       placeholder="Digite a classificação do medicamento"
+                      required
                     />
                   </div>
                   <div className="form-group">
                     <LabelInput
                       name="concentration"
                       label="Concentração"
-                      placeholder="Ex.: 500mg, 250mg"
+                      placeholder="Digite a concentração (ex.: 500mg, 250mg)"
+                      required
                     />
                   </div>
                   <div className="form-group">
@@ -340,14 +357,16 @@ function RegisterMedication() {
                       name="pharmaceuticalForm"
                       label="Forma Farmacêutica"
                       options={pharmaceuticalForms}
+                      required
                     />
                   </div>
                   <div className="form-group">
                     <LabelInput
                       name="expiryDate"
                       label="Validade"
-                      placeholder="Validade"
+                      placeholder="Digite a data de validade"
                       type="date"
+                      required
                     />
                   </div>
                 </>

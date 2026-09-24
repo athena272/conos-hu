@@ -12,6 +12,14 @@
   gap: 0.5rem;
 }
 
+.pacientes-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .pacientes-title h2 {
   margin: 0;
 }
@@ -140,11 +148,33 @@
 }
 
 .pacientes-filter-busca {
+  position: relative;
   width: 100%;
 }
 
+.pacientes-filter-busca .pi-search {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  bottom: auto;
+  margin: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--muted, #5f6b75);
+  line-height: 1;
+}
+
+.pacientes-filter-busca .pi-search::before {
+  line-height: 1;
+}
+
 .pacientes-input-busca {
-  padding-left: 40px;
+  padding-left: 2.5rem;
+  box-sizing: border-box;
 }
 
 .pacientes-filter-busca .pacientes-input-busca,

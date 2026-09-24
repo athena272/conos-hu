@@ -5,6 +5,7 @@ import { Button } from "primereact/button";
 import { api } from "../../api/client";
 import { getAuth, needsOperatorIdentify, setAuth } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { FieldLabel } from "../forms/FieldLabel";
 import type { IdentifyResponse } from "../../types/auth";
 import "./styles.css";
 
@@ -73,27 +74,31 @@ export default function OperatorIdentifyGate({ children }: OperatorIdentifyGateP
           Para registrar ações no histórico, informe quem está operando o sistema nesta sessão.
         </p>
         <div className="operator-identify-field">
-          <label htmlFor="operador-nome">Nome completo *</label>
-          <InputText
-            id="operador-nome"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            className="w-full"
-            autoFocus
-            disabled={submitting}
-          />
-        </div>
-        <div className="operator-identify-field">
-          <label htmlFor="operador-cpf">CPF (opcional)</label>
-          <InputText
-            id="operador-cpf"
-            value={cpf}
-            onChange={(e) => setCpf(e.target.value)}
-            className="w-full"
-            placeholder="000.000.000-00"
-            disabled={submitting}
-          />
-        </div>
+          <FieldLabel htmlFor="operador-nome" label="Nome completo" required />
+            <InputText
+              id="operador-nome"
+              name="operador-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="w-full"
+              placeholder="Digite o seu nome completo"
+              autoFocus
+              disabled={submitting}
+              aria-required
+            />
+          </div>
+          <div className="operator-identify-field">
+            <label htmlFor="operador-cpf">CPF (opcional)</label>
+            <InputText
+              id="operador-cpf"
+              name="operador-cpf"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value)}
+              className="w-full"
+              placeholder="Digite o seu CPF"
+              disabled={submitting}
+            />
+          </div>
         {error ? <p className="operator-identify-error">{error}</p> : null}
         <div className="operator-identify-actions">
           <Button

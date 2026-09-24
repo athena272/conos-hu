@@ -1,1 +1,23 @@
-.button-submit-wrapper .p-button{width:100%;margin-bottom:40px;background-color:#76ced4;color:#fff;border:none;padding:10px 20px;transition:background-color .3s ease}.button-submit-wrapper .p-button:hover{background-color:#6cb6bb}
+.button-submit-wrapper .p-button {
+  width: 100%;
+  margin-bottom: 40px;
+  background-color: var(--brand, #4eb6c2);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius, 0.75rem);
+  box-shadow: 0 4px 14px var(--brand-glow, rgba(78, 182, 194, 0.28));
+  transition: background-color var(--ease, 180ms ease), box-shadow var(--ease, 180ms ease), transform var(--ease, 180ms ease);
+}
+
+.button-submit-wrapper .p-button:hover {
+  background-color: var(--brand-dark, #1a2a36);
+  box-shadow: var(--shadow-hover, 0 16px 36px rgba(20, 24, 28, 0.12));
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-submit-wrapper .p-button:hover {
+    transform: none;
+  }
+}

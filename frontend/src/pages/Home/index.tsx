@@ -20,6 +20,8 @@ import React from "react";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { Pill } from "lucide-react";
 import {
   PaginationBar,
   PaginationSummary,
@@ -283,21 +285,29 @@ export default function Home() {
       <Header />
       <Menu />
       <div className="title-home">
-        <h2>Medicamentos</h2>
+        <PageHeader
+          title="Medicamentos"
+          description="Consulte lotes em estoque, filtre por status e gerencie cadastros."
+          icon={Pill}
+        />
       </div>
       <div className="home-filters-bar">
-        <span className="p-input-icon-left home-filter-busca">
-          <i className="pi pi-search" />
+        <span className="home-filter-busca">
+          <i className="pi pi-search" aria-hidden />
           <InputText
+            id="home-filtro-busca"
+            name="home-filtro-busca"
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder="Nome, lote, status..."
+            placeholder="Digite o nome, lote ou status"
             className="home-input-busca"
             aria-label="Buscar por nome, lote ou status"
           />
         </span>
         <div className="home-filters-secondary">
           <Dropdown
+            inputId="home-filtro-status"
+            name="home-filtro-status"
             value={filters.status.value}
             options={statusOptions}
             onChange={(e) => {
@@ -306,7 +316,7 @@ export default function Home() {
                 status: { ...prevFilters.status, value: e.value },
               }));
             }}
-            placeholder="Filtrar por Status"
+            placeholder="Selecione o status"
             className="home-filter-status"
             showClear
           />
@@ -449,10 +459,12 @@ export default function Home() {
               <label htmlFor="edit-nome">Nome</label>
               <InputText
                 id="edit-nome"
+                name="edit-nome"
                 value={editForm.nome}
                 onChange={(e) =>
                   setEditForm((f) => ({ ...f, nome: e.target.value }))
                 }
+                placeholder="Digite o nome do medicamento"
                 className="w-full"
               />
             </div>
@@ -460,10 +472,12 @@ export default function Home() {
               <label htmlFor="edit-lote">Lote</label>
               <InputText
                 id="edit-lote"
+                name="edit-lote"
                 value={editForm.lote}
                 onChange={(e) =>
                   setEditForm((f) => ({ ...f, lote: e.target.value }))
                 }
+                placeholder="Digite o nome do lote"
                 className="w-full"
               />
             </div>
@@ -471,6 +485,7 @@ export default function Home() {
               <label htmlFor="edit-quantidade">Quantidade</label>
               <InputText
                 id="edit-quantidade"
+                name="edit-quantidade"
                 type="number"
                 value={String(editForm.quantidade)}
                 onChange={(e) =>
@@ -479,6 +494,7 @@ export default function Home() {
                     quantidade: parseInt(e.target.value, 10) || 0,
                   }))
                 }
+                placeholder="Digite a quantidade"
                 className="w-full"
               />
             </div>
@@ -486,10 +502,12 @@ export default function Home() {
               <label htmlFor="edit-classificacao">Classificação</label>
               <InputText
                 id="edit-classificacao"
+                name="edit-classificacao"
                 value={editForm.classificacao}
                 onChange={(e) =>
                   setEditForm((f) => ({ ...f, classificacao: e.target.value }))
                 }
+                placeholder="Digite a classificação"
                 className="w-full"
               />
             </div>
@@ -497,20 +515,24 @@ export default function Home() {
               <label htmlFor="edit-concentracao">Concentração</label>
               <InputText
                 id="edit-concentracao"
+                name="edit-concentracao"
                 value={editForm.concentracao}
                 onChange={(e) =>
                   setEditForm((f) => ({ ...f, concentracao: e.target.value }))
                 }
+                placeholder="Digite a concentração (ex.: 500mg)"
                 className="w-full"
               />
             </div>
             <div className="p-field">
               <label htmlFor="edit-forma">Forma Farmacêutica</label>
               <Dropdown
-                id="edit-forma"
+                inputId="edit-forma"
+                name="edit-forma"
                 value={editForm.forma}
                 options={FORMA_OPTIONS}
                 onChange={(e) => setEditForm((f) => ({ ...f, forma: e.value }))}
+                placeholder="Selecione a forma farmacêutica"
                 className="w-full"
               />
             </div>
@@ -518,11 +540,13 @@ export default function Home() {
               <label htmlFor="edit-validade">Data de Validade</label>
               <InputText
                 id="edit-validade"
+                name="edit-validade"
                 type="date"
                 value={editForm.data_validade}
                 onChange={(e) =>
                   setEditForm((f) => ({ ...f, data_validade: e.target.value }))
                 }
+                placeholder="Selecione a data de validade"
                 className="w-full"
               />
             </div>
