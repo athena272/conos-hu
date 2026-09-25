@@ -432,6 +432,47 @@ run("retira funciona sem paciente e valida paciente quando informado", async (t)
   await coll<{ _id: number }>("pacientes").deleteMany({ _id: pacienteId });
 });
 
+run("retira rejeita lote fora da validade", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_venc_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+
+  await insertUserWithRole(email, password, "admin");
+  const token = await loginAs(email, password);
+
+  const medName = `IT_VENC_${Date.now()}`;
+  const medLote = `ITLOTE-VENC-${Date.now()}`;
+  const createRes = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      nome: medName,
+      lote: medLote,
+      quantidade: 10,
+      classificacao: "Teste",
+      concentracao: "500mg",
+      forma: "Comprimido",
+      data_validade: "2020-01-01",
+    });
+  assert.equal(createRes.status, 201);
+
+  const medDoc = await coll<{ _id: number }>("medications").findOne({
+    nome: medName,
+    lote: medLote,
+  });
+  assert.ok(medDoc);
+
+  const retiraRes = await request(app)
+    .post("/retira")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ medication_id: medDoc!._id, quantidade: 1 });
+  assert.equal(retiraRes.status, 400);
+  assert.equal(retiraRes.body.error, "Lote fora da validade");
+
+  await coll<{ _id: number }>("medications").deleteMany({ _id: medDoc!._id });
+});
+
 run("GET /eventos exige auth (qualquer papel) e registra eventos de escrita", async (t) => {
   if (skipIfMongoUnavailable(t)) return;
 

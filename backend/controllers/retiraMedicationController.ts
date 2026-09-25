@@ -2,12 +2,15 @@ import { Request, Response } from "express";
 import { coll, getDb } from "../models/mongo";
 import { getNextId } from "../models/sequences";
 import { recordEventFromRequest } from "../utils/auditContext";
+import { todayIsoDateSaoPaulo } from "../utils/calendarDate";
+import { dateOnly } from "../models/mappers";
 
 type MedicationStock = {
   _id: number;
   quantidade: number;
   nome?: string;
   lote?: string;
+  data_validade?: string | Date;
 };
 
 export const retiraMedication = async (req: Request, res: Response): Promise<void> => {
@@ -24,6 +27,11 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
     res.status(400).json({
       error: "medication_id e quantidade numérica são obrigatórios",
     });
+    return;
+  }
+
+  if (quantidadeNum < 1) {
+    res.status(400).json({ error: "quantidade deve ser um número positivo" });
     return;
   }
 
@@ -48,6 +56,18 @@ export const retiraMedication = async (req: Request, res: Response): Promise<voi
         return;
       }
       pacienteNome = p.nome ?? null;
+    }
+
+    const medBefore = await coll<MedicationStock>("medications").findOne({ _id: medicationId });
+    if (!medBefore) {
+      res.status(404).json({ error: "Medicação não encontrada" });
+      return;
+    }
+    const validadeIso = dateOnly(medBefore.data_validade);
+    const today = todayIsoDateSaoPaulo();
+    if (validadeIso && validadeIso < today) {
+      res.status(400).json({ error: "Lote fora da validade" });
+      return;
     }
 
     const medSnapshot = { nome: "", lote: "" };
