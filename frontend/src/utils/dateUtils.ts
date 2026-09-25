@@ -108,3 +108,27 @@ export function shouldSendDataRetornoOnEdit(
   if (!proximaIso) return true;
   return formIso !== proximaIso;
 }
+
+export type DateBRRange = { inicio: string; fim: string };
+
+/** Preset “Hoje”: início = fim = data civil local (dd/mm/aaaa). */
+export function retornoFilterPresetHoje(now: Date = new Date()): DateBRRange {
+  const br = localDateToDateBR(now);
+  return { inicio: br, fim: br };
+}
+
+/**
+ * Preset “Próximos 7 dias”: início = hoje, fim = hoje + 6
+ * (intervalo inclusivo de 7 dias civis, dd/mm/aaaa).
+ */
+export function retornoFilterPresetProximos7Dias(
+  now: Date = new Date(),
+): DateBRRange {
+  const inicioDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const fimDate = new Date(inicioDate);
+  fimDate.setDate(fimDate.getDate() + 6);
+  return {
+    inicio: localDateToDateBR(inicioDate),
+    fim: localDateToDateBR(fimDate),
+  };
+}

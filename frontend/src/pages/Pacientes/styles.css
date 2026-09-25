@@ -253,6 +253,36 @@
   gap: 0.5rem 0.75rem;
 }
 
+.pacientes-filter-date-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pacientes-filter-preset-chip {
+  appearance: none;
+  border: 1px solid var(--surface-border, #ced4da);
+  background: var(--surface-0, #fff);
+  color: var(--text-color, #343a40);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pacientes-filter-preset-chip:hover {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+.pacientes-filter-preset-chip.is-active {
+  border-color: var(--primary-color, #3b82f6);
+  background: var(--primary-color, #3b82f6);
+  color: #fff;
+}
+
 .pacientes-filter-data-wrap {
   display: flex;
   flex-direction: column;
@@ -382,6 +412,20 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.pacientes-dispensa-resumo {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-ground, #f8f9fa);
+  border: 1px solid var(--surface-border, #dee2e6);
+  border-radius: 4px;
+  user-select: all;
 }
 
 .campo-lista-medicamentos {

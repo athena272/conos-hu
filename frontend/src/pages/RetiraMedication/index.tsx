@@ -1,22 +1,26 @@
-import { useRef, useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import LabelInput from "../../components/LabelInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
 import { Dropdown } from "primereact/dropdown";
-import { Formik, Form, FormikHelpers } from "formik";
+import { Formik, Form, FormikHelpers, FormikProps } from "formik";
 import * as yup from "yup";
 import { api } from "../../api/client";
 import { getAuth } from "../../auth/session";
 import { Toast } from "primereact/toast";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
-import { formatDateBR } from "../../utils/dateUtils";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { FieldLabel } from "../../components/forms/FieldLabel";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { PackageMinus } from "lucide-react";
 import { useApiQuery } from "../../hooks/useApiQuery";
+import {
+  formatLoteOptionLabel,
+  isLoteDisponivelParaRetira,
+  pickRecommendedLotId,
+} from "./retiraLotes";
 import "./styles.css";
 import type { MedicationWithStatus, Paciente } from "../../types";
 
@@ -39,9 +43,14 @@ interface AxiosErrorLike {
 function RetiraMedication() {
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const formikRef = useRef<FormikProps<RetiraMedicationValues>>(null);
   const [lots, setLots] = useState<MedicationWithStatus[]>([]);
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
+  const [recommendedLotId, setRecommendedLotId] = useState<number | null>(null);
+  const prefillDoneRef = useRef(false);
+
   const showFetchError = useCallback((message: string) => {
     toast.current?.show({
       severity: "error",
@@ -64,6 +73,70 @@ function RetiraMedication() {
     onError: (message) => showFetchError(message),
   });
 
+  const applyLots = useCallback(
+    (list: MedicationWithStatus[], setFieldValue: (field: string, value: unknown) => void) => {
+      setLots(list);
+      const recommended = pickRecommendedLotId(list);
+      setRecommendedLotId(recommended);
+      setFieldValue("selectedMedicationId", recommended);
+      if (list.length > 0 && recommended == null) {
+        toast.current?.show({
+          severity: "warn",
+          summary: "Atenção",
+          detail: "Nenhum lote disponível (estoque ou validade). Verifique os lotes listados.",
+          life: 5000,
+        });
+      }
+    },
+    [],
+  );
+
+  const buscarLotesPorNomeConc = useCallback(
+    async (
+      nome: string,
+      concentracao: string,
+      setFieldValue: (field: string, value: unknown) => void,
+    ) => {
+      setLoadingLots(true);
+      setLoadingMode("filter");
+      setFieldValue("selectedMedicationId", null);
+      try {
+        const res = await api.get<MedicationWithStatus[]>(
+          "/medications/by-name-concentration",
+          {
+            params: {
+              nome: nome.trim(),
+              concentracao: concentracao.trim(),
+            },
+          },
+        );
+        const list = res.data ?? [];
+        applyLots(list, setFieldValue);
+        if (!list.length) {
+          toast.current?.show({
+            severity: "info",
+            summary: "Busca",
+            detail: "Nenhum lote encontrado com esse nome e concentração.",
+            life: 4000,
+          });
+        }
+      } catch (e) {
+        setLots([]);
+        setRecommendedLotId(null);
+        toast.current?.show({
+          severity: "error",
+          summary: "Erro!",
+          detail: normalizeErrorMessage(e),
+          life: 5000,
+        });
+      } finally {
+        setLoadingLots(false);
+        setLoadingMode(null);
+      }
+    },
+    [applyLots],
+  );
+
   useEffect(() => {
     const session = getAuth();
     if (!session) {
@@ -75,6 +148,33 @@ function RetiraMedication() {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (prefillDoneRef.current) return;
+    const nome = searchParams.get("nome")?.trim() ?? "";
+    const concentracao = searchParams.get("concentracao")?.trim() ?? "";
+    const quantidadeRaw = searchParams.get("quantidade");
+    const pacienteIdRaw = searchParams.get("pacienteId");
+    if (!nome && !concentracao && !quantidadeRaw && !pacienteIdRaw) return;
+
+    const formik = formikRef.current;
+    if (!formik) return;
+    prefillDoneRef.current = true;
+
+    if (nome) formik.setFieldValue("name", nome);
+    if (concentracao) formik.setFieldValue("concentration", concentracao);
+    const qtd = quantidadeRaw != null ? parseInt(quantidadeRaw, 10) : NaN;
+    if (Number.isFinite(qtd) && qtd > 0) {
+      formik.setFieldValue("quantity", qtd);
+    }
+    const pid = pacienteIdRaw != null ? parseInt(pacienteIdRaw, 10) : NaN;
+    if (Number.isFinite(pid) && pid > 0) {
+      formik.setFieldValue("pacienteId", pid);
+    }
+    if (nome && concentracao) {
+      void buscarLotesPorNomeConc(nome, concentracao, formik.setFieldValue);
+    }
+  }, [searchParams, buscarLotesPorNomeConc, loadingPacientesOpcoes]);
 
   const handleRetireMedication = async (
     values: RetiraMedicationValues,
@@ -111,6 +211,17 @@ function RetiraMedication() {
         return;
       }
 
+      const selected = lots.find((m) => m.id === medicationId);
+      if (selected && !isLoteDisponivelParaRetira(selected)) {
+        toast.current?.show({
+          severity: "error",
+          summary: "Erro!",
+          detail: "Lote indisponível (vencido ou sem estoque).",
+          life: 5000,
+        });
+        return;
+      }
+
       const retiradaData: Record<string, unknown> = {
         medication_id: medicationId,
         quantidade: parseInt(String(values.quantity), 10),
@@ -130,14 +241,17 @@ function RetiraMedication() {
 
       resetForm();
       setLots([]);
+      setRecommendedLotId(null);
       navigate("/home");
     } catch (error) {
       const err = error as AxiosErrorLike;
       console.error("❌ Erro completo:", err);
 
+      const apiError = err.response?.data?.error;
       const severity =
         err.response?.status === 400 &&
-        err.response?.data?.error === "Quantidade insuficiente em estoque"
+        (apiError === "Quantidade insuficiente em estoque" ||
+          apiError === "Lote fora da validade")
           ? "warn"
           : "error";
 
@@ -163,6 +277,16 @@ function RetiraMedication() {
       .required("A quantidade é obrigatória"),
   });
 
+  const loteOptions = useMemo(
+    () =>
+      lots.map((m) => ({
+        label: formatLoteOptionLabel(m, recommendedLotId),
+        value: m.id,
+        disabled: !isLoteDisponivelParaRetira(m),
+      })),
+    [lots, recommendedLotId],
+  );
+
   return (
     <div>
       <Header />
@@ -175,11 +299,13 @@ function RetiraMedication() {
         />
         <p className="retire-medication-hint">
           Opcional: vincule a retirada a um paciente para acumular o total em mg dispensado na lista de
-          pacientes (somente retiradas com paciente informado entram nesse total).
+          pacientes (somente retiradas com paciente informado entram nesse total). Lotes vencidos não
+          podem ser retirados; o lote recomendado é o que vence primeiro (FEFO).
         </p>
         <Toast ref={toast} position="top-right" />
 
         <Formik
+          innerRef={formikRef}
           initialValues={{
             name: "",
             concentration: "",
@@ -227,42 +353,13 @@ function RetiraMedication() {
                 <Button
                   type="button"
                   disabled={isSubmitting || loadingLots || !values.name.trim() || !values.concentration.trim()}
-                  onClick={async () => {
-                    setLoadingLots(true);
-                    setLoadingMode("filter");
-                    setFieldValue("selectedMedicationId", null);
-                    try {
-                      const res = await api.get<MedicationWithStatus[]>(
-                        "/medications/by-name-concentration",
-                        {
-                          params: {
-                            nome: values.name.trim(),
-                            concentracao: values.concentration.trim(),
-                          },
-                        }
-                      );
-                      setLots(res.data ?? []);
-                      if (!res.data?.length) {
-                        toast.current?.show({
-                          severity: "info",
-                          summary: "Busca",
-                          detail: "Nenhum lote encontrado com esse nome e concentração.",
-                          life: 4000,
-                        });
-                      }
-                    } catch (e) {
-                      setLots([]);
-                      toast.current?.show({
-                        severity: "error",
-                        summary: "Erro!",
-                        detail: normalizeErrorMessage(e),
-                        life: 5000,
-                      });
-                    } finally {
-                      setLoadingLots(false);
-                      setLoadingMode(null);
-                    }
-                  }}
+                  onClick={() =>
+                    void buscarLotesPorNomeConc(
+                      values.name,
+                      values.concentration,
+                      setFieldValue,
+                    )
+                  }
                 >
                   {loadingLots && loadingMode === "filter" ? "Buscando..." : "Buscar lotes"}
                 </Button>
@@ -276,8 +373,9 @@ function RetiraMedication() {
                     setFieldValue("selectedMedicationId", null);
                     try {
                       const res = await api.get<MedicationWithStatus[]>("/medications");
-                      setLots(res.data ?? []);
-                      if (!res.data?.length) {
+                      const list = res.data ?? [];
+                      applyLots(list, setFieldValue);
+                      if (!list.length) {
                         toast.current?.show({
                           severity: "info",
                           summary: "Busca",
@@ -287,6 +385,7 @@ function RetiraMedication() {
                       }
                     } catch (e) {
                       setLots([]);
+                      setRecommendedLotId(null);
                       toast.current?.show({
                         severity: "error",
                         summary: "Erro!",
@@ -336,11 +435,25 @@ function RetiraMedication() {
                     inputId="lot"
                     name="selectedMedicationId"
                     value={values.selectedMedicationId}
-                    options={lots.map((m) => ({
-                      label: `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`,
-                      value: m.id,
-                    }))}
-                    onChange={(e) => setFieldValue("selectedMedicationId", e.value)}
+                    options={loteOptions}
+                    optionDisabled="disabled"
+                    onChange={(e) => {
+                      const nextId = e.value as number | null;
+                      setFieldValue("selectedMedicationId", nextId);
+                      if (
+                        nextId != null &&
+                        recommendedLotId != null &&
+                        nextId !== recommendedLotId
+                      ) {
+                        toast.current?.show({
+                          severity: "info",
+                          summary: "FEFO",
+                          detail:
+                            "Você escolheu um lote diferente do recomendado (que vence primeiro).",
+                          life: 4000,
+                        });
+                      }
+                    }}
                     placeholder="Selecione o lote"
                     className="w-full"
                     disabled={isSubmitting}

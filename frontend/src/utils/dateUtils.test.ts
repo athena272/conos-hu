@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   daysBetweenIsoDates,
+  retornoFilterPresetHoje,
+  retornoFilterPresetProximos7Dias,
   shouldSendDataRetornoOnEdit,
 } from "./dateUtils";
 
@@ -51,5 +53,31 @@ describe("shouldSendDataRetornoOnEdit", () => {
   it("envia quando não havia próxima e o usuário preencheu", () => {
     expect(shouldSendDataRetornoOnEdit("2026-10-15", null)).toBe(true);
     expect(shouldSendDataRetornoOnEdit("2026-10-15", "")).toBe(true);
+  });
+});
+
+describe("retornoFilterPresetHoje / Proximos7Dias", () => {
+  it("Hoje usa o mesmo dd/mm/aaaa em início e fim", () => {
+    const now = new Date(2026, 8, 24, 15, 30, 0);
+    expect(retornoFilterPresetHoje(now)).toEqual({
+      inicio: "24/09/2026",
+      fim: "24/09/2026",
+    });
+  });
+
+  it("Próximos 7 dias é inclusivo (hoje até hoje+6)", () => {
+    const now = new Date(2026, 8, 24, 8, 0, 0);
+    expect(retornoFilterPresetProximos7Dias(now)).toEqual({
+      inicio: "24/09/2026",
+      fim: "30/09/2026",
+    });
+  });
+
+  it("Próximos 7 dias cruza o mês corretamente", () => {
+    const now = new Date(2026, 8, 28, 12, 0, 0);
+    expect(retornoFilterPresetProximos7Dias(now)).toEqual({
+      inicio: "28/09/2026",
+      fim: "04/10/2026",
+    });
   });
 });

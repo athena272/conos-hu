@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Calendar } from "primereact/calendar";
 import {
   localDateToDateBR,
@@ -21,6 +22,8 @@ export interface PacientesDateRangeFilterProps {
   dataFim: string;
   onDataInicioChange: (value: string) => void;
   onDataFimChange: (value: string) => void;
+  /** Atalhos opcionais (ex.: chips Hoje / 7 dias no filtro de Retorno). */
+  presets?: ReactNode;
 }
 
 function calendarValueToFilterString(e: {
@@ -47,6 +50,7 @@ export function PacientesDateRangeFilter({
   dataFim,
   onDataInicioChange,
   onDataFimChange,
+  presets,
 }: PacientesDateRangeFilterProps) {
   const idInicio = `${idPrefix}-inicio`;
   const idFim = `${idPrefix}-fim`;
@@ -56,6 +60,9 @@ export function PacientesDateRangeFilter({
       <span className="pacientes-filter-date-group-title">{tituloGrupo}</span>
       {hintGrupo ? (
         <span className="pacientes-filter-date-group-hint">{hintGrupo}</span>
+      ) : null}
+      {presets ? (
+        <div className="pacientes-filter-date-presets">{presets}</div>
       ) : null}
       <div className="pacientes-filter-date-group-fields">
         <span className="pacientes-filter-data-wrap">
