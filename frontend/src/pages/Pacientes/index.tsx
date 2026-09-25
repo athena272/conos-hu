@@ -32,7 +32,14 @@ import {
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import { useApiQuery } from "../../hooks/useApiQuery";
-import { formatDateBR, toInputDateValue, daysBetweenIsoDates, shouldSendDataRetornoOnEdit } from "../../utils/dateUtils";
+import {
+  formatDateBR,
+  toInputDateValue,
+  daysBetweenIsoDates,
+  shouldSendDataRetornoOnEdit,
+  retornoFilterPresetHoje,
+  retornoFilterPresetProximos7Dias,
+} from "../../utils/dateUtils";
 
 import type {
   Paciente,
@@ -501,6 +508,15 @@ export default function Pacientes() {
     setFiltroDataCadastroFim("");
     setSortKey("proxima_data_retorno_asc");
   };
+
+  const retornoPresetHoje = retornoFilterPresetHoje();
+  const retornoPresetProximos7 = retornoFilterPresetProximos7Dias();
+  const retornoFiltroIsHoje =
+    filtroDataRetornoInicio === retornoPresetHoje.inicio &&
+    filtroDataRetornoFim === retornoPresetHoje.fim;
+  const retornoFiltroIsProximos7 =
+    filtroDataRetornoInicio === retornoPresetProximos7.inicio &&
+    filtroDataRetornoFim === retornoPresetProximos7.fim;
 
   const filteredAndSortedPacientes = useMemo(() => {
     let list = pacientes;
@@ -1142,6 +1158,32 @@ export default function Pacientes() {
             dataFim={filtroDataRetornoFim}
             onDataInicioChange={setFiltroDataRetornoInicio}
             onDataFimChange={setFiltroDataRetornoFim}
+            presets={
+              <>
+                <button
+                  type="button"
+                  className={`pacientes-filter-preset-chip${retornoFiltroIsHoje ? " is-active" : ""}`}
+                  aria-pressed={retornoFiltroIsHoje}
+                  onClick={() => {
+                    setFiltroDataRetornoInicio(retornoPresetHoje.inicio);
+                    setFiltroDataRetornoFim(retornoPresetHoje.fim);
+                  }}
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  className={`pacientes-filter-preset-chip${retornoFiltroIsProximos7 ? " is-active" : ""}`}
+                  aria-pressed={retornoFiltroIsProximos7}
+                  onClick={() => {
+                    setFiltroDataRetornoInicio(retornoPresetProximos7.inicio);
+                    setFiltroDataRetornoFim(retornoPresetProximos7.fim);
+                  }}
+                >
+                  Próximos 7 dias
+                </button>
+              </>
+            }
           />
           <PacientesDateRangeFilter
             tituloGrupo="Cadastro"
@@ -2032,6 +2074,7 @@ export default function Pacientes() {
                 {editingPaciente && (
                   <DispensaDoDiaPaciente
                     pacienteId={editingPaciente.id}
+                    pacienteNome={values.nome}
                     medicamentos={values.medicamentos
                       .filter(
                         (m): m is MedicamentoFormItem & { medicamento: MedicamentoDistinto } =>
