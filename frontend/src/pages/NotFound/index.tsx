@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import notFoundImage from "../../assets/images/404.png";
+import { AppFooter } from "../../components/layout/AppFooter";
 import "./styles.css";
 
 function NotFound() {
@@ -17,6 +18,8 @@ function NotFound() {
       <div className="not-found-container">
         <img src={notFoundImage} alt="Página não encontrada" id="not-found-image" />
       </div>
+
+      <AppFooter className="not-found-footer" />
     </div>
   );
 }
