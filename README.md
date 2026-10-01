@@ -349,6 +349,6 @@ A verificação ocorre no backend ([`backend/middleware/authMiddleware.ts`](back
 
 ---
 
-## Licença e metadados
+## Licença
 
-O pacote do backend declara licença **ISC** no `package.json`. O frontend está marcado como **private**. Ajuste licenciamento e metadados conforme a política da sua organização.
+Software proprietário, com todos os direitos reservados. Uso, cópia, modificação, distribuição ou exploração comercial dependem de autorização por escrito do titular. Os termos completos estão em [LICENSE](LICENSE).
