@@ -1,0 +1,70 @@
+.app-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted, #5f6b75);
+}
+
+/* Seletores com dois níveis para não herdar regras de links das páginas (ex.: `.container-primary a`). */
+.app-footer .app-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-footer .app-footer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: transform var(--ease, 180ms ease), opacity var(--ease, 180ms ease);
+}
+
+.app-footer .app-footer-link:hover {
+  transform: translateY(-2px);
+  opacity: 0.85;
+  text-decoration: none;
+}
+
+.app-footer .app-footer-link:focus-visible {
+  outline: 3px solid var(--brand, #4eb6c2);
+  outline-offset: 3px;
+}
+
+.app-footer .app-footer-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-footer .app-footer-text p {
+  margin: 0;
+}
+
+.app-footer .app-footer-credit {
+  font-size: 0.875rem;
+}
+
+.app-footer .app-footer-name {
+  font-weight: 700;
+  color: var(--brand, #4eb6c2);
+}
+
+.app-footer .app-footer-role {
+  font-weight: 500;
+  color: var(--ink, #14181c);
+  opacity: 0.8;
+}
+
+.app-footer .app-footer-copyright {
+  font-size: 0.75rem;
+}
