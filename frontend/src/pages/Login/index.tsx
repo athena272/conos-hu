@@ -10,8 +10,6 @@ import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FloatLabelInput from "../../components/FloatLabelInput";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import FullScreenLoader from "../../components/FullScreenLoader";
-import { BrandMark } from "../../components/brand/BrandMark";
-import authHero from "../../assets/images/auth-hero.png";
 
 import "./styles.css";
 
@@ -74,7 +72,7 @@ function Login() {
   };
 
   return (
-    <div className="container-primary">
+    <>
       <Toast ref={toast} position="top-right" />
       <Formik
         initialValues={{ email: "", password: "" }}
@@ -84,57 +82,46 @@ function Login() {
         {({ isSubmitting }) => (
           <>
             <FullScreenLoader active={isSubmitting} message="Entrando..." />
-            <div className="container-secundary-one auth-hero">
-              <img src={authHero} alt="" className="auth-hero-image" />
-              <div className="auth-hero-overlay">
-                <BrandMark tone="onDark" subtitle="Estoque e pacientes" />
-                <p className="auth-hero-lead">
-                  Controle de medicamentos, lotes e pacientes em um só lugar.
-                </p>
+            <h1>Login</h1>
+            <p>Faça login para acessar sua conta.</p>
+
+            <Form className="login-form">
+              <div className="form-group">
+                <FloatLabelInput
+                  name="email"
+                  label="Email"
+                  placeholder="Digite o seu email"
+                  type="email"
+                  autoComplete="username"
+                  required
+                  floating={false}
+                />
               </div>
-            </div>
-            <div className="container-secundary-two">
-              <h1>Login</h1>
-              <p>Faça login para acessar sua conta.</p>
 
-              <Form className="login-form">
-                <div className="form-group">
-                  <FloatLabelInput
-                    name="email"
-                    label="Email"
-                    placeholder="Digite o seu email"
-                    type="email"
-                    autoComplete="username"
-                    required
-                    floating={false}
-                  />
-                </div>
+              <div className="form-group">
+                <FloatLabelInput
+                  name="password"
+                  label="Senha"
+                  placeholder="Digite a sua senha"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  floating={false}
+                />
+              </div>
 
-                <div className="form-group">
-                  <FloatLabelInput
-                    name="password"
-                    label="Senha"
-                    placeholder="Digite a sua senha"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    floating={false}
-                  />
-                </div>
+              <ButtonSubmit disabled={isSubmitting}>
+                Entrar
+              </ButtonSubmit>
+            </Form>
 
-                <ButtonSubmit disabled={isSubmitting}>
-                  Entrar
-                </ButtonSubmit>
-              </Form>
-
-              <p style={{ color: "var(--muted)" }}>
-                Não tem uma conta? <a href="/register">Cadastre-se.</a>
-              </p>
-            </div>
+            <p style={{ color: "var(--muted)" }}>
+              Não tem uma conta? <a href="/register">Cadastre-se.</a>
+            </p>
           </>
         )}
       </Formik>
-    </div>
+    </>
   );
 }
 

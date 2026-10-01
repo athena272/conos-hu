@@ -1,0 +1,37 @@
+.authenticated-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.authenticated-layout-content {
+  flex: 1;
+}
+
+/*
+ * Sticky (e não fixed): ocupa espaço no fluxo e não cobre o fim do conteúdo.
+ * Mesmo acabamento do cabeçalho fixo; z-index abaixo do Header (1000), do Menu (900)
+ * e dos overlays do PrimeReact.
+ */
+.app-footer.authenticated-layout-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 800;
+  padding-block: 0.5rem;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line, #cdd6dc);
+}
+
+@media (min-width: 640px) {
+  .app-footer.authenticated-layout-footer {
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .authenticated-layout-footer .app-footer-text {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+}

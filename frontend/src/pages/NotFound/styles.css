@@ -51,6 +51,10 @@
     display: block;
 }
 
+.app-footer.not-found-footer {
+    margin-top: 1.5rem;
+}
+
 @media (max-width: 768px) {
     .not-found-title h1 {
       font-size: 4rem;

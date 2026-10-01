@@ -13,7 +13,7 @@
     "backfill:eventos:apply": "tsx --import ./load-env.ts scripts/backfill-eventos.ts --apply"
   },
   "author": "",
-  "license": "ISC",
+  "license": "SEE LICENSE IN ../LICENSE",
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.2",

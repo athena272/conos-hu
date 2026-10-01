@@ -20,16 +20,23 @@ import EstoqueComprometido from "./src/pages/EstoqueComprometido";
 import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
 import MedicationWriteRoute from "./src/routes/MedicationWriteRoute";
+import { AuthLayout } from "./src/components/layout/AuthLayout";
+import { AuthenticatedLayout } from "./src/components/layout/AuthenticatedLayout";
 
-const AppRoutes = () => {
+/** Árvore de rotas, sem o roteador, para poder ser montada também com `MemoryRouter` nos testes. */
+export const AppRouteTree = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
+      {/* ROTAS PÚBLICAS DE AUTENTICAÇÃO */}
+      <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+      </Route>
 
-        {/* ROTAS PRIVADAS */}
+      {/* ROTAS PRIVADAS */}
+      <Route element={<AuthenticatedLayout />}>
         <Route
           path="/home"
           element={
@@ -116,9 +123,17 @@ const AppRoutes = () => {
             </PrivateRoute>
           }
         />
+      </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
+const AppRoutes = () => {
+  return (
+    <Router>
+      <AppRouteTree />
     </Router>
   );
 };

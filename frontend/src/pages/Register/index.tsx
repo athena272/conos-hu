@@ -10,8 +10,6 @@ import { api } from "../../api/client";
 import { setAuth, type UserRole } from "../../auth/session";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FullScreenLoader from "../../components/FullScreenLoader";
-import { BrandMark } from "../../components/brand/BrandMark";
-import authHero from "../../assets/images/auth-hero.png";
 import "./styles.css";
 
 interface RegisterValues {
@@ -86,7 +84,7 @@ function Register() {
   });
 
   return (
-    <div className="container-primary">
+    <>
       <Toast ref={toast} position="top-right" />
       <Formik
         initialValues={{ email: "", password: "", confirmPassword: "" }}
@@ -96,68 +94,57 @@ function Register() {
         {({ isSubmitting }) => (
           <>
             <FullScreenLoader active={isSubmitting} message="Criando conta..." />
-            <div className="container-secundary-one auth-hero">
-              <img src={authHero} alt="" className="auth-hero-image" />
-              <div className="auth-hero-overlay">
-                <BrandMark tone="onDark" subtitle="Estoque e pacientes" />
-                <p className="auth-hero-lead">
-                  Controle de medicamentos, lotes e pacientes em um só lugar.
-                </p>
+            <h1>Inscreva-se</h1>
+            <p>Vamos preparar você para que possa acessar sua conta pessoal.</p>
+
+            <Form className="register-form">
+              <div className="form-group">
+                <FloatLabelInput
+                  name="email"
+                  label="Email"
+                  placeholder="Digite o seu email"
+                  type="email"
+                  required
+                  floating={false}
+                />
               </div>
-            </div>
-            <div className="container-secundary-two">
-              <h1>Inscreva-se</h1>
-              <p>Vamos preparar você para que possa acessar sua conta pessoal.</p>
 
-              <Form className="register-form">
-                <div className="form-group">
-                  <FloatLabelInput
-                    name="email"
-                    label="Email"
-                    placeholder="Digite o seu email"
-                    type="email"
-                    required
-                    floating={false}
-                  />
-                </div>
+              <div className="form-group">
+                <FloatLabelInput
+                  name="password"
+                  label="Senha"
+                  placeholder="Digite a sua senha"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  floating={false}
+                />
+              </div>
 
-                <div className="form-group">
-                  <FloatLabelInput
-                    name="password"
-                    label="Senha"
-                    placeholder="Digite a sua senha"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    floating={false}
-                  />
-                </div>
+              <div className="form-group">
+                <FloatLabelInput
+                  name="confirmPassword"
+                  label="Confirme sua senha"
+                  placeholder="Digite a sua senha novamente"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  floating={false}
+                />
+              </div>
 
-                <div className="form-group">
-                  <FloatLabelInput
-                    name="confirmPassword"
-                    label="Confirme sua senha"
-                    placeholder="Digite a sua senha novamente"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    floating={false}
-                  />
-                </div>
-
-                <Button disabled={isSubmitting}>Criar</Button>
-                <p style={{ color: "var(--muted)" }}>
-                  Já tem uma conta?{" "}
-                  <a href="/login">
-                    Login
-                  </a>
-                </p>
-              </Form>
-            </div>
+              <Button disabled={isSubmitting}>Criar</Button>
+              <p style={{ color: "var(--muted)" }}>
+                Já tem uma conta?{" "}
+                <a href="/login">
+                  Login
+                </a>
+              </p>
+            </Form>
           </>
         )}
       </Formik>
-    </div>
+    </>
   );
 }
 
