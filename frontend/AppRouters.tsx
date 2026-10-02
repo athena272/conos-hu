@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import {
   BrowserRouter as Router,
   Route,
@@ -7,21 +8,26 @@ import {
 
 import Login from "./src/pages/Login";
 import Register from "./src/pages/Register";
-import Home from "./src/pages/Home";
 import NotFound from "./src/pages/NotFound";
-import RegisterMedication from "./src/pages/RegisterMedication";
-import RegisterMedicationByBarcode from "./src/pages/RegisterMedicationByBarcode";
-import RetiraMedication from "./src/pages/RetiraMedication";
-import Simulador from "./src/pages/Simulador";
-import Dashboard from "./src/pages/Dashboard";
-import DashboardStock from "./src/pages/DashboardStock";
-import Pacientes from "./src/pages/Pacientes";
-import EstoqueComprometido from "./src/pages/EstoqueComprometido";
-import Historico from "./src/pages/Historico";
 import PrivateRoute from "./src/routes/PrivateRoute";
 import MedicationWriteRoute from "./src/routes/MedicationWriteRoute";
 import { AuthLayout } from "./src/components/layout/AuthLayout";
 import { AuthenticatedLayout } from "./src/components/layout/AuthenticatedLayout";
+
+/**
+ * Telas autenticadas saem em arquivos próprios, baixados só na primeira visita à rota.
+ * Precisam ficar sob o `AuthenticatedLayout`, que fornece o Suspense e o tratamento de erro.
+ */
+const Home = lazy(() => import("./src/pages/Home"));
+const RegisterMedication = lazy(() => import("./src/pages/RegisterMedication"));
+const RegisterMedicationByBarcode = lazy(() => import("./src/pages/RegisterMedicationByBarcode"));
+const RetiraMedication = lazy(() => import("./src/pages/RetiraMedication"));
+const Simulador = lazy(() => import("./src/pages/Simulador"));
+const Dashboard = lazy(() => import("./src/pages/Dashboard"));
+const DashboardStock = lazy(() => import("./src/pages/DashboardStock"));
+const Pacientes = lazy(() => import("./src/pages/Pacientes"));
+const EstoqueComprometido = lazy(() => import("./src/pages/EstoqueComprometido"));
+const Historico = lazy(() => import("./src/pages/Historico"));
 
 /** Árvore de rotas, sem o roteador, para poder ser montada também com `MemoryRouter` nos testes. */
 export const AppRouteTree = () => {
