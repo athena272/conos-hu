@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { LazyRouteBoundary } from "../routing/LazyRouteBoundary";
 import { AppFooter } from "./AppFooter";
 import "./authenticatedLayout.css";
 
@@ -7,7 +8,9 @@ export function AuthenticatedLayout() {
   return (
     <div className="authenticated-layout">
       <div className="authenticated-layout-content">
-        <Outlet />
+        <LazyRouteBoundary>
+          <Outlet />
+        </LazyRouteBoundary>
       </div>
       <AppFooter className="authenticated-layout-footer" />
     </div>
