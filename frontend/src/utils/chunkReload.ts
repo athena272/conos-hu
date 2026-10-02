@@ -1,11 +1,17 @@
+import { reloadPage } from "./reloadPage";
+
 /**
  * Rede de segurança pós-deploy: quando uma aba aberta tenta carregar um chunk
- * antigo que não existe mais (após novo deploy), força um único reload para
- * buscar o index.html novo e os bundles atualizados.
+ * antigo que não existe mais (após novo deploy), força um reload para buscar o
+ * index.html novo e os bundles atualizados.
  *
- * Usa flag em sessionStorage para evitar loop de reload em falhas persistentes.
+ * Guarda em sessionStorage o horário do último reload e não recarrega de novo
+ * dentro do cooldown, evitando loop em falhas persistentes. O import de uma tela
+ * lazy pode falhar depois do evento `load`, então a proteção não pode depender dele.
  */
-const RELOAD_FLAG = "conos:chunk-reloaded";
+const RELOAD_AT_KEY = "conos:chunk-reloaded-at";
+
+export const RELOAD_COOLDOWN_MS = 10_000;
 
 const CHUNK_ERROR_PATTERNS = [
   "failed to fetch dynamically imported module",
@@ -19,23 +25,34 @@ function isChunkLoadError(message: unknown): boolean {
   return CHUNK_ERROR_PATTERNS.some((p) => normalized.includes(p));
 }
 
-function reloadOnce(): void {
-  try {
-    if (sessionStorage.getItem(RELOAD_FLAG)) return;
-    sessionStorage.setItem(RELOAD_FLAG, "1");
-  } catch {
-    // sessionStorage indisponível: ainda assim tenta recarregar uma vez
-  }
-  window.location.reload();
+/** Decide se um novo reload é permitido, dado o horário do último (em ms). */
+export function shouldAttemptReload(lastReloadAt: number | null, now: number): boolean {
+  if (lastReloadAt === null) return true;
+  const elapsed = now - lastReloadAt;
+  // Relógio ajustado para trás: não deixa o cooldown travar o reload.
+  return elapsed < 0 || elapsed >= RELOAD_COOLDOWN_MS;
 }
 
-/** Limpa a flag após um carregamento bem-sucedido, liberando reload futuro. */
-function clearFlagOnLoad(): void {
+function readLastReloadAt(): number | null {
   try {
-    sessionStorage.removeItem(RELOAD_FLAG);
+    const raw = sessionStorage.getItem(RELOAD_AT_KEY);
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
   } catch {
-    // ignore
+    return null;
   }
+}
+
+function reloadOnce(): void {
+  const now = Date.now();
+  if (!shouldAttemptReload(readLastReloadAt(), now)) return;
+  try {
+    sessionStorage.setItem(RELOAD_AT_KEY, String(now));
+  } catch {
+    // sessionStorage indisponível: ainda assim tenta recarregar
+  }
+  reloadPage();
 }
 
 export function setupChunkReload(): void {
@@ -60,6 +77,4 @@ export function setupChunkReload(): void {
       reloadOnce();
     }
   });
-
-  window.addEventListener("load", clearFlagOnLoad);
 }
