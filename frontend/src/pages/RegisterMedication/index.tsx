@@ -4,7 +4,7 @@ import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
 import { Toast } from "primereact/toast";
@@ -259,7 +259,7 @@ function RegisterMedication() {
               <Form className="register-form">
               <div className="form-group">
                 <label htmlFor="register-entry-type">Tipo de entrada</label>
-                <Dropdown
+                <AppDropdown
                   inputId="register-entry-type"
                   name="entryType"
                   value={values.entryType}
@@ -280,7 +280,7 @@ function RegisterMedication() {
                 <>
                   <div className="form-group">
                     <FieldLabel htmlFor="register-existing-medication" label="Medicamento / Lote" required />
-                    <Dropdown
+                    <AppDropdown
                       inputId="register-existing-medication"
                       name="existingMedicationId"
                       value={values.existingMedicationId}
