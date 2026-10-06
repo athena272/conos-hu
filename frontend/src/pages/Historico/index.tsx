@@ -3,7 +3,7 @@ import { Toast } from "primereact/toast";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { InputText } from "primereact/inputtext";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
@@ -157,7 +157,7 @@ export default function Historico() {
           <div className="historico-filters-secondary">
             <div className="historico-filter-field">
               <label htmlFor="historico-acao-filter">Ação</label>
-              <Dropdown
+              <AppDropdown
                 inputId="historico-acao-filter"
                 name="historico-acao-filter"
                 value={acaoFilter}
@@ -174,7 +174,7 @@ export default function Historico() {
 
             <div className="historico-filter-field">
               <label htmlFor="historico-entidade-filter">Entidade</label>
-              <Dropdown
+              <AppDropdown
                 inputId="historico-entidade-filter"
                 name="historico-entidade-filter"
                 value={entidadeFilter}
@@ -223,7 +223,7 @@ export default function Historico() {
 
             <div className="historico-filter-field">
               <label htmlFor="historico-page-size">Por página</label>
-              <Dropdown
+              <AppDropdown
                 inputId="historico-page-size"
                 name="historico-page-size"
                 value={rows}

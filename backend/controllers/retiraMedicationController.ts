@@ -1,171 +1,79 @@
 import { Request, Response } from "express";
-import { coll, getDb } from "../models/mongo";
-import { getNextId } from "../models/sequences";
 import { recordEventFromRequest } from "../utils/auditContext";
-import { todayIsoDateSaoPaulo } from "../utils/calendarDate";
-import { dateOnly } from "../models/mappers";
+import {
+  RetiraError,
+  executarRetiradas,
+  parseRetiraItem,
+  parseRetiraItens,
+  type RetiradaRealizada,
+} from "../services/retiraService";
 
-type MedicationStock = {
-  _id: number;
-  quantidade: number;
-  nome?: string;
-  lote?: string;
-  data_validade?: string | Date;
-};
-
-export const retiraMedication = async (req: Request, res: Response): Promise<void> => {
-  const usuario_id = req.user!.id;
-  const { medication_id, quantidade, paciente_id } = req.body;
-
-  console.log("📥 Dados recebidos para retirada:", { ...req.body, usuario_id });
-
-  const quantidadeNum = parseInt(quantidade, 10);
-  const medicationId = parseInt(String(medication_id), 10);
-
-  if (!medication_id || isNaN(quantidadeNum)) {
-    console.log("❌ Dados inválidos:", { medication_id, quantidade });
-    res.status(400).json({
-      error: "medication_id e quantidade numérica são obrigatórios",
-    });
-    return;
-  }
-
-  if (quantidadeNum < 1) {
-    res.status(400).json({ error: "quantidade deve ser um número positivo" });
-    return;
-  }
-
-  let pacienteIdSql: number | null = null;
-  if (paciente_id != null && paciente_id !== "") {
-    const pid = parseInt(String(paciente_id), 10);
-    if (isNaN(pid) || pid < 1) {
-      res.status(400).json({ error: "paciente_id inválido" });
-      return;
-    }
-    pacienteIdSql = pid;
-  }
-
-  try {
-    const db = getDb();
-
-    let pacienteNome: string | null = null;
-    if (pacienteIdSql != null) {
-      const p = await coll<{ _id: number; nome?: string }>("pacientes").findOne({ _id: pacienteIdSql });
-      if (!p) {
-        res.status(400).json({ error: "Paciente não encontrado" });
-        return;
-      }
-      pacienteNome = p.nome ?? null;
-    }
-
-    const medBefore = await coll<MedicationStock>("medications").findOne({ _id: medicationId });
-    if (!medBefore) {
-      res.status(404).json({ error: "Medicação não encontrada" });
-      return;
-    }
-    const validadeIso = dateOnly(medBefore.data_validade);
-    const today = todayIsoDateSaoPaulo();
-    if (validadeIso && validadeIso < today) {
-      res.status(400).json({ error: "Lote fora da validade" });
-      return;
-    }
-
-    const medSnapshot = { nome: "", lote: "" };
-
-    const session = db.client.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const medCol = coll<MedicationStock>("medications");
-        const after = await medCol.findOneAndUpdate(
-          { _id: medicationId, quantidade: { $gte: quantidadeNum } },
-          { $inc: { quantidade: -quantidadeNum } },
-          { session, returnDocument: "after" }
-        );
-        if (!after) {
-          const exists = await medCol.findOne({ _id: medicationId }, { session });
-          if (!exists) {
-            throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
-          }
-          throw Object.assign(new Error("INSUFFICIENT"), { code: "INSUFFICIENT" });
-        }
-
-        medSnapshot.nome = after.nome ?? "";
-        medSnapshot.lote = after.lote ?? "";
-
-        const retiraId = await getNextId("retira_medications", session);
-        await coll<{
-          _id: number;
-          medication_id: number;
-          usuario_id: number;
-          quantidade: number;
-          data_retirada: Date;
-          paciente_id: number | null;
-        }>("retira_medications").insertOne(
-          {
-            _id: retiraId,
-            medication_id: medicationId,
-            usuario_id,
-            quantidade: quantidadeNum,
-            data_retirada: new Date(),
-            paciente_id: pacienteIdSql,
-          },
-          { session }
-        );
-
-        const movId = await getNextId("movimentacoes", session);
-        await coll<{
-          _id: number;
-          tipo: string;
-          medication_id: number;
-          quantidade: number;
-          usuario_id: number;
-          data_movimentacao: Date;
-        }>("movimentacoes").insertOne(
-          {
-            _id: movId,
-            tipo: "saida",
-            medication_id: medicationId,
-            quantidade: quantidadeNum,
-            usuario_id,
-            data_movimentacao: new Date(),
-          },
-          { session }
-        );
-      });
-    } finally {
-      await session.endSession();
-    }
-
+async function registrarEventosRetirada(req: Request, realizadas: RetiradaRealizada[]): Promise<void> {
+  for (const r of realizadas) {
     await recordEventFromRequest(req, {
       acao: "medication.withdraw",
       entidade_tipo: "medication",
-      entidade_id: medicationId,
+      entidade_id: r.medicationId,
       detalhes: {
-        medication_id: medicationId,
-        nome: medSnapshot.nome,
-        lote: medSnapshot.lote,
-        quantidade: quantidadeNum,
-        ...(pacienteIdSql != null
-          ? { paciente_id: pacienteIdSql, paciente_nome: pacienteNome }
+        medication_id: r.medicationId,
+        nome: r.nome,
+        lote: r.lote,
+        quantidade: r.quantidade,
+        ...(r.pacienteId != null
+          ? { paciente_id: r.pacienteId, paciente_nome: r.pacienteNome }
           : {}),
       },
     });
+  }
+}
+
+function responderErroRetirada(
+  res: Response,
+  err: unknown,
+  { incluirItemIndex }: { incluirItemIndex: boolean },
+): void {
+  if (err instanceof RetiraError) {
+    console.log(`❌ Retirada rejeitada: ${err.message}`, err.itemIndex ?? "");
+    const body: Record<string, unknown> = { error: err.message };
+    if (incluirItemIndex && err.itemIndex != null) body.item_index = err.itemIndex;
+    res.status(err.status).json(body);
+    return;
+  }
+  console.error("❌ Erro na retirada:", err);
+  res.status(500).json({ error: "Erro interno do servidor" });
+}
+
+export const retiraMedication = async (req: Request, res: Response): Promise<void> => {
+  const usuario_id = req.user!.id;
+  console.log("📥 Dados recebidos para retirada:", { ...req.body, usuario_id });
+
+  try {
+    const item = parseRetiraItem(req.body);
+    const realizadas = await executarRetiradas(usuario_id, [item]);
+    await registrarEventosRetirada(req, realizadas);
 
     console.log("✅ Retirada realizada com sucesso");
     res.status(200).json({ message: "Retirada realizada com sucesso" });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e.code === "NOT_FOUND") {
-      console.error("❌ Medicação não encontrada, ID:", medication_id);
-      res.status(404).json({ error: "Medicação não encontrada" });
-      return;
-    }
-    if (e.code === "INSUFFICIENT") {
-      console.log("❌ Quantidade insuficiente em estoque");
-      res.status(400).json({ error: "Quantidade insuficiente em estoque" });
-      return;
-    }
-    console.error("❌ Erro na retirada:", err);
-    res.status(500).json({ error: "Erro interno do servidor" });
+    responderErroRetirada(res, err, { incluirItemIndex: false });
+  }
+};
+
+export const retiraMedicationLote = async (req: Request, res: Response): Promise<void> => {
+  const usuario_id = req.user!.id;
+  console.log("📥 Dados recebidos para retirada em lote:", { ...req.body, usuario_id });
+
+  try {
+    const itens = parseRetiraItens(req.body);
+    const realizadas = await executarRetiradas(usuario_id, itens);
+    await registrarEventosRetirada(req, realizadas);
+
+    console.log(`✅ Retirada em lote realizada com sucesso (${realizadas.length} itens)`);
+    res.status(200).json({
+      message: "Retiradas realizadas com sucesso",
+      total_itens: realizadas.length,
+    });
+  } catch (err: unknown) {
+    responderErroRetirada(res, err, { incluirItemIndex: true });
   }
 };

@@ -1,5 +1,5 @@
 import { Button } from "primereact/button";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { InputText } from "primereact/inputtext";
 import {
   retornoFilterPresetHoje,
@@ -100,7 +100,7 @@ export function PacientesFiltersBar({
           >
             Ordenar por
           </label>
-          <Dropdown
+          <AppDropdown
             inputId="pacientes-filtro-ordenacao"
             name="pacientes-filtro-ordenacao"
             value={sortKey}

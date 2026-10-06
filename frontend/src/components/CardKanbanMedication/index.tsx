@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../forms/AppDropdown";
 import { formatDateBR } from "../../utils/dateUtils";
 import "../CardKanban/styles.css";
 import type { MedicationAggregated } from "../../types";
@@ -72,7 +72,7 @@ function CardKanbanMedication({ medications }: CardKanbanMedicationProps) {
   return (
     <div>
       <div className="kanban-filter">
-        <Dropdown
+        <AppDropdown
           inputId="kanban-med-filtro-status"
           name="kanban-med-filtro-status"
           value={filterStatus}

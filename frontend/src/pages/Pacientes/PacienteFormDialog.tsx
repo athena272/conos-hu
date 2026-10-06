@@ -1,11 +1,12 @@
 import { Formik, Form, FormikHelpers, Field, ErrorMessage } from "formik";
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
 import LabelInput from "../../components/LabelInput";
 import { FieldLabel } from "../../components/forms/FieldLabel";
+import { buildDropdownFilterProps } from "../../components/forms/dropdownFilter";
 import ButtonSubmit from "../../components/ButtonSubmit";
 import { daysBetweenIsoDates } from "../../utils/dateUtils";
 import type {
@@ -228,7 +229,7 @@ export function PacienteFormDialog({
                                   label="Medicamento"
                                   required
                                 />
-                                <Dropdown
+                                <AppDropdown
                                   inputId={`medicamento-${index}`}
                                   name={`medicamentos.${index}.medicamento`}
                                   value={dropdownValue}
@@ -241,9 +242,11 @@ export function PacienteFormDialog({
                                   }
                                   optionLabel="label"
                                   optionValue="value"
-                                  filter
+                                  {...buildDropdownFilterProps({
+                                    id: `medicamento-busca-${index}`,
+                                    placeholder: "Digite para buscar o medicamento",
+                                  })}
                                   filterBy="label"
-                                  filterPlaceholder="Digite para buscar o medicamento"
                                   showClear
                                   aria-required
                                   onChange={(e: {
@@ -283,7 +286,7 @@ export function PacienteFormDialog({
                           label="Regime de uso"
                           required
                         />
-                        <Dropdown
+                        <AppDropdown
                           inputId={`regime-${index}`}
                           name={`medicamentos.${index}.regime_consumo`}
                           value={regimeAtual}
@@ -592,7 +595,7 @@ export function PacienteFormDialog({
                   label="O paciente vai retornar para o serviço?"
                   required
                 />
-                <Dropdown
+                <AppDropdown
                   inputId="retorna_servico"
                   name="retorna_servico"
                   value={values.retorna_servico}
@@ -629,7 +632,7 @@ export function PacienteFormDialog({
                         touched: Record<string, unknown>;
                       };
                     }) => (
-                      <Dropdown
+                      <AppDropdown
                         inputId="tipo_retorno"
                         name="tipo_retorno"
                         value={values.tipo_retorno}

@@ -5,7 +5,7 @@ import DropdownInput, { DropdownOption } from "../../components/DropdownInput";
 import Button from "../../components/ButtonSubmit";
 import Header from "../../components/Header";
 import Menu from "../../components/Menu";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { Button as PrimeButton } from "primereact/button";
 import { Formik, Form, FormikHelpers } from "formik";
 import * as yup from "yup";
@@ -389,7 +389,7 @@ function RegisterMedicationByBarcode() {
               <Form className="register-form">
                 <div className="form-group">
                   <label htmlFor="barcode-entry-type">Tipo de entrada</label>
-                  <Dropdown
+                  <AppDropdown
                     inputId="barcode-entry-type"
                     name="entryType"
                     value={values.entryType}
@@ -514,7 +514,7 @@ function RegisterMedicationByBarcode() {
                   <>
                     <div className="form-group">
                       <FieldLabel htmlFor="barcode-existing-medication" label="Medicamento / Lote" required />
-                      <Dropdown
+                      <AppDropdown
                         inputId="barcode-existing-medication"
                         name="existingMedicationId"
                         value={values.existingMedicationId}

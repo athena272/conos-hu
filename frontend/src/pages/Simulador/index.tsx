@@ -6,7 +6,7 @@ import FullScreenLoader from "../../components/FullScreenLoader";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { FieldLabel } from "../../components/forms/FieldLabel";
 import { Calculator } from "lucide-react";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { Toast } from "primereact/toast";
 import { api } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -128,7 +128,7 @@ export default function Simulador() {
                 label="Medicamento / Lote"
                 required
               />
-              <Dropdown
+              <AppDropdown
                 inputId="simulador-medicamento"
                 name="simulador-medicamento"
                 value={selectedId}

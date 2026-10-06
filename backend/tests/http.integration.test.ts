@@ -473,6 +473,252 @@ run("retira rejeita lote fora da validade", async (t) => {
   await coll<{ _id: number }>("medications").deleteMany({ _id: medDoc!._id });
 });
 
+async function createMedicationForTest(
+  token: string,
+  data: { suffix: string; quantidade: number; data_validade?: string },
+): Promise<number> {
+  const nome = `IT_LOTE_${data.suffix}`;
+  const lote = `ITLOTE-LT-${data.suffix}`;
+  const res = await request(app)
+    .post("/medications")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      nome,
+      lote,
+      quantidade: data.quantidade,
+      classificacao: "Teste",
+      concentracao: "500mg",
+      forma: "Comprimido",
+      data_validade: data.data_validade ?? "2031-01-01",
+    });
+  assert.equal(res.status, 201);
+  const doc = await coll<{ _id: number }>("medications").findOne({ nome, lote });
+  assert.ok(doc, "medicamento criado deve existir");
+  return doc!._id;
+}
+
+async function stockOf(medicationId: number): Promise<number | undefined> {
+  const doc = await coll<{ _id: number; quantidade: number }>("medications").findOne({
+    _id: medicationId,
+  });
+  return doc?.quantidade;
+}
+
+async function cleanupRetiraLote(medicationIds: number[], pacienteIds: number[] = []): Promise<void> {
+  await coll<{ medication_id: number }>("retira_medications").deleteMany({
+    medication_id: { $in: medicationIds },
+  });
+  await coll<{ medication_id: number }>("movimentacoes").deleteMany({
+    medication_id: { $in: medicationIds },
+  });
+  await coll<{ _id: number }>("medications").deleteMany({ _id: { $in: medicationIds } });
+  if (pacienteIds.length > 0) {
+    await coll<{ paciente_id: number }>("paciente_medicamentos").deleteMany({
+      paciente_id: { $in: pacienteIds },
+    });
+    await coll<{ _id: number }>("pacientes").deleteMany({ _id: { $in: pacienteIds } });
+  }
+}
+
+run("retira/lote baixa vários lotes com paciente por item em uma única operação", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_lote_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+  await insertUserWithRole(email, password, "admin");
+  const token = await loginAs(email, password);
+
+  const suffix = String(Date.now());
+  const medA = await createMedicationForTest(token, { suffix: `${suffix}_a`, quantidade: 10 });
+  const medB = await createMedicationForTest(token, { suffix: `${suffix}_b`, quantidade: 5 });
+
+  const pacienteRes = await request(app)
+    .post("/pacientes")
+    .set("Authorization", `Bearer ${token}`)
+    .send(minimalPacientePayload(`lote_${suffix}`, `IT_LOTE_${suffix}_a`));
+  assert.equal(pacienteRes.status, 201);
+  const pacienteId = pacienteRes.body.id as number;
+
+  const res = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      itens: [
+        { medication_id: medA, quantidade: 3, paciente_id: pacienteId },
+        { medication_id: medB, quantidade: 2 },
+      ],
+    });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.total_itens, 2);
+
+  assert.equal(await stockOf(medA), 7);
+  assert.equal(await stockOf(medB), 3);
+
+  const retiradas = await coll<{ medication_id: number; quantidade: number; paciente_id: number | null }>(
+    "retira_medications",
+  )
+    .find({ medication_id: { $in: [medA, medB] } })
+    .toArray();
+  assert.equal(retiradas.length, 2);
+  assert.equal(retiradas.find((r) => r.medication_id === medA)?.paciente_id, pacienteId);
+  assert.equal(retiradas.find((r) => r.medication_id === medB)?.paciente_id, null);
+
+  const movimentacoes = await coll<{ medication_id: number; tipo: string }>("movimentacoes")
+    .find({ medication_id: { $in: [medA, medB] }, tipo: "saida" })
+    .toArray();
+  assert.equal(movimentacoes.length, 2);
+
+  const eventos = await coll<{ acao: string; entidade_id: number }>("eventos")
+    .find({ acao: "medication.withdraw", entidade_id: { $in: [medA, medB] } })
+    .toArray();
+  assert.equal(eventos.length, 2, "deve registrar um evento de auditoria por item");
+
+  await coll<{ entidade_id: number }>("eventos").deleteMany({ entidade_id: { $in: [medA, medB] } });
+  await cleanupRetiraLote([medA, medB], [pacienteId]);
+});
+
+run("retira/lote é tudo ou nada: falha em um item não baixa nenhum", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_lote_rb_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+  await insertUserWithRole(email, password, "admin");
+  const token = await loginAs(email, password);
+
+  const suffix = String(Date.now());
+  const medA = await createMedicationForTest(token, { suffix: `${suffix}_rba`, quantidade: 10 });
+  const medB = await createMedicationForTest(token, { suffix: `${suffix}_rbb`, quantidade: 1 });
+
+  const res = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      itens: [
+        { medication_id: medA, quantidade: 4 },
+        { medication_id: medB, quantidade: 2 },
+      ],
+    });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, "Quantidade insuficiente em estoque");
+  assert.equal(res.body.item_index, 1);
+
+  assert.equal(await stockOf(medA), 10, "o primeiro item não pode ter sido baixado");
+  assert.equal(await stockOf(medB), 1);
+  const retiradas = await coll<{ medication_id: number }>("retira_medications").countDocuments({
+    medication_id: { $in: [medA, medB] },
+  });
+  assert.equal(retiradas, 0, "nenhuma retirada deve ser gravada");
+  const movimentacoes = await coll<{ medication_id: number }>("movimentacoes").countDocuments({
+    medication_id: { $in: [medA, medB] },
+    tipo: "saida",
+  });
+  assert.equal(movimentacoes, 0, "nenhuma movimentação de saída deve ser gravada");
+
+  await cleanupRetiraLote([medA, medB]);
+});
+
+run("retira/lote rejeita o mesmo lote repetido quando a soma passa do estoque", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_lote_dup_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+  await insertUserWithRole(email, password, "admin");
+  const token = await loginAs(email, password);
+
+  const medA = await createMedicationForTest(token, { suffix: `${Date.now()}_dup`, quantidade: 5 });
+
+  const res = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      itens: [
+        { medication_id: medA, quantidade: 3 },
+        { medication_id: medA, quantidade: 3 },
+      ],
+    });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, "Quantidade insuficiente em estoque");
+  assert.equal(res.body.item_index, 1);
+  assert.equal(await stockOf(medA), 5);
+
+  await cleanupRetiraLote([medA]);
+});
+
+run("retira/lote aponta o item com lote vencido ou paciente inexistente", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const email = `it_retira_lote_val_${Date.now()}@example.com`;
+  const password = "Teste@12345";
+  createdEmails.push(email);
+  await insertUserWithRole(email, password, "admin");
+  const token = await loginAs(email, password);
+
+  const suffix = String(Date.now());
+  const medOk = await createMedicationForTest(token, { suffix: `${suffix}_ok`, quantidade: 10 });
+  const medVencido = await createMedicationForTest(token, {
+    suffix: `${suffix}_venc`,
+    quantidade: 10,
+    data_validade: "2020-01-01",
+  });
+
+  const vencidoRes = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      itens: [
+        { medication_id: medOk, quantidade: 1 },
+        { medication_id: medVencido, quantidade: 1 },
+      ],
+    });
+  assert.equal(vencidoRes.status, 400);
+  assert.equal(vencidoRes.body.error, "Lote fora da validade");
+  assert.equal(vencidoRes.body.item_index, 1);
+
+  const pacienteRes = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      itens: [
+        { medication_id: medOk, quantidade: 1 },
+        { medication_id: medOk, quantidade: 1, paciente_id: 999999999 },
+      ],
+    });
+  assert.equal(pacienteRes.status, 400);
+  assert.equal(pacienteRes.body.error, "Paciente não encontrado");
+  assert.equal(pacienteRes.body.item_index, 1);
+
+  const vazioRes = await request(app)
+    .post("/retira/lote")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ itens: [] });
+  assert.equal(vazioRes.status, 400);
+
+  assert.equal(await stockOf(medOk), 10, "nenhuma tentativa rejeitada pode baixar estoque");
+
+  await cleanupRetiraLote([medOk, medVencido]);
+});
+
+run("retira/lote exige permissão de retirada (viewer e admin_pacientes recebem 403)", async (t) => {
+  if (skipIfMongoUnavailable(t)) return;
+  const password = "Teste@12345";
+  const body = { itens: [{ medication_id: 1, quantidade: 1 }] };
+
+  const unauthRes = await request(app).post("/retira/lote").send(body);
+  assert.equal(unauthRes.status, 401);
+
+  for (const role of ["viewer", "admin_pacientes"] as const) {
+    const email = `it_retira_lote_${role}_${Date.now()}@example.com`;
+    createdEmails.push(email);
+    await insertUserWithRole(email, password, role);
+    const token = await loginAs(email, password);
+
+    const res = await request(app)
+      .post("/retira/lote")
+      .set("Authorization", `Bearer ${token}`)
+      .send(body);
+    assert.equal(res.status, 403, `${role} não deve baixar estoque em lote`);
+  }
+});
+
 run("GET /eventos exige auth (qualquer papel) e registra eventos de escrita", async (t) => {
   if (skipIfMongoUnavailable(t)) return;
 
