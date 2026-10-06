@@ -1,5 +1,5 @@
 import { Field, ErrorMessage } from "formik";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../forms/AppDropdown";
 import { FieldLabel } from "../forms/FieldLabel";
 import "./styles.css";
 
@@ -22,7 +22,7 @@ function DropdownInput({ name, label, options, required = false }: DropdownInput
         {({ field, form }: { field: { value: unknown }; form: { setFieldValue: (name: string, value: unknown) => void; setFieldTouched: (name: string, touched: boolean) => void; errors: Record<string, unknown>; touched: Record<string, unknown> } }) => (
           <div className="input-container">
             <FieldLabel htmlFor={name} label={label} required={required} />
-            <Dropdown
+            <AppDropdown
               inputId={name}
               name={name}
               value={field.value}
