@@ -12,6 +12,8 @@ const EN_TO_PT: Record<string, string> = {
 };
 
 const FALLBACK = "Erro inesperado. Tente novamente.";
+const TIMEOUT_MESSAGE = "A requisição demorou muito. Tente novamente.";
+const AXIOS_TIMEOUT_PATTERN = /^timeout of \d+ms exceeded$/;
 
 interface AxiosLikeError {
   message?: string;
@@ -33,5 +35,6 @@ export function normalizeErrorMessage(error: unknown): string {
   }
 
   const msg = err.message ?? "";
-  return EN_TO_PT[msg] ?? FALLBACK;
+  if (EN_TO_PT[msg]) return EN_TO_PT[msg];
+  return AXIOS_TIMEOUT_PATTERN.test(msg) ? TIMEOUT_MESSAGE : FALLBACK;
 }
