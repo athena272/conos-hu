@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { Button } from "primereact/button";
 import { Dialog } from "primereact/dialog";
 import { Toast } from "primereact/toast";
@@ -184,7 +184,7 @@ export default function EstoqueComprometido() {
             />
           </div>
           <div className="estoque-comprometido-filters-secondary">
-            <Dropdown
+            <AppDropdown
               inputId="estoque-comprometido-ordenacao"
               name="estoque-comprometido-ordenacao"
               value={sortKey}

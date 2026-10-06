@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { DataTable, type DataTableFilterEvent, type DataTablePageEvent } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { Tag } from "primereact/tag";
 import { Button } from "primereact/button";
 import { ConfirmDialog } from "primereact/confirmdialog";
@@ -305,7 +305,7 @@ export default function Home() {
           />
         </span>
         <div className="home-filters-secondary">
-          <Dropdown
+          <AppDropdown
             inputId="home-filtro-status"
             name="home-filtro-status"
             value={filters.status.value}
@@ -526,7 +526,7 @@ export default function Home() {
             </div>
             <div className="p-field">
               <label htmlFor="edit-forma">Forma Farmacêutica</label>
-              <Dropdown
+              <AppDropdown
                 inputId="edit-forma"
                 name="edit-forma"
                 value={editForm.forma}
