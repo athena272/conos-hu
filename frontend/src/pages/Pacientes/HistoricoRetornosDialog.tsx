@@ -2,7 +2,7 @@ import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dialog } from "primereact/dialog";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { formatDateBR } from "../../utils/dateUtils";
 import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
 import type { Paciente, PacienteRetorno } from "../../types";
@@ -121,7 +121,7 @@ export function HistoricoRetornosDialog({
                 <label className="input-label">
                   Tipo de retorno (opcional)
                 </label>
-                <Dropdown
+                <AppDropdown
                   inputId="pacientes-novo-tipo-retorno"
                   name="pacientes-novo-tipo-retorno"
                   value={novoTipoRetorno}

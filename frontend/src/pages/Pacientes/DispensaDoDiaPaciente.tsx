@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "primereact/button";
-import { Dropdown } from "primereact/dropdown";
+import { AppDropdown } from "../../components/forms/AppDropdown";
 import { sessionCanWithdrawMedications } from "../../auth/session";
 import type { RegimeConsumoMedicamento } from "../../types";
 import { suggestDispensaQuantidade } from "./dispensaDoDia";
@@ -119,7 +119,7 @@ export function DispensaDoDiaPaciente({
           <label htmlFor="dispensa-medicamento" className="input-label">
             Medicamento
           </label>
-          <Dropdown
+          <AppDropdown
             inputId="dispensa-medicamento"
             name="dispensa-medicamento"
             value={medKey}
