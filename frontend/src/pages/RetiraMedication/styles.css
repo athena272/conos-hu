@@ -3,6 +3,8 @@
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  /* Folga para o rodapé sticky não encostar no fim do conteúdo. */
+  padding-bottom: 4rem;
 }
 
 .retire-medication-hint {
@@ -32,4 +34,88 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.retire-carrinho {
+  width: 75vh;
+  max-width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.retire-carrinho-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.retire-carrinho-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.retire-carrinho-table {
+  font-size: 0.9rem;
+}
+
+.retire-carrinho-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 75vh;
+  max-width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 6px;
+  line-height: 1.45;
+}
+
+.retire-carrinho-aviso .pi {
+  font-size: 1.25rem;
+  margin-top: 0.1rem;
+}
+
+.retire-carrinho-aviso--info {
+  background: #e8f6f8;
+  border-color: var(--brand, #4eb6c2);
+  color: var(--brand-dark, #1a2a36);
+}
+
+.retire-carrinho-aviso--info .pi {
+  color: #237f8a;
+}
+
+.retire-carrinho-aviso--pendente {
+  background: #fff4e0;
+  border-color: #e0a100;
+  color: #5c3d00;
+}
+
+.retire-carrinho-aviso--pendente .pi {
+  color: #b77900;
+}
+
+.retire-carrinho-aviso-titulo {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.15rem;
+}
+
+.retire-carrinho-aviso-texto {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* O aviso fica logo acima da lista. */
+.retire-carrinho-aviso + .retire-carrinho {
+  margin-top: 0.75rem;
 }
