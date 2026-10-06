@@ -45,4 +45,10 @@ export const DEVELOPER_LINKS: readonly DeveloperLink[] = [
     iconClassName: "pi pi-github",
     brandColor: "var(--ink)",
   },
+  {
+    label: "Portfólio",
+    href: "https://athena272portfolio.vercel.app",
+    iconClassName: "pi pi-globe",
+    brandColor: "#7C3AED",
+  },
 ];
