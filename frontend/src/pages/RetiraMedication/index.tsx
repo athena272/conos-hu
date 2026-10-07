@@ -10,6 +10,7 @@ import * as yup from "yup";
 import { api } from "../../api/client";
 import { getAuth } from "../../auth/session";
 import { Toast } from "primereact/toast";
+import { Button as PrimeButton } from "primereact/button";
 import { normalizeErrorMessage } from "../../utils/errorMessages";
 import FullScreenLoader from "../../components/FullScreenLoader";
 import { FieldLabel } from "../../components/forms/FieldLabel";
@@ -19,6 +20,7 @@ import { PackageMinus } from "lucide-react";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import {
   formatLoteOptionLabel,
+  formatMedicamentoNome,
   isLoteDisponivelParaRetira,
   medicamentoGroupKey,
   pickRecommendedLotId,
@@ -41,16 +43,18 @@ import "./styles.css";
 import type { MedicationWithStatus, Paciente } from "../../types";
 
 interface RetiraMedicationValues {
-  name: string;
-  concentration: string;
   selectedMedicationId: number | null;
   quantity: number;
   pacienteId: number | null;
 }
 
+/** Medicamento recebido pela URL (ex.: dispensa do dia do paciente); restringe o select a ele. */
+interface FiltroLotes {
+  nome: string;
+  concentracao: string;
+}
+
 const INITIAL_VALUES: RetiraMedicationValues = {
-  name: "",
-  concentration: "",
   selectedMedicationId: null,
   quantity: 0,
   pacienteId: null,
@@ -70,7 +74,7 @@ interface CarregarLotesOptions {
 
 const LOTE_FILTER_PROPS = buildDropdownFilterProps({
   id: "retira-lote-busca",
-  placeholder: "Digite o nome, lote ou validade",
+  placeholder: "Digite o nome, concentração, lote ou validade",
 });
 
 const PACIENTE_FILTER_PROPS = buildDropdownFilterProps({
@@ -95,11 +99,7 @@ function toCarrinhoPaciente(
 }
 
 function hasItemPendenteNoFormulario(values: RetiraMedicationValues): boolean {
-  return (
-    values.name.trim() !== "" ||
-    values.selectedMedicationId != null ||
-    Number(values.quantity) > 0
-  );
+  return values.selectedMedicationId != null || Number(values.quantity) > 0;
 }
 
 function formatQuantidadeItens(n: number): string {
@@ -113,8 +113,8 @@ function RetiraMedication() {
   const formikRef = useRef<FormikProps<RetiraMedicationValues>>(null);
   const [lots, setLots] = useState<MedicationWithStatus[]>([]);
   const [loadingLots, setLoadingLots] = useState(false);
-  const [loadingMode, setLoadingMode] = useState<"filter" | "all" | null>(null);
   const [lotsLoadFailed, setLotsLoadFailed] = useState(false);
+  const [filtroLotes, setFiltroLotes] = useState<FiltroLotes | null>(null);
   const [recommendedByMedicamento, setRecommendedByMedicamento] = useState<Map<string, number>>(
     () => new Map(),
   );
@@ -174,7 +174,6 @@ function RetiraMedication() {
 
   const carregarLotes = useCallback(
     async (
-      mode: "filter" | "all",
       fetchList: () => Promise<MedicationWithStatus[]>,
       setFieldValue: SetFieldValue,
       options: CarregarLotesOptions & { mensagemListaVazia: string },
@@ -183,7 +182,6 @@ function RetiraMedication() {
       const isLatest = () => requestId === lotsRequestIdRef.current;
 
       setLoadingLots(true);
-      setLoadingMode(mode);
       setLotsLoadFailed(false);
       setFieldValue("selectedMedicationId", null);
       try {
@@ -212,7 +210,6 @@ function RetiraMedication() {
       } finally {
         if (isLatest()) {
           setLoadingLots(false);
-          setLoadingMode(null);
         }
       }
     },
@@ -220,9 +217,9 @@ function RetiraMedication() {
   );
 
   const buscarLotesPorNomeConc = useCallback(
-    (nome: string, concentracao: string, setFieldValue: SetFieldValue) =>
-      carregarLotes(
-        "filter",
+    (nome: string, concentracao: string, setFieldValue: SetFieldValue) => {
+      setFiltroLotes({ nome, concentracao });
+      return carregarLotes(
         async () => {
           const res = await api.get<MedicationWithStatus[]>("/medications/by-name-concentration", {
             params: { nome: nome.trim(), concentracao: concentracao.trim() },
@@ -235,23 +232,30 @@ function RetiraMedication() {
           notificar: true,
           mensagemListaVazia: "Nenhum lote encontrado com esse nome e concentração.",
         },
-      ),
+      );
+    },
     [carregarLotes],
   );
 
   const carregarTodosLotes = useCallback(
-    (setFieldValue: SetFieldValue, { notificar }: Pick<CarregarLotesOptions, "notificar">) =>
-      carregarLotes(
-        "all",
+    (setFieldValue: SetFieldValue, { notificar }: Pick<CarregarLotesOptions, "notificar">) => {
+      setFiltroLotes(null);
+      return carregarLotes(
         async () => {
           const res = await api.get<MedicationWithStatus[]>("/medications");
           return res.data ?? [];
         },
         setFieldValue,
         { preSelecionar: false, notificar, mensagemListaVazia: "Nenhum lote cadastrado." },
-      ),
+      );
+    },
     [carregarLotes],
   );
+
+  const recarregarLotes = (setFieldValue: SetFieldValue) =>
+    filtroLotes
+      ? buscarLotesPorNomeConc(filtroLotes.nome, filtroLotes.concentracao, setFieldValue)
+      : carregarTodosLotes(setFieldValue, { notificar: true });
 
   useEffect(() => {
     const session = getAuth();
@@ -277,8 +281,6 @@ function RetiraMedication() {
     if (!formik) return;
     prefillDoneRef.current = true;
 
-    if (nome) formik.setFieldValue("name", nome);
-    if (concentracao) formik.setFieldValue("concentration", concentracao);
     const qtd = quantidadeRaw != null ? parseInt(quantidadeRaw, 10) : NaN;
     if (Number.isFinite(qtd) && qtd > 0) {
       formik.setFieldValue("quantity", qtd);
@@ -317,9 +319,10 @@ function RetiraMedication() {
     toast.current?.show({
       severity: "warn",
       summary: "Atenção!",
-      detail:
-        lots.length === 0
-          ? "Clique em 'Buscar lotes' ou 'Ver todos os lotes' e selecione um lote."
+      detail: lotsLoadFailed
+        ? "Não foi possível carregar os lotes. Clique em 'Tentar novamente'."
+        : lots.length === 0
+          ? "Nenhum lote disponível para retirada."
           : "Selecione um lote na lista.",
       life: 5000,
     });
@@ -424,7 +427,7 @@ function RetiraMedication() {
     toast.current?.show({
       severity: "success",
       summary: "Lista",
-      detail: `${lot.nome} (Lote ${lot.lote}) adicionado à lista.`,
+      detail: `${formatMedicamentoNome(lot)} (Lote ${lot.lote}) adicionado à lista.`,
       life: 2500,
     });
   };
@@ -487,8 +490,6 @@ function RetiraMedication() {
   };
 
   const retireSchema = yup.object().shape({
-    name: yup.string().trim(),
-    concentration: yup.string().trim(),
     selectedMedicationId: yup.number().nullable(),
     pacienteId: yup.number().nullable(),
     quantity: yup
@@ -530,18 +531,13 @@ function RetiraMedication() {
       <div className="container-retire-medication">
         <PageHeader
           title="Retirar Medicamento"
-          description="Busque o lote e informe a quantidade a retirar do estoque."
+          description="Selecione o lote e informe a quantidade a retirar do estoque."
           icon={PackageMinus}
         />
         <p className="retire-medication-hint">
           Opcional: vincule a retirada a um paciente para acumular o total em mg dispensado na lista de
           pacientes (somente retiradas com paciente informado entram nesse total). Lotes vencidos não
           podem ser retirados; o lote recomendado é o que vence primeiro (FEFO).
-        </p>
-        <p className="retire-medication-hint">
-          Vários medicamentos no mesmo pedido? Use &quot;Adicionar à lista&quot; em cada item e depois
-          &quot;Retirar itens da lista&quot;: a retirada é feita de uma vez, e se algum item tiver
-          problema nada é baixado.
         </p>
         <Toast ref={toast} position="top-right" />
 
@@ -573,47 +569,15 @@ function RetiraMedication() {
                 }
               />
               <Form className="retire-form">
-              <div className="form-group">
-                <LabelInput
-                  name="name"
-                  label="Nome do medicamento"
-                  placeholder="Digite o nome do medicamento (ex.: Dipirona)"
-                  disabled={busy}
-                />
-              </div>
-
-              <div className="form-group">
-                <LabelInput
-                  name="concentration"
-                  label="Concentração"
-                  placeholder="Digite a concentração do medicamento (ex.: 500mg, 250mg)"
-                  disabled={busy}
-                />
-              </div>
-
-              <div className="form-group retire-form-actions">
-                <Button
-                  type="button"
-                  disabled={busy || loadingLots || !values.name.trim() || !values.concentration.trim()}
-                  onClick={() =>
-                    void buscarLotesPorNomeConc(
-                      values.name,
-                      values.concentration,
-                      setFieldValue,
-                    )
-                  }
-                >
-                  {loadingLots && loadingMode === "filter" ? "Buscando..." : "Buscar lotes"}
-                </Button>
-                <Button
-                  type="button"
-                  className="p-button-outlined"
-                  disabled={busy || loadingLots}
-                  onClick={() => void carregarTodosLotes(setFieldValue, { notificar: true })}
-                >
-                  {loadingLots && loadingMode === "all" ? "Carregando..." : "Ver todos os lotes"}
-                </Button>
-              </div>
+              <section className="retire-secao" aria-labelledby="retire-secao-item-titulo">
+              <header className="retire-secao-header">
+                <h2 id="retire-secao-item-titulo" className="retire-secao-titulo">
+                  Item da retirada
+                </h2>
+                <p className="retire-secao-descricao">
+                  Escolha o lote, vincule um paciente se quiser e informe a quantidade.
+                </p>
+              </header>
 
               <div className="form-group">
                 <label htmlFor="retira-paciente">Paciente (opcional)</label>
@@ -673,6 +637,37 @@ function RetiraMedication() {
                   emptyFilterMessage="Nenhum lote encontrado"
                   aria-required
                 />
+                {filtroLotes && !loadingLots && !lotsLoadFailed && (
+                  <div className="retire-lotes-aviso" aria-live="polite">
+                    <span>
+                      Mostrando apenas os lotes de{" "}
+                      <strong>
+                        {filtroLotes.nome} {filtroLotes.concentracao}
+                      </strong>
+                      .
+                    </span>
+                    <PrimeButton
+                      type="button"
+                      label="Ver todos os lotes"
+                      className="p-button-link p-button-sm"
+                      disabled={busy}
+                      onClick={() => void carregarTodosLotes(setFieldValue, { notificar: true })}
+                    />
+                  </div>
+                )}
+                {lotsLoadFailed && !loadingLots && (
+                  <div className="retire-lotes-aviso retire-lotes-aviso--erro" role="alert">
+                    <span>Não foi possível carregar os lotes.</span>
+                    <PrimeButton
+                      type="button"
+                      label="Tentar novamente"
+                      icon="pi pi-refresh"
+                      className="p-button-link p-button-sm"
+                      disabled={busy}
+                      onClick={() => void recarregarLotes(setFieldValue)}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -711,19 +706,36 @@ function RetiraMedication() {
                   </Button>
                 )}
               </div>
+              </section>
             </Form>
 
-              {carrinho.length > 0 && (
-                <>
-                  <RetiraCarrinhoAviso temItemPendente={hasItemPendenteNoFormulario(values)} />
-                  <RetiraCarrinhoList
-                    itens={carrinho}
-                    disabled={busy}
-                    onRemove={(key) => setCarrinho((prev) => removerItem(prev, key))}
-                    onClear={() => setCarrinho([])}
-                  />
-                </>
-              )}
+              <section className="retire-secao" aria-labelledby="retire-secao-lista-titulo">
+                <header className="retire-secao-header">
+                  <h2 id="retire-secao-lista-titulo" className="retire-secao-titulo">
+                    Lista de retirada
+                  </h2>
+                  <p className="retire-secao-descricao">
+                    Vários medicamentos no mesmo pedido? Use &quot;Adicionar à lista&quot; em cada
+                    item e retire todos de uma vez: se algum item tiver problema, nada é baixado.
+                  </p>
+                </header>
+                {carrinho.length === 0 ? (
+                  <p className="retire-secao-vazia">
+                    Nenhum item na lista. Para um único medicamento, basta clicar em
+                    &quot;Retirar&quot;.
+                  </p>
+                ) : (
+                  <>
+                    <RetiraCarrinhoAviso temItemPendente={hasItemPendenteNoFormulario(values)} />
+                    <RetiraCarrinhoList
+                      itens={carrinho}
+                      disabled={busy}
+                      onRemove={(key) => setCarrinho((prev) => removerItem(prev, key))}
+                      onClear={() => setCarrinho([])}
+                    />
+                  </>
+                )}
+              </section>
             </>
             );
           }}
