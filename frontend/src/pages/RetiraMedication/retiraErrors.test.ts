@@ -47,7 +47,7 @@ describe("formatRetiraLoteErrorMessage", () => {
         apiError(400, { error: "Quantidade insuficiente em estoque", item_index: 1 }),
         itens,
       ),
-    ).toBe("Item 2 (Paracetamol - Lote B2): Quantidade insuficiente em estoque");
+    ).toBe("Item 2 (Paracetamol 750mg - Lote B2): Quantidade insuficiente em estoque");
   });
 
   it("usa só a mensagem quando não há item_index válido", () => {
