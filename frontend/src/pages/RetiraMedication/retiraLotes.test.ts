@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatLoteOptionLabel,
+  formatMedicamentoNome,
   isLoteDisponivelParaRetira,
   isLoteVencido,
   medicamentoGroupKey,
@@ -24,6 +25,17 @@ function lot(
     ...partial,
   };
 }
+
+describe("formatMedicamentoNome", () => {
+  it("junta nome e concentração", () => {
+    expect(formatMedicamentoNome({ nome: "Dipirona", concentracao: "500mg" })).toBe("Dipirona 500mg");
+  });
+
+  it("ignora concentração vazia ou ausente", () => {
+    expect(formatMedicamentoNome({ nome: "Soro", concentracao: "  " })).toBe("Soro");
+    expect(formatMedicamentoNome({ nome: "Soro" })).toBe("Soro");
+  });
+});
 
 describe("isLoteVencido", () => {
   it("considera vencido quando validade é anterior a hoje", () => {
@@ -90,6 +102,26 @@ describe("formatLoteOptionLabel / isLoteDisponivelParaRetira", () => {
       ),
     ).toContain("vencido");
     expect(isLoteDisponivelParaRetira(rec, "2026-09-25")).toBe(true);
+  });
+
+  it("inclui a concentração para diferenciar o mesmo medicamento em doses diferentes", () => {
+    const base = { data_validade: "2026-10-01", quantidade: 5, nome: "Dipirona" };
+    expect(formatLoteOptionLabel(lot({ id: 1, ...base, concentracao: "500mg", lote: "A" }), false, "2026-09-25")).toBe(
+      "Dipirona 500mg - Lote A - Validade 01/10/2026 - Qtd 5",
+    );
+    expect(formatLoteOptionLabel(lot({ id: 2, ...base, concentracao: "1g", lote: "B" }), false, "2026-09-25")).toBe(
+      "Dipirona 1g - Lote B - Validade 01/10/2026 - Qtd 5",
+    );
+  });
+
+  it("sem concentração cadastrada, mostra só o nome", () => {
+    expect(
+      formatLoteOptionLabel(
+        lot({ id: 1, data_validade: "2026-10-01", quantidade: 5, nome: "Soro", concentracao: "  ", lote: "C" }),
+        false,
+        "2026-09-25",
+      ),
+    ).toBe("Soro - Lote C - Validade 01/10/2026 - Qtd 5");
   });
 });
 

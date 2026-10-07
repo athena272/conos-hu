@@ -83,12 +83,18 @@ export function sortLotesParaSelecao(lots: MedicationWithStatus[]): MedicationWi
   );
 }
 
+/** Nome com a concentração (ex.: "Dipirona 500mg"), para doses diferentes não se confundirem. */
+export function formatMedicamentoNome(m: Pick<MedicationWithStatus, "nome" | "concentracao">): string {
+  const concentracao = m.concentracao?.trim();
+  return concentracao ? `${m.nome} ${concentracao}` : m.nome;
+}
+
 export function formatLoteOptionLabel(
   m: MedicationWithStatus,
   isRecommended: boolean,
   todayIso: string = todayIsoLocal(),
 ): string {
-  const base = `${m.nome} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`;
+  const base = `${formatMedicamentoNome(m)} - Lote ${m.lote} - Validade ${formatDateBR(m.data_validade)} - Qtd ${m.quantidade}`;
   if (isLoteVencido(m.data_validade, todayIso)) {
     return `${base} · vencido`;
   }
