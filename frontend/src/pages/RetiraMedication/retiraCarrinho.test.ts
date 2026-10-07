@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adicionarItem,
+  atualizarItem,
   criarItemCarrinho,
   describeCarrinhoItem,
   quantidadeNoCarrinho,
@@ -79,6 +80,50 @@ describe("removerItem", () => {
     const b = criarItemCarrinho(lot({ id: 2 }), 1, null);
 
     expect(removerItem([a, b], a.key)).toEqual([b]);
+  });
+});
+
+describe("atualizarItem", () => {
+  const a = criarItemCarrinho(lot({ id: 1, lote: "A" }), 2, null);
+  const b = criarItemCarrinho(lot({ id: 2, lote: "B" }), 1, null);
+  const c = criarItemCarrinho(lot({ id: 3, lote: "C" }), 4, PACIENTE_ANA);
+
+  it("substitui o item mantendo a posição na lista", () => {
+    const atualizado = criarItemCarrinho(lot({ id: 2, lote: "B" }), 6, null);
+
+    expect(atualizarItem([a, b, c], b.key, atualizado)).toEqual([a, atualizado, c]);
+  });
+
+  it("trocar o paciente gera nova chave no mesmo lugar", () => {
+    const atualizado = criarItemCarrinho(lot({ id: 2, lote: "B" }), 1, PACIENTE_ANA);
+    const resultado = atualizarItem([a, b, c], b.key, atualizado);
+
+    expect(resultado.map((i) => i.key)).toEqual([a.key, atualizado.key, c.key]);
+    expect(resultado[1]).toMatchObject({ pacienteId: 7, pacienteLabel: PACIENTE_ANA.label });
+  });
+
+  it("quando a nova chave já existe em outro item, soma nele e remove o original", () => {
+    const atualizado = criarItemCarrinho(lot({ id: 1, lote: "A" }), 3, null);
+    const resultado = atualizarItem([a, b, c], b.key, atualizado);
+
+    expect(resultado.map((i) => i.key)).toEqual([a.key, c.key]);
+    expect(resultado[0]!.quantidade).toBe(5);
+  });
+
+  it("não modifica a lista original", () => {
+    const itens = [a, b];
+    atualizarItem(itens, b.key, criarItemCarrinho(lot({ id: 1, lote: "A" }), 3, null));
+
+    expect(itens).toEqual([a, b]);
+    expect(a.quantidade).toBe(2);
+  });
+
+  it("validar sem o item editado permite manter a quantidade que ele já reservava", () => {
+    const itens = [criarItemCarrinho(lot({ id: 1 }), 5, null)];
+    const loteComCinco = lot({ id: 1, quantidade: 5 });
+
+    expect(validarNovoItem(loteComCinco, 5, itens, TODAY)).toMatch(/lista já reserva 5/);
+    expect(validarNovoItem(loteComCinco, 5, removerItem(itens, itens[0]!.key), TODAY)).toBeNull();
   });
 });
 

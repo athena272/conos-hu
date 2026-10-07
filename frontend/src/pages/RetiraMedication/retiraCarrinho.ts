@@ -90,6 +90,22 @@ export function removerItem(itens: RetiraCarrinhoItem[], key: string): RetiraCar
   return itens.filter((i) => i.key !== key);
 }
 
+/**
+ * Substitui o item `keyOriginal` mantendo sua posição. Se a nova chave (lote + paciente)
+ * já pertence a outro item, soma nele, como em `adicionarItem`, e remove o original.
+ */
+export function atualizarItem(
+  itens: RetiraCarrinhoItem[],
+  keyOriginal: string,
+  atualizado: RetiraCarrinhoItem,
+): RetiraCarrinhoItem[] {
+  const colideComOutro = itens.some((i) => i.key === atualizado.key && i.key !== keyOriginal);
+  if (colideComOutro) {
+    return adicionarItem(removerItem(itens, keyOriginal), atualizado);
+  }
+  return itens.map((i) => (i.key === keyOriginal ? atualizado : i));
+}
+
 export function toRetiraLotePayload(itens: RetiraCarrinhoItem[]): RetiraLotePayload {
   return {
     itens: itens.map((i) => ({

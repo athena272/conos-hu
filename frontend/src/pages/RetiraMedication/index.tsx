@@ -29,6 +29,7 @@ import {
 } from "./retiraLotes";
 import {
   adicionarItem,
+  atualizarItem,
   criarItemCarrinho,
   removerItem,
   toRetiraLotePayload,
@@ -39,6 +40,7 @@ import {
 import { formatRetiraLoteErrorMessage, resolveRetiraErrorSeverity } from "./retiraErrors";
 import { RetiraCarrinhoAviso } from "./RetiraCarrinhoAviso";
 import { RetiraCarrinhoList } from "./RetiraCarrinhoList";
+import { RetiraEdicaoAviso } from "./RetiraEdicaoAviso";
 import "./styles.css";
 import type { MedicationWithStatus, Paciente } from "../../types";
 
@@ -120,6 +122,10 @@ function RetiraMedication() {
   );
   const [carrinho, setCarrinho] = useState<RetiraCarrinhoItem[]>([]);
   const [submittingCarrinho, setSubmittingCarrinho] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  /** Valores do formulário antes de entrar na edição, restaurados ao cancelar. */
+  const valoresAntesDaEdicaoRef = useRef<RetiraMedicationValues | null>(null);
+  const itemEmEdicao = carrinho.find((i) => i.key === editingKey) ?? null;
   const prefillDoneRef = useRef(false);
   const initialLotsLoadRef = useRef(false);
   /** Só a resposta da última busca de lotes é aplicada; as anteriores são descartadas. */
@@ -177,7 +183,7 @@ function RetiraMedication() {
       fetchList: () => Promise<MedicationWithStatus[]>,
       setFieldValue: SetFieldValue,
       options: CarregarLotesOptions & { mensagemListaVazia: string },
-    ) => {
+    ): Promise<MedicationWithStatus[] | null> => {
       const requestId = ++lotsRequestIdRef.current;
       const isLatest = () => requestId === lotsRequestIdRef.current;
 
@@ -186,7 +192,7 @@ function RetiraMedication() {
       setFieldValue("selectedMedicationId", null);
       try {
         const list = await fetchList();
-        if (!isLatest()) return;
+        if (!isLatest()) return null;
         applyLots(list, setFieldValue, options);
         if (!list.length && options.notificar) {
           toast.current?.show({
@@ -196,8 +202,9 @@ function RetiraMedication() {
             life: 4000,
           });
         }
+        return list;
       } catch (e) {
-        if (!isLatest()) return;
+        if (!isLatest()) return null;
         setLots([]);
         setRecommendedByMedicamento(new Map());
         setLotsLoadFailed(true);
@@ -207,6 +214,7 @@ function RetiraMedication() {
           detail: normalizeErrorMessage(e),
           life: 5000,
         });
+        return null;
       } finally {
         if (isLatest()) {
           setLoadingLots(false);
@@ -393,7 +401,14 @@ function RetiraMedication() {
     }
   };
 
-  const handleAdicionarAoCarrinho = async (formik: FormikProps<RetiraMedicationValues>) => {
+  /**
+   * Valida o formulário contra o estoque e devolve o item pronto para a lista,
+   * ou `null` depois de avisar o motivo. `itensReservados` é o que já ocupa estoque na lista.
+   */
+  const montarItemDoFormulario = async (
+    formik: FormikProps<RetiraMedicationValues>,
+    itensReservados: RetiraCarrinhoItem[],
+  ): Promise<RetiraCarrinhoItem | null> => {
     const errors = await formik.validateForm();
     if (errors.quantity) {
       void formik.setFieldTouched("quantity", true, false);
@@ -403,37 +418,128 @@ function RetiraMedication() {
         detail: errors.quantity,
         life: 4000,
       });
-      return;
+      return null;
     }
 
     const { values } = formik;
     const lot = lots.find((m) => m.id === values.selectedMedicationId);
     if (!lot) {
       showLoteNaoSelecionadoWarning();
-      return;
+      return null;
     }
 
     const quantidade = parseInt(String(values.quantity), 10);
-    const erro = validarNovoItem(lot, quantidade, carrinho);
+    const erro = validarNovoItem(lot, quantidade, itensReservados);
     if (erro) {
       toast.current?.show({ severity: "warn", summary: "Atenção!", detail: erro, life: 5000 });
-      return;
+      return null;
     }
 
     const paciente = toCarrinhoPaciente(values.pacienteId, pacientesOpcoes);
-    setCarrinho((prev) => adicionarItem(prev, criarItemCarrinho(lot, quantidade, paciente)));
-    formik.resetForm({ values: { ...INITIAL_VALUES, pacienteId: values.pacienteId } });
+    return criarItemCarrinho(lot, quantidade, paciente);
+  };
+
+  const prepararFormularioParaProximoItem = (
+    formik: FormikProps<RetiraMedicationValues>,
+    pacienteId: number | null,
+  ) => {
+    formik.resetForm({ values: { ...INITIAL_VALUES, pacienteId } });
     void carregarTodosLotes(formik.setFieldValue, { notificar: false });
+  };
+
+  const handleAdicionarAoCarrinho = async (formik: FormikProps<RetiraMedicationValues>) => {
+    const item = await montarItemDoFormulario(formik, carrinho);
+    if (!item) return;
+
+    setCarrinho((prev) => adicionarItem(prev, item));
+    prepararFormularioParaProximoItem(formik, item.pacienteId);
     toast.current?.show({
       severity: "success",
       summary: "Lista",
-      detail: `${formatMedicamentoNome(lot)} (Lote ${lot.lote}) adicionado à lista.`,
+      detail: `${formatMedicamentoNome(item)} (Lote ${item.lote}) adicionado à lista.`,
       life: 2500,
     });
   };
 
+  const encerrarEdicao = () => {
+    setEditingKey(null);
+    valoresAntesDaEdicaoRef.current = null;
+  };
+
+  const handleEditarItem = async (
+    formik: FormikProps<RetiraMedicationValues>,
+    item: RetiraCarrinhoItem,
+  ) => {
+    if (editingKey == null) {
+      valoresAntesDaEdicaoRef.current = formik.values;
+    }
+    setEditingKey(item.key);
+    document
+      .getElementById("retire-secao-item-titulo")
+      ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+    let lotesDisponiveis: MedicationWithStatus[] | null = lots;
+    if (!lots.some((m) => m.id === item.medicationId)) {
+      lotesDisponiveis = await carregarTodosLotes(formik.setFieldValue, { notificar: false });
+    }
+    const loteDisponivel = lotesDisponiveis?.some((m) => m.id === item.medicationId) ?? false;
+
+    await formik.setValues({
+      selectedMedicationId: loteDisponivel ? item.medicationId : null,
+      pacienteId: item.pacienteId,
+      quantity: item.quantidade,
+    });
+
+    // Sem `lotesDisponiveis` a falha de carregamento já foi avisada pelo toast de erro.
+    if (lotesDisponiveis && !loteDisponivel) {
+      toast.current?.show({
+        severity: "warn",
+        summary: "Atenção!",
+        detail: `O lote ${item.lote} não está mais disponível. Escolha outro lote para este item.`,
+        life: 6000,
+      });
+    }
+  };
+
+  const handleSalvarEdicao = async (formik: FormikProps<RetiraMedicationValues>) => {
+    if (editingKey == null) return;
+    const keyOriginal = editingKey;
+
+    const item = await montarItemDoFormulario(formik, removerItem(carrinho, keyOriginal));
+    if (!item) return;
+
+    setCarrinho((prev) => atualizarItem(prev, keyOriginal, item));
+    encerrarEdicao();
+    prepararFormularioParaProximoItem(formik, item.pacienteId);
+    toast.current?.show({
+      severity: "success",
+      summary: "Lista",
+      detail: `${formatMedicamentoNome(item)} (Lote ${item.lote}) atualizado na lista.`,
+      life: 2500,
+    });
+  };
+
+  const handleCancelarEdicao = (formik: FormikProps<RetiraMedicationValues>) => {
+    const anteriores = valoresAntesDaEdicaoRef.current ?? INITIAL_VALUES;
+    const loteAnteriorNoSelect = lots.some((m) => m.id === anteriores.selectedMedicationId);
+    encerrarEdicao();
+    formik.resetForm({
+      values: {
+        ...anteriores,
+        selectedMedicationId: loteAnteriorNoSelect ? anteriores.selectedMedicationId : null,
+      },
+    });
+  };
+
+  const handleRemoverItem = (formik: FormikProps<RetiraMedicationValues>, key: string) => {
+    if (key === editingKey) {
+      handleCancelarEdicao(formik);
+    }
+    setCarrinho((prev) => removerItem(prev, key));
+  };
+
   const handleRetirarCarrinho = async () => {
-    if (carrinho.length === 0 || submittingCarrinho) return;
+    if (carrinho.length === 0 || submittingCarrinho || editingKey != null) return;
     if (!getAuth()) {
       showNotLoggedError();
       return;
@@ -476,6 +582,15 @@ function RetiraMedication() {
     values: RetiraMedicationValues,
     helpers: FormikHelpers<RetiraMedicationValues>,
   ) => {
+    if (editingKey != null) {
+      toast.current?.show({
+        severity: "info",
+        summary: "Edição em andamento",
+        detail: "Use 'Salvar alteração' ou 'Cancelar edição' para concluir a edição do item.",
+        life: 5000,
+      });
+      return;
+    }
     if (carrinho.length > 0) {
       toast.current?.show({
         severity: "info",
@@ -578,6 +693,13 @@ function RetiraMedication() {
                   Escolha o lote, vincule um paciente se quiser e informe a quantidade.
                 </p>
               </header>
+              {itemEmEdicao && (
+                <RetiraEdicaoAviso
+                  item={itemEmEdicao}
+                  disabled={busy}
+                  onCancelar={() => handleCancelarEdicao(formik)}
+                />
+              )}
 
               <div className="form-group">
                 <label htmlFor="retira-paciente">Paciente (opcional)</label>
@@ -682,14 +804,34 @@ function RetiraMedication() {
               </div>
 
               <div className="form-group retire-form-actions">
-                <Button
-                  type="button"
-                  className="p-button-outlined"
-                  disabled={busy || loadingLots}
-                  onClick={() => void handleAdicionarAoCarrinho(formik)}
-                >
-                  Adicionar à lista
-                </Button>
+                {editingKey != null ? (
+                  <>
+                    <Button
+                      type="button"
+                      disabled={busy || loadingLots}
+                      onClick={() => void handleSalvarEdicao(formik)}
+                    >
+                      Salvar alteração
+                    </Button>
+                    <Button
+                      type="button"
+                      className="p-button-outlined"
+                      disabled={busy}
+                      onClick={() => handleCancelarEdicao(formik)}
+                    >
+                      Cancelar edição
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    className="p-button-outlined"
+                    disabled={busy || loadingLots}
+                    onClick={() => void handleAdicionarAoCarrinho(formik)}
+                  >
+                    Adicionar à lista
+                  </Button>
+                )}
                 {carrinho.length === 0 ? (
                   <Button disabled={isSubmitting} type="submit">
                     {isSubmitting ? "Processando..." : "Retirar"}
@@ -697,7 +839,12 @@ function RetiraMedication() {
                 ) : (
                   <Button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || editingKey != null}
+                    title={
+                      editingKey != null
+                        ? "Conclua ou cancele a edição do item antes de retirar"
+                        : undefined
+                    }
                     onClick={() => void handleRetirarCarrinho()}
                   >
                     {submittingCarrinho
@@ -726,11 +873,15 @@ function RetiraMedication() {
                   </p>
                 ) : (
                   <>
-                    <RetiraCarrinhoAviso temItemPendente={hasItemPendenteNoFormulario(values)} />
+                    <RetiraCarrinhoAviso
+                      temItemPendente={editingKey == null && hasItemPendenteNoFormulario(values)}
+                    />
                     <RetiraCarrinhoList
                       itens={carrinho}
                       disabled={busy}
-                      onRemove={(key) => setCarrinho((prev) => removerItem(prev, key))}
+                      editingKey={editingKey}
+                      onEdit={(item) => void handleEditarItem(formik, item)}
+                      onRemove={(key) => handleRemoverItem(formik, key)}
                       onClear={() => setCarrinho([])}
                     />
                   </>
