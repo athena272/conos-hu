@@ -115,6 +115,49 @@
   font-size: 0.9rem;
 }
 
+.retire-carrinho-acoes {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.retire-carrinho-table .retire-carrinho-linha--editando > td {
+  background: var(--brand-soft, rgba(78, 182, 194, 0.14));
+}
+
+.retire-carrinho-table .retire-carrinho-linha--editando > td:first-child {
+  box-shadow: inset 4px 0 0 var(--brand, #4eb6c2);
+}
+
+.retire-edicao-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--brand, #4eb6c2);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: #e8f6f8;
+  color: var(--brand-dark, #1a2a36);
+}
+
+.retire-edicao-aviso .pi-pencil {
+  color: #237f8a;
+}
+
+.retire-edicao-aviso-texto {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.retire-edicao-aviso .p-button-link {
+  padding: 0;
+}
+
 .retire-carrinho-aviso {
   display: flex;
   align-items: flex-start;
