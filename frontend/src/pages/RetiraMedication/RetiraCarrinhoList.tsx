@@ -3,6 +3,7 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { formatDateBR } from "../../utils/dateUtils";
 import { describeCarrinhoItem, type RetiraCarrinhoItem } from "./retiraCarrinho";
+import { formatMedicamentoNome } from "./retiraLotes";
 
 interface RetiraCarrinhoListProps {
   itens: RetiraCarrinhoItem[];
@@ -15,12 +16,11 @@ export function RetiraCarrinhoList({ itens, disabled, onRemove, onClear }: Retir
   const totalUnidades = itens.reduce((total, i) => total + i.quantidade, 0);
 
   return (
-    <section className="retire-carrinho" aria-label="Lista de retirada">
+    <div className="retire-carrinho">
       <div className="retire-carrinho-header">
-        <h3 className="retire-carrinho-title">
-          Lista de retirada ({itens.length} {itens.length === 1 ? "item" : "itens"} ·{" "}
-          {totalUnidades} unid.)
-        </h3>
+        <p className="retire-carrinho-resumo">
+          {itens.length} {itens.length === 1 ? "item" : "itens"} · {totalUnidades} unid.
+        </p>
         <Button
           type="button"
           label="Limpar lista"
@@ -33,9 +33,7 @@ export function RetiraCarrinhoList({ itens, disabled, onRemove, onClear }: Retir
       <DataTable value={itens} dataKey="key" size="small" className="retire-carrinho-table">
         <Column
           header="Medicamento"
-          body={(row: RetiraCarrinhoItem) =>
-            row.concentracao ? `${row.nome} ${row.concentracao}` : row.nome
-          }
+          body={(row: RetiraCarrinhoItem) => formatMedicamentoNome(row)}
         />
         <Column field="lote" header="Lote" />
         <Column
@@ -61,6 +59,6 @@ export function RetiraCarrinhoList({ itens, disabled, onRemove, onClear }: Retir
           )}
         />
       </DataTable>
-    </section>
+    </div>
   );
 }

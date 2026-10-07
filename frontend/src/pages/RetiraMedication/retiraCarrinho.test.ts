@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adicionarItem,
   criarItemCarrinho,
+  describeCarrinhoItem,
   quantidadeNoCarrinho,
   removerItem,
   toRetiraLotePayload,
@@ -28,6 +29,18 @@ function lot(
 }
 
 const PACIENTE_ANA = { id: 7, label: "Ana · Pront. 123" };
+
+describe("describeCarrinhoItem", () => {
+  it("identifica o item pelo nome, concentração e lote", () => {
+    const item = criarItemCarrinho(lot({ id: 1, lote: "A1" }), 1, null);
+    expect(describeCarrinhoItem(item)).toBe("Dipirona 500mg - Lote A1");
+  });
+
+  it("sem concentração cadastrada, usa só o nome e o lote", () => {
+    const item = criarItemCarrinho(lot({ id: 1, lote: "A1", concentracao: undefined }), 1, null);
+    expect(describeCarrinhoItem(item)).toBe("Dipirona - Lote A1");
+  });
+});
 
 describe("criarItemCarrinho / adicionarItem", () => {
   it("adiciona itens de lotes diferentes separadamente", () => {

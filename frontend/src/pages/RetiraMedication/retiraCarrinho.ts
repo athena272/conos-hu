@@ -1,5 +1,5 @@
 import type { MedicationWithStatus } from "../../types";
-import { isLoteDisponivelParaRetira, todayIsoLocal } from "./retiraLotes";
+import { formatMedicamentoNome, isLoteDisponivelParaRetira, todayIsoLocal } from "./retiraLotes";
 
 export interface RetiraCarrinhoItem {
   /** Lote + paciente: itens com a mesma chave são somados. */
@@ -100,6 +100,8 @@ export function toRetiraLotePayload(itens: RetiraCarrinhoItem[]): RetiraLotePayl
   };
 }
 
-export function describeCarrinhoItem(item: Pick<RetiraCarrinhoItem, "nome" | "lote">): string {
-  return `${item.nome} - Lote ${item.lote}`;
+export function describeCarrinhoItem(
+  item: Pick<RetiraCarrinhoItem, "nome" | "concentracao" | "lote">,
+): string {
+  return `${formatMedicamentoNome(item)} - Lote ${item.lote}`;
 }

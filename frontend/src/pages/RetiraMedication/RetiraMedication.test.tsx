@@ -57,19 +57,22 @@ async function fillField(user: UserEvent, placeholder: string, value: string) {
   await user.type(input, value);
 }
 
-async function adicionarItem(
-  user: UserEvent,
-  item: { nome: string; concentracao: string; lote: string; quantidade: number },
-) {
-  await fillField(user, "Digite o nome do medicamento (ex.: Dipirona)", item.nome);
-  await fillField(
-    user,
-    "Digite a concentração do medicamento (ex.: 500mg, 250mg)",
-    item.concentracao,
-  );
-  await user.click(screen.getByRole("button", { name: "Buscar lotes" }));
+/** Abre o select de lotes e devolve as opções renderizadas (a primeira é o placeholder). */
+async function abrirSelectDeLotes(user: UserEvent): Promise<HTMLElement[]> {
+  await user.click(dropdownLabel("Selecione o lote"));
+  return waitFor(() => {
+    const itens = [...document.querySelectorAll<HTMLElement>(".p-dropdown-item")];
+    expect(itens.length).toBeGreaterThan(0);
+    return itens;
+  });
+}
+
+async function adicionarItem(user: UserEvent, item: { lote: string; quantidade: number }) {
   await aguardarCarregamento();
-  await screen.findAllByText(new RegExp(`Lote ${item.lote} - Validade`));
+  const opcoes = await abrirSelectDeLotes(user);
+  const opcao = opcoes.find((o) => o.textContent?.includes(`Lote ${item.lote} -`));
+  if (!opcao) throw new Error(`Lote ${item.lote} não encontrado no select`);
+  await user.click(opcao);
   await fillField(user, "Digite a quantidade à retirar", String(item.quantidade));
   await user.click(screen.getByRole("button", { name: "Adicionar à lista" }));
 }
@@ -115,7 +118,7 @@ describe("RetiraMedication", () => {
     apiPost.mockResolvedValue({ data: { message: "ok" } });
     renderPage("/retira-medication?nome=Dipirona&concentracao=500mg&quantidade=2");
 
-    await screen.findAllByText(/Lote A1 - Validade/);
+    await screen.findAllByText(/Dipirona 500mg - Lote A1 - Validade/);
     await user.click(screen.getByRole("button", { name: "Retirar" }));
 
     await screen.findByRole("heading", { name: "Home" });
@@ -128,27 +131,95 @@ describe("RetiraMedication", () => {
     expect(chamadasTodosLotes()).toBe(0);
   });
 
+  it("vindo da URL com medicamento, mostra o filtro aplicado e permite ver todos os lotes", async () => {
+    const user = userEvent.setup();
+    renderPage("/retira-medication?nome=Dipirona&concentracao=500mg");
+    await aguardarCarregamento();
+
+    expect(screen.getByText(/Mostrando apenas os lotes de/).textContent).toContain(
+      "Dipirona 500mg",
+    );
+    const loteSelecionado = screen
+      .getAllByText(/^Dipirona 500mg - Lote A1 - Validade/)
+      .find((el) => el.classList.contains("p-dropdown-label"));
+    expect(loteSelecionado).toBeTruthy();
+    expect(chamadasTodosLotes()).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "Ver todos os lotes" }));
+    await aguardarCarregamento();
+
+    expect(chamadasTodosLotes()).toBe(1);
+    expect(screen.queryByText(/Mostrando apenas os lotes de/)).toBeNull();
+    expect(dropdownLabel("Selecione o lote").classList).toContain("p-placeholder");
+  });
+
+  it("vindo da URL com medicamento sem lotes, avisa e mantém a opção de ver todos os lotes", async () => {
+    const user = userEvent.setup();
+    apiGet.mockImplementation(async (url) =>
+      url === "/medications" ? { data: [PARACETAMOL, DIPIRONA] } : { data: [] },
+    );
+    renderPage("/retira-medication?nome=Inexistente&concentracao=1mg");
+    await aguardarCarregamento();
+
+    expect(apiGet).toHaveBeenCalledWith("/medications/by-name-concentration", {
+      params: { nome: "Inexistente", concentracao: "1mg" },
+    });
+    await screen.findByText("Nenhum lote encontrado com esse nome e concentração.");
+    expect(dropdownLabel("Nenhum lote disponível")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Ver todos os lotes" }));
+    await aguardarCarregamento();
+
+    expect(screen.queryByText(/Mostrando apenas os lotes de/)).toBeNull();
+    expect(dropdownLabel("Selecione o lote").classList).toContain("p-placeholder");
+  });
+
+  it("quando os lotes não carregam, oferece tentar novamente", async () => {
+    const user = userEvent.setup();
+    const getPadrao = apiGet.getMockImplementation()!;
+    let falhar = true;
+    apiGet.mockImplementation(async (url, config) => {
+      if (url === "/medications" && falhar) {
+        falhar = false;
+        throw new Error("Network Error");
+      }
+      return getPadrao(url, config);
+    });
+    renderPage();
+    await aguardarCarregamento();
+
+    const aviso = screen.getByText("Não foi possível carregar os lotes.").closest("[role='alert']");
+    expect(aviso?.className).toContain("retire-lotes-aviso--erro");
+    expect(dropdownLabel("Não foi possível carregar os lotes")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await aguardarCarregamento();
+
+    expect(chamadasTodosLotes()).toBe(2);
+    expect(screen.queryByRole("button", { name: "Tentar novamente" })).toBeNull();
+    expect(dropdownLabel("Selecione o lote").classList).toContain("p-placeholder");
+  });
+
   it("ao abrir sem busca na URL, mostra o select com todos os lotes e nenhum pré-selecionado", async () => {
     const user = userEvent.setup();
     renderPage();
     await aguardarCarregamento();
 
     expect(chamadasTodosLotes()).toBe(1);
+    expect(screen.getByRole("heading", { name: "Item da retirada" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Lista de retirada" })).toBeTruthy();
+    expect(screen.queryByText("Nome do medicamento")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Buscar lotes" })).toBeNull();
     expect(dropdownLabel("Selecione o lote").classList).toContain("p-placeholder");
 
-    await user.click(dropdownLabel("Selecione o lote"));
-    const opcoes = await waitFor(() => {
-      const itens = [...document.querySelectorAll<HTMLElement>(".p-dropdown-item")];
-      expect(itens.length).toBeGreaterThan(0);
-      return itens;
-    });
+    const opcoes = await abrirSelectDeLotes(user);
     expect(opcoes.map((o) => o.textContent)).toEqual([
       "Selecione o lote",
-      expect.stringMatching(/^Dipirona - Lote A1 - Validade .* · recomendado$/),
-      expect.stringMatching(/^Paracetamol - Lote B2 - Validade .* · recomendado$/),
+      expect.stringMatching(/^Dipirona 500mg - Lote A1 - Validade .* · recomendado$/),
+      expect.stringMatching(/^Paracetamol 750mg - Lote B2 - Validade .* · recomendado$/),
     ]);
     expect(opcoes.map((o) => o.classList.contains("p-disabled"))).toEqual([true, false, false]);
-    const buscaLote = screen.getByPlaceholderText("Digite o nome, lote ou validade");
+    const buscaLote = screen.getByPlaceholderText("Digite o nome, concentração, lote ou validade");
     expect(buscaLote.id).toBe("retira-lote-busca");
     await user.keyboard("{Escape}");
 
@@ -164,10 +235,11 @@ describe("RetiraMedication", () => {
     renderPage();
     await aguardarCarregamento();
 
-    await adicionarItem(user, { nome: "Dipirona", concentracao: "500mg", lote: "A1", quantidade: 1 });
-    await screen.findByRole("button", { name: "Remover Dipirona - Lote A1" });
+    await adicionarItem(user, { lote: "A1", quantidade: 1 });
+    await screen.findByRole("button", { name: "Remover Dipirona 500mg - Lote A1" });
     await aguardarCarregamento();
 
+    expect(screen.getByText("Dipirona 500mg (Lote A1) adicionado à lista.")).toBeTruthy();
     expect(chamadasTodosLotes()).toBe(2);
     expect(dropdownLabel("Selecione o lote").classList).toContain("p-placeholder");
   });
@@ -189,15 +261,10 @@ describe("RetiraMedication", () => {
     apiPost.mockReturnValue(new Promise((resolve) => (resolvePost = resolve)));
     renderPage();
 
-    await adicionarItem(user, { nome: "Dipirona", concentracao: "500mg", lote: "A1", quantidade: 3 });
-    await screen.findByRole("button", { name: "Remover Dipirona - Lote A1" });
-    await adicionarItem(user, {
-      nome: "Paracetamol",
-      concentracao: "750mg",
-      lote: "B2",
-      quantidade: 2,
-    });
-    await screen.findByRole("button", { name: "Remover Paracetamol - Lote B2" });
+    await adicionarItem(user, { lote: "A1", quantidade: 3 });
+    await screen.findByRole("button", { name: "Remover Dipirona 500mg - Lote A1" });
+    await adicionarItem(user, { lote: "B2", quantidade: 2 });
+    await screen.findByRole("button", { name: "Remover Paracetamol 750mg - Lote B2" });
 
     expect(screen.queryByRole("button", { name: "Retirar" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Retirar 2 itens da lista" }));
@@ -228,23 +295,18 @@ describe("RetiraMedication", () => {
     });
     renderPage();
 
-    await adicionarItem(user, { nome: "Dipirona", concentracao: "500mg", lote: "A1", quantidade: 1 });
-    await screen.findByRole("button", { name: "Remover Dipirona - Lote A1" });
-    await adicionarItem(user, {
-      nome: "Paracetamol",
-      concentracao: "750mg",
-      lote: "B2",
-      quantidade: 1,
-    });
-    await screen.findByRole("button", { name: "Remover Paracetamol - Lote B2" });
+    await adicionarItem(user, { lote: "A1", quantidade: 1 });
+    await screen.findByRole("button", { name: "Remover Dipirona 500mg - Lote A1" });
+    await adicionarItem(user, { lote: "B2", quantidade: 1 });
+    await screen.findByRole("button", { name: "Remover Paracetamol 750mg - Lote B2" });
 
     await user.click(screen.getByRole("button", { name: "Retirar 2 itens da lista" }));
 
     await screen.findByText(
-      "Item 2 (Paracetamol - Lote B2): Quantidade insuficiente em estoque",
+      "Item 2 (Paracetamol 750mg - Lote B2): Quantidade insuficiente em estoque",
     );
-    expect(screen.getByRole("button", { name: "Remover Dipirona - Lote A1" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Remover Paracetamol - Lote B2" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remover Dipirona 500mg - Lote A1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remover Paracetamol 750mg - Lote B2" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Home" })).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
   });
@@ -253,14 +315,15 @@ describe("RetiraMedication", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await adicionarItem(user, { nome: "Dipirona", concentracao: "500mg", lote: "A1", quantidade: 1 });
-    await screen.findByRole("button", { name: "Remover Dipirona - Lote A1" });
+    await adicionarItem(user, { lote: "A1", quantidade: 1 });
+    await screen.findByRole("button", { name: "Remover Dipirona 500mg - Lote A1" });
 
     const aviso = screen.getByRole("note");
     expect(aviso.textContent).toContain("Confira a lista antes de retirar");
 
-    await fillField(user, "Digite o nome do medicamento (ex.: Dipirona)", "Paracetamol");
+    await fillField(user, "Digite a quantidade à retirar", "2");
 
+    expect(screen.queryByText(/Nenhum item na lista/)).toBeNull();
     expect(screen.getByRole("note").textContent).toContain("Item ainda não adicionado à lista");
     expect(screen.getByRole("note").className).toContain("retire-carrinho-aviso--pendente");
   });
@@ -269,15 +332,10 @@ describe("RetiraMedication", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await adicionarItem(user, {
-      nome: "Dipirona",
-      concentracao: "500mg",
-      lote: "A1",
-      quantidade: 11,
-    });
+    await adicionarItem(user, { lote: "A1", quantidade: 11 });
 
     await screen.findByText(/Estoque insuficiente: o lote tem 10 unidade\(s\)/);
-    expect(screen.queryByRole("button", { name: "Remover Dipirona - Lote A1" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remover Dipirona 500mg - Lote A1" })).toBeNull();
     expect(apiPost).not.toHaveBeenCalled();
   });
 });
