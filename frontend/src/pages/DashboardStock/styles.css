@@ -1,0 +1,12 @@
+.title-stock{
+    margin-left: 28px;
+}
+
+.p-tabview-nav-link {
+    text-decoration: none;
+    color: #0012db;
+}
+
+.p-tabview-nav-link:hover {
+    text-decoration: none;
+}

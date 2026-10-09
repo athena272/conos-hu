@@ -1,0 +1,85 @@
+.container-primary-not-found {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    max-width: 800px;
+    width: 100%;
+}
+
+.not-found-title {
+    margin-bottom: 20px;
+}
+  
+.not-found-title h1 {
+    font-size: 4em;
+    color: rgba(117, 12, 12, 0.774);
+    margin-bottom: 10px;
+}
+  
+.not-found-title h2 {
+    font-size: 2em;
+    color: #1a2a36;
+}
+
+.not-found-title p {
+    margin: 0.5rem 0 1rem;
+    color: #374151;
+}
+
+.not-found-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    color: #1a2a36;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.not-found-link:hover {
+    text-decoration: underline;
+}
+
+.not-found-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+  
+#not-found-image {
+    max-width: 80%;
+    height: auto;
+    display: block;
+}
+
+.app-footer.not-found-footer {
+    margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .not-found-title h1 {
+      font-size: 4rem;
+    }
+
+    .not-found-title h2 {
+      font-size: 1.5rem;
+    }
+
+    .not-found-title p {
+      font-size: 1rem;
+    }
+  }
+
+@media (max-width: 480px) {
+    .not-found-title h1 {
+      font-size: 3rem;
+    }
+
+    .not-found-title h2 {
+      font-size: 1.2rem;
+    }
+
+    .not-found-title p {
+      font-size: 0.9rem;
+    }
+}
+  

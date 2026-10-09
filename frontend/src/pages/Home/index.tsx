@@ -1,0 +1,558 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { DataTable, type DataTableFilterEvent, type DataTablePageEvent } from "primereact/datatable";
+import { Column } from "primereact/column";
+import { InputText } from "primereact/inputtext";
+import { AppDropdown } from "../../components/forms/AppDropdown";
+import { Tag } from "primereact/tag";
+import { Button } from "primereact/button";
+import { ConfirmDialog } from "primereact/confirmdialog";
+import { Dialog } from "primereact/dialog";
+import { Toast } from "primereact/toast";
+import { api } from "../../api/client";
+import { sessionCanWriteMedications } from "../../auth/session";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
+import { getDataTableEmptyMessage } from "../../utils/dataTableMessages";
+import { formatDateBR, toInputDateValue } from "../../utils/dateUtils";
+import { useApiQuery } from "../../hooks/useApiQuery";
+import React from "react";
+
+import Header from "../../components/Header";
+import Menu from "../../components/Menu";
+import FullScreenLoader from "../../components/FullScreenLoader";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { Pill } from "lucide-react";
+import {
+  PaginationBar,
+  PaginationSummary,
+  useClientPagination,
+} from "../../components/pagination";
+
+import "./styles.scss";
+import type { MedicationWithStatus } from "../../types";
+import {
+  areHomeMedsFiltersActive,
+  createDefaultHomeMedsFilters,
+} from "./homeMedsFilters";
+
+const FORMA_OPTIONS = [
+  { label: "Comprimido", value: 1 },
+  { label: "Injetável", value: 2 },
+  { label: "Gotas", value: 3 },
+  { label: "Outros", value: 4 },
+];
+
+function toFormaValue(forma: string | number | undefined): number {
+  const v = String(forma ?? "");
+  if (v === "1" || v === "2" || v === "3" || v === "4") return parseInt(v, 10);
+  return 1;
+}
+
+export default function Home() {
+  const location = useLocation();
+  const toast = useRef<Toast>(null);
+  const showFetchError = useCallback((message: string) => {
+    toast.current?.show({
+      severity: "error",
+      summary: "Erro",
+      detail: message,
+      life: 5000,
+    });
+  }, []);
+
+  const fetchMedicationsList = useCallback(async () => {
+    const response = await api.get<MedicationWithStatus[]>("/medications");
+    return response.data ?? [];
+  }, []);
+
+  const {
+    data: medications,
+    loading: loadingMedications,
+    error: medicationsError,
+    reload: reloadMedications,
+  } = useApiQuery(fetchMedicationsList, [location.pathname], {
+    enabled: location.pathname === "/home",
+    initialData: [],
+    onError: (message) => showFetchError(message),
+  });
+  const [filters, setFilters] = useState(createDefaultHomeMedsFilters);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [editingMedication, setEditingMedication] =
+    useState<MedicationWithStatus | null>(null);
+  const [editForm, setEditForm] = useState({
+    nome: "",
+    lote: "",
+    quantidade: 0,
+    classificacao: "",
+    concentracao: "",
+    forma: 1,
+    data_validade: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingMedication, setDeletingMedication] =
+    useState<MedicationWithStatus | null>(null);
+  const [deletingInProgress, setDeletingInProgress] = useState(false);
+  const [filteredTotal, setFilteredTotal] = useState<number | null>(null);
+
+  const totalForPaging = filteredTotal ?? medications.length;
+  const medsPaging = useClientPagination({ rows: 10, total: totalForPaging });
+
+  useEffect(() => {
+    setFilteredTotal(null);
+    medsPaging.resetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when source list changes
+  }, [medications]);
+
+  useEffect(() => {
+    medsPaging.resetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when filters change
+  }, [filters.global.value, filters.status.value, filters.nome.value]);
+
+  const handleMedsFilter = (event: DataTableFilterEvent) => {
+    const filtered = event.filteredValue;
+    setFilteredTotal(Array.isArray(filtered) ? filtered.length : medications.length);
+    medsPaging.resetPage();
+  };
+
+  const handleMedsPage = (event: DataTablePageEvent) => {
+    medsPaging.onPrimePage(event);
+  };
+
+  const [statusOptions] = useState([
+    { label: "Em Estoque", value: "emEstoque" },
+    { label: "Em Falta", value: "emFalta" },
+    { label: "Fora da Validade", value: "foraValidade" },
+    { label: "Próximo a Vencer", value: "proximoVencer" },
+  ]);
+
+  const getStatusTag = (status: string) => {
+    const statusColors: Record<string, { label: string; color: string }> = {
+      emEstoque: { label: "Em Estoque", color: "#1AD698" },
+      proximoVencer: { label: "Próximo a Vencer", color: "#FFBB00" },
+      foraValidade: { label: "Fora da Validade", color: "#A83232" },
+      emFalta: { label: "Em Falta", color: "#FF3838" },
+    };
+
+    const statusInfo = statusColors[status] || {
+      label: "Desconhecido",
+      color: "#CCC",
+    };
+
+    return (
+      <Tag
+        value={statusInfo.label}
+        style={{
+          backgroundColor: statusInfo.color,
+          color: "#FFF",
+          fontWeight: "bold",
+          borderRadius: "5px",
+          padding: "5px 10px",
+        }}
+      />
+    );
+  };
+
+  const getForma = (formaCode: string | number | undefined): string => {
+    switch (String(formaCode)) {
+      case "1":
+        return "Comprimido";
+      case "2":
+        return "Injetável";
+      case "3":
+        return "Gotas";
+      case "4":
+        return "Outros";
+      default:
+        return "Desconhecido";
+    }
+  };
+
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const _filters = { ...filters };
+    _filters["global"].value = value;
+    setFilters(_filters);
+    setGlobalFilterValue(value);
+  };
+
+  const filtrosAtivos = areHomeMedsFiltersActive(
+    globalFilterValue,
+    filters.status.value,
+  );
+
+  const limparFiltros = () => {
+    setGlobalFilterValue("");
+    setFilters(createDefaultHomeMedsFilters());
+    setFilteredTotal(null);
+  };
+
+  const openEdit = (row: MedicationWithStatus) => {
+    setEditingMedication(row);
+    setEditForm({
+      nome: row.nome ?? "",
+      lote: row.lote ?? "",
+      quantidade: row.quantidade ?? 0,
+      classificacao: row.classificacao ?? "",
+      concentracao: row.concentracao ?? "",
+      forma: toFormaValue(row.forma),
+      data_validade: toInputDateValue(row.data_validade),
+    });
+  };
+
+  const closeEdit = () => {
+    setEditingMedication(null);
+    setSavingEdit(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMedication) return;
+    setSavingEdit(true);
+    try {
+      await api.put(`/medications/${editingMedication.id}`, {
+        nome: editForm.nome,
+        lote: editForm.lote,
+        quantidade: editForm.quantidade,
+        classificacao: editForm.classificacao,
+        concentracao: editForm.concentracao,
+        forma: String(editForm.forma),
+        data_validade: editForm.data_validade,
+      });
+      toast.current?.show({
+        severity: "success",
+        summary: "Sucesso!",
+        detail: "Medicamento atualizado com sucesso.",
+        life: 3000,
+      });
+      closeEdit();
+      void reloadMedications({ silent: true });
+    } catch (error: unknown) {
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro!",
+        detail: normalizeErrorMessage(error),
+        life: 4000,
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingMedication) return;
+    setDeletingInProgress(true);
+    try {
+      await api.delete(`/medications/${deletingMedication.id}`);
+      toast.current?.show({
+        severity: "success",
+        summary: "Sucesso!",
+        detail: "Medicamento excluído com sucesso.",
+        life: 3000,
+      });
+      setDeletingMedication(null);
+      void reloadMedications({ silent: true });
+    } catch (error: unknown) {
+      toast.current?.show({
+        severity: "error",
+        summary: "Erro!",
+        detail: normalizeErrorMessage(error),
+        life: 4000,
+      });
+    } finally {
+      setDeletingInProgress(false);
+    }
+  };
+
+  const canWriteMeds = sessionCanWriteMedications();
+
+  return (
+    <div className="home-container">
+      <Toast ref={toast} position="top-right" />
+      <ConfirmDialog
+        visible={canWriteMeds && !!deletingMedication}
+        onHide={() => !deletingInProgress && setDeletingMedication(null)}
+        header="Excluir medicamento"
+        message="Deseja realmente excluir este medicamento? Esta ação não pode ser desfeita."
+        acceptLabel="Excluir"
+        rejectLabel="Cancelar"
+        acceptClassName="p-button-danger"
+        accept={handleConfirmDelete}
+        reject={() => setDeletingMedication(null)}
+      />
+      <FullScreenLoader
+        active={loadingMedications}
+        message="Carregando..."
+      />
+      <Header />
+      <Menu />
+      <div className="title-home">
+        <PageHeader
+          title="Medicamentos"
+          description="Consulte lotes em estoque, filtre por status e gerencie cadastros."
+          icon={Pill}
+        />
+      </div>
+      <div className="home-filters-bar">
+        <span className="home-filter-busca">
+          <i className="pi pi-search" aria-hidden />
+          <InputText
+            id="home-filtro-busca"
+            name="home-filtro-busca"
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder="Digite o nome, lote ou status"
+            className="home-input-busca"
+            aria-label="Buscar por nome, lote ou status"
+          />
+        </span>
+        <div className="home-filters-secondary">
+          <AppDropdown
+            inputId="home-filtro-status"
+            name="home-filtro-status"
+            value={filters.status.value}
+            options={statusOptions}
+            onChange={(e) => {
+              setFilters((prevFilters) => ({
+                ...prevFilters,
+                status: { ...prevFilters.status, value: e.value },
+              }));
+            }}
+            placeholder="Selecione o status"
+            className="home-filter-status"
+            showClear
+          />
+          <Button
+            type="button"
+            label="Limpar filtros"
+            icon="pi pi-filter-slash"
+            outlined
+            className="home-filter-clear-btn"
+            onClick={limparFiltros}
+            disabled={!filtrosAtivos}
+            aria-label="Limpar filtros"
+          />
+        </div>
+      </div>
+      <div className="pagination-table-block home-table-block">
+        <div className="pagination-toolbar">
+          <PaginationSummary
+            page={medsPaging.page}
+            totalPages={medsPaging.totalPages}
+            total={totalForPaging}
+            summaryLabel="registro(s)"
+          />
+        </div>
+        <DataTable
+          value={medications}
+          paginator
+          first={medsPaging.first}
+          rows={medsPaging.rows}
+          onPage={handleMedsPage}
+          onFilter={handleMedsFilter}
+          filters={filters}
+          filterDisplay="row"
+          globalFilterFields={["nome", "lote", "status"]}
+          className="conos-hide-native-paginator"
+          emptyMessage={getDataTableEmptyMessage({
+            loading: false,
+            error: medicationsError,
+            emptyLabel: "Nenhum medicamento encontrado.",
+          })}
+        >
+        <Column field="nome" header="Nome" style={{ minWidth: "12rem" }} />
+        <Column field="lote" header="Lote" style={{ minWidth: "10rem" }} />
+        <Column
+          field="quantidade"
+          header="Quantidade"
+          style={{ minWidth: "10rem" }}
+        />
+        <Column
+          field="classificacao"
+          header="Classificação"
+          style={{ minWidth: "12rem" }}
+        />
+        <Column
+          field="concentracao"
+          header="Concentração"
+          style={{ minWidth: "12rem" }}
+        />
+        <Column
+          field="forma"
+          header="Forma Farmacêutica"
+          body={(rowData: MedicationWithStatus) => getForma(rowData.forma)}
+          style={{ minWidth: "10rem" }}
+        />
+        <Column
+          field="data_validade"
+          header="Data de Validade"
+          body={(rowData: MedicationWithStatus) =>
+            formatDateBR(rowData.data_validade)
+          }
+          style={{ minWidth: "12rem" }}
+        />
+        <Column
+          field="status"
+          header="Status"
+          body={(rowData: MedicationWithStatus) => getStatusTag(rowData.status)}
+          style={{ minWidth: "10rem" }}
+        />
+        {canWriteMeds && (
+          <Column
+            header="Ações"
+            body={(rowData: MedicationWithStatus) => (
+              <div className="home-actions-buttons">
+                <Button
+                  label="Editar"
+                  icon="pi pi-pencil"
+                  className="p-button-sm"
+                  onClick={() => openEdit(rowData)}
+                />
+                <Button
+                  label="Excluir"
+                  icon="pi pi-trash"
+                  className="p-button-sm p-button-danger"
+                  onClick={() => setDeletingMedication(rowData)}
+                  aria-label="Excluir medicamento"
+                  disabled={deletingInProgress}
+                />
+              </div>
+            )}
+            style={{ minWidth: "10rem" }}
+          />
+        )}
+      </DataTable>
+        <PaginationBar
+          page={medsPaging.page}
+          totalPages={medsPaging.totalPages}
+          total={totalForPaging}
+          summaryLabel="registro(s)"
+          onPageChange={medsPaging.setPage}
+        />
+      </div>
+
+      <Dialog
+        header="Editar medicamento"
+        visible={canWriteMeds && !!editingMedication}
+        onHide={closeEdit}
+        draggable={false}
+        className="home-edit-dialog"
+        style={{ width: "92vw", maxWidth: "580px" }}
+        contentClassName="home-edit-dialog-content"
+        footer={
+          <div style={{ marginTop: "20px" }}>
+            <Button
+              label="Cancelar"
+              className="p-button-text"
+              onClick={closeEdit}
+            />
+            <Button
+              label="Salvar"
+              onClick={handleSaveEdit}
+              loading={savingEdit}
+              disabled={savingEdit}
+            />
+          </div>
+        }
+      >
+        {editingMedication && (
+          <div className="edit-form-fields">
+            <div className="p-field">
+              <label htmlFor="edit-nome">Nome</label>
+              <InputText
+                id="edit-nome"
+                name="edit-nome"
+                value={editForm.nome}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, nome: e.target.value }))
+                }
+                placeholder="Digite o nome do medicamento"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-lote">Lote</label>
+              <InputText
+                id="edit-lote"
+                name="edit-lote"
+                value={editForm.lote}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, lote: e.target.value }))
+                }
+                placeholder="Digite o nome do lote"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-quantidade">Quantidade</label>
+              <InputText
+                id="edit-quantidade"
+                name="edit-quantidade"
+                type="number"
+                value={String(editForm.quantidade)}
+                onChange={(e) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    quantidade: parseInt(e.target.value, 10) || 0,
+                  }))
+                }
+                placeholder="Digite a quantidade"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-classificacao">Classificação</label>
+              <InputText
+                id="edit-classificacao"
+                name="edit-classificacao"
+                value={editForm.classificacao}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, classificacao: e.target.value }))
+                }
+                placeholder="Digite a classificação"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-concentracao">Concentração</label>
+              <InputText
+                id="edit-concentracao"
+                name="edit-concentracao"
+                value={editForm.concentracao}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, concentracao: e.target.value }))
+                }
+                placeholder="Digite a concentração (ex.: 500mg)"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-forma">Forma Farmacêutica</label>
+              <AppDropdown
+                inputId="edit-forma"
+                name="edit-forma"
+                value={editForm.forma}
+                options={FORMA_OPTIONS}
+                onChange={(e) => setEditForm((f) => ({ ...f, forma: e.value }))}
+                placeholder="Selecione a forma farmacêutica"
+                className="w-full"
+              />
+            </div>
+            <div className="p-field">
+              <label htmlFor="edit-validade">Data de Validade</label>
+              <InputText
+                id="edit-validade"
+                name="edit-validade"
+                type="date"
+                value={editForm.data_validade}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, data_validade: e.target.value }))
+                }
+                placeholder="Selecione a data de validade"
+                className="w-full"
+              />
+            </div>
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
+}

@@ -1,0 +1,151 @@
+import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import FloatLabelInput from "../../components/FloatLabelInput";
+import Button from "../../components/ButtonSubmit";
+import { Formik, Form, FormikHelpers } from "formik";
+import * as yup from "yup";
+import { Toast } from "primereact/toast";
+
+import { api } from "../../api/client";
+import { setAuth, type UserRole } from "../../auth/session";
+import { normalizeErrorMessage } from "../../utils/errorMessages";
+import FullScreenLoader from "../../components/FullScreenLoader";
+import "./styles.css";
+
+interface RegisterValues {
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+function Register() {
+  const toast = useRef<Toast>(null);
+  const navigate = useNavigate();
+
+  const handleClickRegister = (
+    values: RegisterValues,
+    { setSubmitting }: FormikHelpers<RegisterValues>
+  ) => {
+    api
+      .post<{
+        userId: number;
+        email: string;
+        role: UserRole;
+        token: string;
+        message: string;
+      }>("/register", {
+        email: values.email,
+        password: values.password,
+      })
+      .then((response) => {
+        const d = response.data;
+        setAuth({
+          token: d.token,
+          userId: d.userId,
+          email: d.email,
+          role: d.role,
+        });
+
+        toast.current?.show({
+          severity: "success",
+          summary: "Sucesso!",
+          detail: "Registro realizado!",
+          life: 2000,
+        });
+
+        setTimeout(() => {
+          navigate("/home");
+        }, 2000);
+      })
+      .catch((error: unknown) => {
+        setSubmitting(false);
+        toast.current?.show({
+          severity: "error",
+          summary: "Erro!",
+          detail: normalizeErrorMessage(error),
+          life: 3000,
+        });
+      });
+  };
+
+  const validationRegister = yup.object().shape({
+    email: yup
+      .string()
+      .email("Email inválido")
+      .required("O email é obrigatório"),
+    password: yup
+      .string()
+      .min(8, "A senha deve ter pelo menos 8 caracteres")
+      .required("A senha é obrigatória"),
+    confirmPassword: yup
+      .string()
+      .oneOf([yup.ref("password"), null], "As senhas não são iguais")
+      .required("A confirmação da senha é obrigatória"),
+  });
+
+  return (
+    <>
+      <Toast ref={toast} position="top-right" />
+      <Formik
+        initialValues={{ email: "", password: "", confirmPassword: "" }}
+        onSubmit={handleClickRegister}
+        validationSchema={validationRegister}
+      >
+        {({ isSubmitting }) => (
+          <>
+            <FullScreenLoader active={isSubmitting} message="Criando conta..." />
+            <h1>Inscreva-se</h1>
+            <p>Vamos preparar você para que possa acessar sua conta pessoal.</p>
+
+            <Form className="register-form">
+              <div className="form-group">
+                <FloatLabelInput
+                  name="email"
+                  label="Email"
+                  placeholder="Digite o seu email"
+                  type="email"
+                  required
+                  floating={false}
+                />
+              </div>
+
+              <div className="form-group">
+                <FloatLabelInput
+                  name="password"
+                  label="Senha"
+                  placeholder="Digite a sua senha"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  floating={false}
+                />
+              </div>
+
+              <div className="form-group">
+                <FloatLabelInput
+                  name="confirmPassword"
+                  label="Confirme sua senha"
+                  placeholder="Digite a sua senha novamente"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  floating={false}
+                />
+              </div>
+
+              <Button disabled={isSubmitting}>Criar</Button>
+              <p style={{ color: "var(--muted)" }}>
+                Já tem uma conta?{" "}
+                <a href="/login">
+                  Login
+                </a>
+              </p>
+            </Form>
+          </>
+        )}
+      </Formik>
+    </>
+  );
+}
+
+export default Register;

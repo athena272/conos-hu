@@ -1,0 +1,35 @@
+services:
+  db:
+    image: mongo:8.0.23
+    container_name: conos-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - conos_mongo_data:/data/db
+    command:
+      - bash
+      - -c
+      - |
+        if [ ! -s /data/replica-keyfile ]; then
+          openssl rand -base64 756 > /data/replica-keyfile
+        fi
+        chmod 400 /data/replica-keyfile
+        chown mongodb:mongodb /data/replica-keyfile
+        exec mongod --replSet rs0 --bind_ip_all --keyFile /data/replica-keyfile
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 2)"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+
+volumes:
+  conos_mongo_data:

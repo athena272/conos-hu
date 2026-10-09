@@ -1,0 +1,10 @@
+label {
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.campo-dropdown {
+    display: flex;
+    flex-direction: column;
+}

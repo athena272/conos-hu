@@ -1,0 +1,6 @@
+.env
+dump_conos.sql
+
+.vercel
+/backup-atlas
+conos-main.zip

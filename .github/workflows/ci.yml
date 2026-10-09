@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  backend:
+    name: Backend (test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Controllers usam withTransaction; Mongo standalone rejeita isso.
+    # Sobe um mongod single-node com --replSet (igual ao docker-compose local).
+    env:
+      MONGODB_URI: mongodb://127.0.0.1:27017/conos-ci?replicaSet=rs0
+      JWT_SECRET: ci-test-secret
+      NODE_ENV: test
+      CI: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name conos-mongo-ci -p 27017:27017 mongo:7 mongod --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            if docker exec conos-mongo-ci mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' 2>/dev/null | grep -q 1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec conos-mongo-ci mongosh --quiet --eval 'try { rs.status() } catch (e) { rs.initiate({_id:"rs0", members:[{_id:0, host:"127.0.0.1:27017"}]}) }'
+          for i in $(seq 1 30); do
+            if docker exec conos-mongo-ci mongosh --quiet --eval 'rs.isMaster().ismaster' 2>/dev/null | grep -q true; then
+              echo "MongoDB replica set ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MongoDB replica set failed to become primary"
+          docker logs conos-mongo-ci || true
+          exit 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

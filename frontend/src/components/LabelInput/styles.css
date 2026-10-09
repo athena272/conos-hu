@@ -1,0 +1,42 @@
+.campo-texto {
+  margin-bottom: 20px;
+}
+
+.input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.input-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink, #1a2b33);
+  margin-bottom: 4px;
+}
+
+.form-field {
+  padding: 10px;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line, #c5d5db);
+  font-size: 14px;
+  width: 75vh;
+  max-width: 100%;
+  transition: border-color var(--ease, 180ms ease), box-shadow var(--ease, 180ms ease);
+}
+
+.form-field:focus {
+  border-color: var(--brand, #4eb6c2);
+  box-shadow: 0 0 0 2px var(--brand-soft, rgba(78, 182, 194, 0.14));
+}
+
+.form-field.p-invalid {
+  border-color: var(--danger, #9b2c2c);
+}
+
+.form-error {
+  color: var(--danger, #9b2c2c);
+  font-size: 12px;
+  margin-top: 5px;
+}

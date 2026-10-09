@@ -1,0 +1,11 @@
+/* Tipografia Conos — tokens em src/styles/design-tokens.css */
+* {
+  font-family: "DM Sans", "Segoe UI", Tahoma, Verdana, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Libre Baskerville", Georgia, serif;
+  color: #1a2a36;
+}

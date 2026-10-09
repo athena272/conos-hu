@@ -1,0 +1,30 @@
+.container-register-medication {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 140px);
+  padding: 0 1.25rem 2rem;
+}
+
+.container-register-medication .register-form {
+  width: 100%;
+  max-width: 450px;
+  padding: 0;
+}
+
+.register-form .form-group {
+  margin-bottom: 25px;
+}
+
+/* Selects com mesma largura dos inputs (form-field usa 75vh) */
+.register-form .form-group .p-dropdown {
+  width: 100%;
+  max-width: 100%;
+}
+
+.register-form .form-group label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--ink, #1a2b33);
+}

@@ -1,0 +1,75 @@
+.form-field {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius, 0.75rem);
+  box-sizing: border-box;
+}
+
+.campo-texto {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.login-form .form-group,
+.register-form .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-error {
+  display: block;
+  margin-top: 0.25rem;
+  color: #e24c4c;
+  font-size: 0.875rem;
+}
+
+label {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.float-label-password-wrapper {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.float-label-password-wrapper .form-field-password {
+  padding-right: 2.5rem;
+}
+
+.float-label-password-wrapper .password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--p-text-color, #495057);
+  font-size: 1.25rem;
+}
+
+.float-label-password-wrapper .password-toggle:hover {
+  color: var(--p-primary-color, #0d89ec);
+}
+
+.float-label-password-wrapper--static .password-toggle {
+  top: 50%;
+}
+
+.campo-texto .input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.campo-texto .input-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink, #1a2b33);
+  margin-bottom: 0;
+}
