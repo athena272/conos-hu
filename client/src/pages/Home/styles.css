@@ -1,0 +1,25 @@
+.title-home{
+    margin-left: 28px;
+}
+
+.p-datatable-header{
+    background-color: #fff;
+}
+
+.p-datatable .p-datatable-header {
+    border: 0px;
+    display: flex;
+    justify-content: flex-end;
+    
+}
+
+.filters-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filters-container .p-inputtext,
+.filters-container .p-dropdown {
+    width: 250px;
+}

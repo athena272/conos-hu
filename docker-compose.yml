@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  conos-api:
+    build: ./server
+    container_name: conos-api
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      DB_HOST: 10.20.8.49 # Banco de dados externo
+      DB_USER: conos
+      DB_PASSWORD: C0no$US#r143
+      DB_NAME: conos
+      DB_PORT: 3306
+      NODE_ENV: production
+    networks:
+      - conos-net
+
+  conos-client:
+    build: ./client
+    container_name: conos-client
+    restart: always
+    ports:
+      - "5173:5173" # Porta do Vite local
+    environment:
+      - VITE_API_URL=http://localhost:3001 # Acesso local à API
+    depends_on:
+      - conos-api
+    networks:
+      - conos-net
+
+networks:
+  conos-net:

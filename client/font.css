@@ -1,0 +1,10 @@
+/* Estilo global para a fonte em todas as páginas */
+* {
+    font-family: 'Lucida Grande', Tahoma, Verdana, Arial, sans-serif;
+}
+
+h2{
+    display: flex;
+    justify-content: center;
+    color: #374151;
+}

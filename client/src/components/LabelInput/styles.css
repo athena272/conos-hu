@@ -1,0 +1,35 @@
+.campo-texto {
+    margin-bottom: 20px;
+}
+  
+.input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+  
+.input-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 4px;
+}
+  
+.form-field {
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    width: 75vh;
+}
+  
+.form-field.p-invalid {
+    border-color: red;
+}
+  
+.form-error {
+    color: red;
+    font-size: 12px;
+    margin-top: 5px;
+}
+  
