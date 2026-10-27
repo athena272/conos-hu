@@ -13,21 +13,22 @@ import PrivateRoute from "./src/routes/PrivateRoute";
 import MedicationWriteRoute from "./src/routes/MedicationWriteRoute";
 import { AuthLayout } from "./src/components/layout/AuthLayout";
 import { AuthenticatedLayout } from "./src/components/layout/AuthenticatedLayout";
+import { lazyAuthenticatedPages } from "./src/routes/lazyAuthenticatedPages";
 
 /**
  * Telas autenticadas saem em arquivos próprios, baixados só na primeira visita à rota.
  * Precisam ficar sob o `AuthenticatedLayout`, que fornece o Suspense e o tratamento de erro.
  */
-const Home = lazy(() => import("./src/pages/Home"));
-const RegisterMedication = lazy(() => import("./src/pages/RegisterMedication"));
-const RegisterMedicationByBarcode = lazy(() => import("./src/pages/RegisterMedicationByBarcode"));
-const RetiraMedication = lazy(() => import("./src/pages/RetiraMedication"));
-const Simulador = lazy(() => import("./src/pages/Simulador"));
-const Dashboard = lazy(() => import("./src/pages/Dashboard"));
-const DashboardStock = lazy(() => import("./src/pages/DashboardStock"));
-const Pacientes = lazy(() => import("./src/pages/Pacientes"));
-const EstoqueComprometido = lazy(() => import("./src/pages/EstoqueComprometido"));
-const Historico = lazy(() => import("./src/pages/Historico"));
+const Home = lazy(lazyAuthenticatedPages["/home"]);
+const RegisterMedication = lazy(lazyAuthenticatedPages["/register-medication"]);
+const RegisterMedicationByBarcode = lazy(lazyAuthenticatedPages["/register-medication-barcode"]);
+const RetiraMedication = lazy(lazyAuthenticatedPages["/retira-medication"]);
+const Simulador = lazy(lazyAuthenticatedPages["/simulador"]);
+const Dashboard = lazy(lazyAuthenticatedPages["/dashboard"]);
+const DashboardStock = lazy(lazyAuthenticatedPages["/dashboard-stock"]);
+const Pacientes = lazy(lazyAuthenticatedPages["/pacientes"]);
+const EstoqueComprometido = lazy(lazyAuthenticatedPages["/estoque-comprometido"]);
+const Historico = lazy(lazyAuthenticatedPages["/historico"]);
 
 /** Árvore de rotas, sem o roteador, para poder ser montada também com `MemoryRouter` nos testes. */
 export const AppRouteTree = () => {
