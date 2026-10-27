@@ -1,6 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { Menubar } from "primereact/menubar";
+import type { MenuItem } from "primereact/menuitem";
 import { clearAuth, sessionCanWriteMedications, sessionCanWithdrawMedications } from "../../auth/session";
+import {
+  preloadAuthenticatedPage,
+  type AuthenticatedPath,
+} from "../../routes/lazyAuthenticatedPages";
 import "./styles.css";
 
 export default function Menu() {
@@ -13,83 +18,55 @@ export default function Menu() {
     navigate("/login");
   };
 
-  const items = [
-    {
-      label: "Home",
-      icon: "pi pi-home",
-      url: "/home",
+  /** Navegação client-side: evita reload completo que o Menubar faria com `url`. */
+  const navItem = (label: string, icon: string, path: AuthenticatedPath): MenuItem => ({
+    label,
+    icon,
+    command: () => {
+      void preloadAuthenticatedPage(path);
+      navigate(path);
     },
+  });
+
+  const items: MenuItem[] = [
+    navItem("Home", "pi pi-home", "/home"),
     {
       label: "Medicamentos",
       icon: "pi pi-tablet",
       items: [
         ...(canWriteMeds
           ? [
-              {
-                label: "Registrar",
-                icon: "pi pi-plus-circle",
-                url: "/register-medication",
-              },
-              {
-                label: "Registrar (código de barras)",
-                icon: "pi pi-qrcode",
-                url: "/register-medication-barcode",
-              },
+              navItem("Registrar", "pi pi-plus-circle", "/register-medication"),
+              navItem(
+                "Registrar (código de barras)",
+                "pi pi-qrcode",
+                "/register-medication-barcode",
+              ),
             ]
           : []),
         ...(canWithdrawMeds
-          ? [
-              {
-                label: "Retirar",
-                icon: "pi pi-cart-arrow-down",
-                url: "/retira-medication",
-              },
-            ]
+          ? [navItem("Retirar", "pi pi-cart-arrow-down", "/retira-medication")]
           : []),
-        {
-          label: "Simulador",
-          icon: "pi pi-calculator",
-          url: "/simulador",
-        },
+        navItem("Simulador", "pi pi-calculator", "/simulador"),
       ],
     },
     {
       label: "Pacientes",
       icon: "pi pi-users",
       items: [
-        {
-          label: "Lista de pacientes",
-          icon: "pi pi-users",
-          url: "/pacientes",
-        },
-        {
-          label: "Estoque comprometido",
-          icon: "pi pi-box",
-          url: "/estoque-comprometido",
-        },
+        navItem("Lista de pacientes", "pi pi-users", "/pacientes"),
+        navItem("Estoque comprometido", "pi pi-box", "/estoque-comprometido"),
       ],
     },
     {
       label: "Dashboards",
       icon: "pi pi-box",
       items: [
-        {
-          label: "Painel de Controle",
-          icon: "pi pi-chart-bar",
-          url: "/dashboard",
-        },
-        {
-          label: "Painel de Estoque",
-          icon: "pi pi-credit-card",
-          url: "/dashboard-stock",
-        },
+        navItem("Painel de Controle", "pi pi-chart-bar", "/dashboard"),
+        navItem("Painel de Estoque", "pi pi-credit-card", "/dashboard-stock"),
       ],
     },
-    {
-      label: "Histórico",
-      icon: "pi pi-history",
-      url: "/historico",
-    },
+    navItem("Histórico", "pi pi-history", "/historico"),
     {
       label: "Sair",
       icon: "pi pi-sign-out",
