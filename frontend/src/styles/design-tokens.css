@@ -162,11 +162,12 @@ h3 {
   color: rgba(255, 255, 255, 0.78);
 }
 
+/* Transitions only — never zero animation-duration here: infinite spinners
+   (ProgressSpinner / .pi-spin) would spin at ~0.01ms instead of slowing down. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
   }
 }
